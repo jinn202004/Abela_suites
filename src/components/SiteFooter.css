@@ -1,0 +1,19 @@
+.site-footer {
+  background: var(--footer-bg);
+  color: #fff;
+  padding: clamp(1.75rem, 4vw, 2.25rem) clamp(1.25rem, 4vw, 3rem);
+  text-align: center;
+}
+
+.site-footer__line {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.site-footer__tagline {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  color: var(--footer-text-muted);
+  line-height: 1.5;
+}

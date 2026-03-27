@@ -1,0 +1,327 @@
+.admin-events {
+  flex: 1;
+  padding: 1.25rem clamp(1rem, 2.5vw, 1.75rem) 2rem;
+  background: #faf8f5;
+}
+
+/* Event Management Dashboard (summary cards) */
+.admin-events__dashboard {
+  margin-bottom: 1.5rem;
+}
+
+.admin-events__dashboard-title {
+  margin: 0 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.35rem, 2.5vw, 1.65rem);
+  font-weight: 700;
+  color: var(--gold-dark);
+  letter-spacing: 0.02em;
+}
+
+.admin-events__dashboard-sub {
+  margin: 0 0 1.25rem;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: #3d3833;
+  max-width: 40rem;
+  line-height: 1.45;
+}
+
+.admin-events__dashboard-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+@media (max-width: 900px) {
+  .admin-events__dashboard-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.admin-events__dashboard-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.1rem 1.2rem;
+  background: #f9f5eb;
+  border-radius: 14px;
+  border: 1px solid #ebe6dc;
+  box-shadow: 0 4px 14px rgba(44, 40, 36, 0.07);
+}
+
+.admin-events__dashboard-card-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: var(--gold-dark);
+}
+
+.admin-events__dashboard-card-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-events__dashboard-card-label {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--gold-dark);
+  line-height: 1.3;
+}
+
+.admin-events__dashboard-card-value {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 3vw, 1.85rem);
+  font-weight: 700;
+  color: var(--gold-dark);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-events__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-events__heading {
+  margin: 0 0 0.35rem;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+}
+
+.admin-events__sub {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #6a645c;
+  max-width: 36rem;
+  line-height: 1.45;
+}
+
+.admin-events__add {
+  padding: 0.6rem 1.15rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #fff;
+  background: var(--gold);
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(138, 102, 32, 0.25);
+  transition:
+    background 0.2s ease,
+    opacity 0.2s ease;
+}
+
+.admin-events__add:hover:not(:disabled) {
+  background: var(--gold-dark);
+}
+
+.admin-events__add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.admin-events__banner {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  border-radius: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-events__banner--warn {
+  color: #5d4037;
+  background: #fff8e1;
+  border: 1px solid #ffe082;
+}
+
+.admin-events__banner--error {
+  color: #b71c1c;
+  background: #ffebee;
+  border: 1px solid #ffcdd2;
+}
+
+.admin-events__retry {
+  padding: 0.35rem 0.75rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--gold-dark);
+  background: #fff;
+  border: 1px solid rgba(166, 124, 51, 0.45);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.admin-events__retry:hover {
+  background: #faf8f5;
+}
+
+.admin-events__loading {
+  margin: 0;
+  font-family: var(--font-body);
+  color: #6a645c;
+}
+
+.admin-events__table-wrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid #ebe6dc;
+  background: #fff;
+  box-shadow: 0 2px 10px rgba(44, 40, 36, 0.06);
+}
+
+.admin-events__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+}
+
+.admin-events__table th,
+.admin-events__table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #f0ebe3;
+  vertical-align: middle;
+}
+
+.admin-events__table thead th {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #7a736a;
+  background: #faf8f5;
+}
+
+.admin-events__table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-events__row--clickable {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.admin-events__row--clickable:hover {
+  background: #faf8f5;
+}
+
+.admin-events__row--clickable:focus {
+  outline: none;
+}
+
+.admin-events__row--clickable:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: -2px;
+  background: #fffdf8;
+}
+
+.admin-events__th-actions {
+  width: 6.5rem;
+  text-align: right;
+}
+
+.admin-events__empty-cell {
+  text-align: center;
+  color: #9a948c;
+  padding: 2rem 1rem !important;
+}
+
+.admin-events__cell-venue {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.admin-events__cell-venue--thumb-only {
+  gap: 0;
+}
+
+.admin-events__thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
+  border: 1px solid #ebe6dc;
+}
+
+.admin-events__thumb--empty {
+  display: inline-block;
+  background: linear-gradient(135deg, #ebe6dc 0%, #ddd8cf 100%);
+}
+
+.admin-events__package {
+  font-weight: 600;
+  color: #2c2824;
+  min-width: 0;
+}
+
+.admin-events__price {
+  font-weight: 600;
+  color: #2c2824;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-events__actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.admin-events__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-left: 0.25rem;
+  padding: 0;
+  border: 1px solid rgba(166, 124, 51, 0.35);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--gold-dark);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.admin-events__icon-btn:hover:not(:disabled) {
+  background: #faf8f5;
+  border-color: var(--gold);
+}
+
+.admin-events__icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.admin-events__icon-btn--danger {
+  color: #c62828;
+  border-color: rgba(198, 40, 40, 0.35);
+}
+
+.admin-events__icon-btn--danger:hover:not(:disabled) {
+  background: #ffebee;
+  border-color: #c62828;
+}

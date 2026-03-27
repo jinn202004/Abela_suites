@@ -1,0 +1,162 @@
+.guest-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  width: 260px;
+  height: 100svh;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+  background: var(--guest-sidebar-bg);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 1.5rem 1rem 2rem;
+  box-sizing: border-box;
+  transition:
+    width 0.22s ease,
+    padding 0.22s ease;
+}
+
+.guest-sidebar__brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.guest-sidebar__logo-circle {
+  width: 7.5rem;
+  height: 7.5rem;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--guest-sidebar-bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.5rem;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.guest-sidebar__palm {
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-bottom: 0.15rem;
+}
+
+.guest-sidebar__logo-text {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  line-height: 1.1;
+  color: var(--guest-sidebar-bg);
+}
+
+.guest-sidebar__logo-text--sm {
+  font-size: 0.6rem;
+  letter-spacing: 0.18em;
+}
+
+.guest-sidebar__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.guest-sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: none;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-weight: 500;
+  transition: background 0.2s ease;
+}
+
+.guest-sidebar__link:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.guest-sidebar__link--active {
+  background: rgba(255, 255, 255, 0.18);
+  font-weight: 600;
+}
+
+.guest-sidebar__icon {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+}
+
+/* Collapsed (desktop toggle) — same idea as narrow breakpoint */
+.guest-sidebar--collapsed {
+  width: 72px;
+  padding: 1rem 0.5rem;
+}
+
+.guest-sidebar--collapsed .guest-sidebar__brand {
+  margin-bottom: 1.25rem;
+}
+
+.guest-sidebar--collapsed .guest-sidebar__logo-circle {
+  width: 3rem;
+  height: 3rem;
+  padding: 0.25rem;
+}
+
+.guest-sidebar--collapsed .guest-sidebar__palm,
+.guest-sidebar--collapsed .guest-sidebar__logo-text {
+  display: none;
+}
+
+.guest-sidebar--collapsed .guest-sidebar__link span {
+  display: none;
+}
+
+.guest-sidebar--collapsed .guest-sidebar__link {
+  justify-content: center;
+  padding: 0.75rem;
+}
+
+@media (max-width: 900px) {
+  .guest-sidebar {
+    width: 72px;
+    padding: 1rem 0.5rem;
+  }
+
+  .guest-sidebar__brand {
+    margin-bottom: 1.25rem;
+  }
+
+  .guest-sidebar__logo-circle {
+    width: 3rem;
+    height: 3rem;
+    padding: 0.25rem;
+  }
+
+  .guest-sidebar__palm,
+  .guest-sidebar__logo-text {
+    display: none;
+  }
+
+  .guest-sidebar__link span {
+    display: none;
+  }
+
+  .guest-sidebar__link {
+    justify-content: center;
+    padding: 0.75rem;
+  }
+}

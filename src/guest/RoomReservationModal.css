@@ -1,0 +1,827 @@
+/* Wider panel; reuses login-modal backdrop from ModalFrame */
+.room-reservation-modal.login-modal {
+  max-width: min(720px, 100%);
+  max-height: min(90vh, calc(100dvh - 2.5rem));
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(1.25rem, 3vw, 1.75rem) clamp(1.25rem, 3vw, 2rem) 1.75rem;
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(166, 124, 51, 0.1);
+}
+
+.room-reservation-modal--payment.login-modal {
+  max-width: min(920px, 100%);
+}
+
+.room-reservation-modal--agreements.login-modal {
+  max-width: min(720px, 100%);
+}
+
+.room-reservation-modal__agreements {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.room-reservation-modal__terms-scroll {
+  flex: 1;
+  min-height: 8rem;
+  max-height: min(240px, 38vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 0.85rem 1rem;
+  border: 1.5px solid #d4cdc2;
+  border-radius: 10px;
+  background: #faf9f7;
+  -webkit-overflow-scrolling: touch;
+}
+
+.room-reservation-modal__terms-body {
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: #3d3833;
+}
+
+.room-reservation-modal__terms-lead {
+  margin: 0 0 0.85rem;
+  color: #5c564e;
+}
+
+.room-reservation-modal__terms-heading {
+  margin: 0.85rem 0 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--gold);
+}
+
+.room-reservation-modal__terms-heading:first-of-type {
+  margin-top: 0;
+}
+
+.room-reservation-modal__terms-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.room-reservation-modal__terms-list li {
+  margin-bottom: 0.35rem;
+}
+
+.room-reservation-modal__terms-list li:last-child {
+  margin-bottom: 0;
+}
+
+.room-reservation-modal__agreement-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #2c2824;
+  cursor: pointer;
+}
+
+.room-reservation-modal__agreement-check {
+  flex-shrink: 0;
+  margin-top: 0.2rem;
+  accent-color: var(--gold-dark);
+  width: 1rem;
+  height: 1rem;
+}
+
+.room-reservation-modal__agreement-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-reservation-modal__agreement-link {
+  color: #1565c0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.room-reservation-modal__agreement-link:hover {
+  color: #0d47a1;
+}
+
+.room-reservation-modal__agreement-link:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.room-reservation-modal__required-agreements {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 10px;
+  border: 1px solid #e8e0d4;
+  background: #fffdf8;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.room-reservation-modal__required-agreements-title {
+  margin: 0 0 0.15rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+}
+
+.room-reservation-modal__agreements-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  padding-top: 0.15rem;
+}
+
+.room-reservation-modal__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-shrink: 0;
+  margin-bottom: 0.35rem;
+}
+
+.room-reservation-modal__head-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-reservation-modal__back {
+  display: block;
+  margin: 0 0 0.4rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--gold-dark);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.room-reservation-modal__back:hover {
+  color: var(--gold);
+}
+
+.room-reservation-modal__back:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.room-reservation-modal__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+
+.room-reservation-modal__close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: -0.25rem -0.35rem 0 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--gold-muted);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease;
+}
+
+.room-reservation-modal__close:hover {
+  background: var(--cream);
+  color: var(--gold-dark);
+}
+
+.room-reservation-modal__close:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.room-reservation-modal__room-name {
+  flex-shrink: 0;
+  margin: 0 0 1.25rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6a645c;
+}
+
+.room-reservation-modal__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.15rem;
+}
+
+.room-reservation-modal__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem 1.5rem;
+}
+
+@media (max-width: 640px) {
+  .room-reservation-modal__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.room-reservation-modal__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.room-reservation-modal__grid .room-reservation-modal__field--full {
+  grid-column: 1 / -1;
+}
+
+.room-reservation-modal__label {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #3d3833;
+}
+
+.room-reservation-modal__phone-warning {
+  margin: 0.35rem 0 0;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #c62828;
+}
+
+.room-reservation-modal__phone-row {
+  display: flex;
+  align-items: stretch;
+  border: 1.5px solid rgba(166, 124, 51, 0.45);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.room-reservation-modal__phone-row:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(166, 124, 51, 0.15);
+}
+
+.room-reservation-modal__phone-prefix {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0.6rem 0.65rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #5c564e;
+  background: #faf8f5;
+  border-right: 1px solid rgba(166, 124, 51, 0.35);
+}
+
+.room-reservation-modal__input--phone {
+  flex: 1;
+  min-width: 0;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.room-reservation-modal__input--phone:focus {
+  box-shadow: none !important;
+}
+
+.room-reservation-modal__input,
+.room-reservation-modal__textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  color: #2c2824;
+  background: #fff;
+  border: 1.5px solid rgba(166, 124, 51, 0.45);
+  border-radius: 8px;
+  outline: none;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.room-reservation-modal__input::placeholder,
+.room-reservation-modal__textarea::placeholder {
+  color: #a8a29a;
+}
+
+.room-reservation-modal__input:focus,
+.room-reservation-modal__textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(166, 124, 51, 0.15);
+}
+
+.room-reservation-modal__textarea {
+  resize: vertical;
+  min-height: 6rem;
+  line-height: 1.45;
+}
+
+.room-reservation-modal__input-with-icon {
+  position: relative;
+  display: block;
+}
+
+.room-reservation-modal__input-with-icon .room-reservation-modal__input {
+  padding-right: 2.5rem;
+}
+
+.room-reservation-modal__input-icon {
+  position: absolute;
+  right: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  color: var(--gold);
+  pointer-events: none;
+}
+
+.room-reservation-modal__id-row {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 0.5rem;
+}
+
+.room-reservation-modal__file {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.room-reservation-modal__icon-btn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  padding: 0;
+  border: 1.5px solid rgba(166, 124, 51, 0.45);
+  border-radius: 8px;
+  background: #faf8f5;
+  color: var(--gold);
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.room-reservation-modal__icon-btn:hover {
+  background: var(--cream);
+  border-color: var(--gold);
+}
+
+.room-reservation-modal__icon-btn:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.room-reservation-modal__id-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 0.65rem;
+  max-width: 100%;
+}
+
+.room-reservation-modal__id-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: min(200px, 40vh);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1.5px solid rgba(166, 124, 51, 0.35);
+  background: #faf8f5;
+}
+
+.room-reservation-modal__id-preview-remove {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #8b6914;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.room-reservation-modal__id-preview-remove:hover {
+  color: var(--gold-dark);
+}
+
+.room-reservation-modal__id-preview-remove:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.room-reservation-modal__error {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  color: #b71c1c;
+  background: #ffebee;
+  border-radius: 8px;
+  border: 1px solid #ffcdd2;
+}
+
+.room-reservation-modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 0.25rem;
+}
+
+.room-reservation-modal__submit {
+  padding: 0.65rem 1.5rem;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--gold) 0%, var(--gold-dark) 100%);
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(138, 102, 32, 0.35);
+  transition:
+    filter 0.2s ease,
+    transform 0.15s ease;
+}
+
+.room-reservation-modal__submit:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+}
+
+.room-reservation-modal__submit:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.room-reservation-modal__submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.room-reservation-modal__payment-summary {
+  margin: 0 0 1rem;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  color: #5c564e;
+  line-height: 1.45;
+}
+
+.room-reservation-modal__payment-summary strong {
+  color: var(--gold-dark);
+}
+
+.room-reservation-modal__payment {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 0.15rem;
+}
+
+.room-reservation-modal__payment-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(0, 1.15fr);
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .room-reservation-modal__payment-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.room-reservation-modal__payment-qr {
+  padding: 1rem;
+  background: #faf8f5;
+  border-radius: 12px;
+  border: 1px solid #ebe6dc;
+}
+
+.room-reservation-modal__payment-qr-label {
+  margin: 0 0 0.65rem;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+  text-align: center;
+}
+
+.room-reservation-modal__payment-qr-box {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.65rem;
+}
+
+.room-reservation-modal__payment-qr-img {
+  display: block;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.room-reservation-modal__payment-fees {
+  margin: 0 0 1rem;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: #7a736a;
+  text-align: center;
+}
+
+.room-reservation-modal__payment-masked {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: #3d3833;
+}
+
+.room-reservation-modal__payment-masked > div {
+  display: grid;
+  grid-template-columns: 5.5rem 1fr;
+  gap: 0.35rem;
+  margin-bottom: 0.45rem;
+}
+
+.room-reservation-modal__payment-masked dt {
+  margin: 0;
+  font-weight: 600;
+  color: #7a736a;
+}
+
+.room-reservation-modal__payment-masked dd {
+  margin: 0;
+}
+
+.room-reservation-modal__payment-form-wrap {
+  padding: 1rem 1.1rem;
+  background: #f9f5eb;
+  border: 1px solid #ebe6dc;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.room-reservation-modal__payment-form-title {
+  margin: 0 0 0.25rem;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--gold-dark);
+}
+
+.room-reservation-modal__payment-options {
+  margin: 0;
+  padding: 0 0 0.25rem;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.room-reservation-modal__payment-options .room-reservation-modal__label {
+  margin-bottom: 0.25rem;
+}
+
+.room-reservation-modal__radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  color: #3d3833;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.room-reservation-modal__radio input {
+  margin-top: 0.2rem;
+  accent-color: var(--gold-dark);
+}
+
+.room-reservation-modal__payment-drop {
+  position: relative;
+  display: block;
+  min-height: 7.5rem;
+  border: 2px dashed rgba(166, 124, 51, 0.45);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  transition:
+    border-color 0.2s ease,
+    background 0.2s ease;
+}
+
+.room-reservation-modal__payment-drop:hover {
+  border-color: var(--gold);
+  background: #fffdf8;
+}
+
+.room-reservation-modal__proof-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.room-reservation-modal__payment-drop-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 1.25rem 1rem;
+  pointer-events: none;
+  color: var(--gold-muted);
+}
+
+.room-reservation-modal__payment-drop-text {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  color: #7a736a;
+  text-align: center;
+}
+
+.room-reservation-modal__payment-proof-name {
+  font-size: 0.8rem;
+  color: #5c564e;
+  word-break: break-word;
+}
+
+.room-reservation-modal__proof-preview {
+  margin-top: 0.65rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 100%;
+}
+
+.room-reservation-modal__proof-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: min(220px, 38vh);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid rgba(166, 124, 51, 0.35);
+  background: #fff;
+}
+
+.room-reservation-modal__proof-preview-pdf {
+  width: 100%;
+  max-height: min(240px, 40vh);
+  border-radius: 8px;
+  border: 1px solid rgba(166, 124, 51, 0.35);
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+.room-reservation-modal__proof-preview-iframe {
+  display: block;
+  width: 100%;
+  height: min(220px, 35vh);
+  border: none;
+}
+
+.room-reservation-modal__proof-preview-fallback {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: #5c564e;
+  line-height: 1.45;
+  background: #faf8f5;
+  border-radius: 8px;
+  border: 1px dashed rgba(166, 124, 51, 0.4);
+}
+
+.room-reservation-modal__proof-preview-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.room-reservation-modal__proof-preview-remove {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #8b6914;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.room-reservation-modal__proof-preview-remove:hover {
+  color: var(--gold-dark);
+}
+
+.room-reservation-modal__proof-preview-remove:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.room-reservation-modal__payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+}
+
+.room-reservation-modal__btn-secondary {
+  padding: 0.6rem 1.15rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #2c2824;
+  background: #fff;
+  border: 1.5px solid #3d3833;
+  border-radius: 10px;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.room-reservation-modal__btn-secondary:hover {
+  background: #fafafa;
+}
+
+.room-reservation-modal__btn-secondary:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}

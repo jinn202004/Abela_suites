@@ -1,0 +1,68 @@
+/* Overlay class is composed with .modal-overlay.open.abel-modal from Modal.jsx */
+.logout-confirm-overlay.modal-overlay {
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.logout-confirm-box {
+  width: 100%;
+  max-width: 380px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px 24px 22px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.logout-confirm-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #3a2e1e;
+  margin-bottom: 8px;
+}
+
+.logout-confirm-sub {
+  font-size: 14px;
+  color: #6b5a3e;
+  margin-bottom: 22px;
+  line-height: 1.45;
+}
+
+.logout-confirm-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.logout-confirm-actions button {
+  min-width: 120px;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.logout-confirm-cancel {
+  background: #f5f0e8;
+  color: #3a2e1e;
+  border: 1px solid #d4c4a8 !important;
+}
+
+.logout-confirm-cancel:hover {
+  border-color: #b8922a;
+}
+
+.logout-confirm-ok {
+  background: #b8922a;
+  color: #fff;
+}
+
+.logout-confirm-ok:hover {
+  background: #9a7520;
+}

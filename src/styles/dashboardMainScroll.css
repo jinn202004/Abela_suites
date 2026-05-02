@@ -1,0 +1,97 @@
+/**
+ * Sidebar dashboards (admin, frontdesk, cashier, housekeeping, guests) import many CSS files
+ * that set html/body/#root overflow: hidden. Flex children default to min-height: auto, so
+ * .main-wrapper > .content often never gets a scrollable overflow. These rules restore a proper
+ * flex chain and vertical scrolling on the main column.
+ *
+ * Excluded:
+ * - html.abela-auth-scroll (full-page login/signup — uses logIn/authRouteScroll.css)
+ * - html.homedashboard-route (marketing page — uses guests/homedashboard.css)
+ */
+
+/* ── Legacy shell: sidebar + .main-wrapper + .content ── */
+html:not(.abela-auth-scroll):not(.homedashboard-route) .main-wrapper {
+  min-height: 0 !important;
+}
+
+html:not(.abela-auth-scroll):not(.homedashboard-route) .main-wrapper > .content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Front desk rooms: .app-layout > .main-wrapper > .content */
+html:not(.abela-auth-scroll):not(.homedashboard-route) .app-layout > .main-wrapper > .content {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* Admin / guest router shells (Outlet column) */
+html:not(.abela-auth-scroll):not(.homedashboard-route) .admin-layout,
+html:not(.abela-auth-scroll):not(.homedashboard-route) .guest-layout {
+  display: flex !important;
+  width: 100% !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  min-height: 100svh !important;
+}
+
+html:not(.abela-auth-scroll):not(.homedashboard-route) .admin-layout__content,
+html:not(.abela-auth-scroll):not(.homedashboard-route) .guest-layout__content {
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-height: 100vh !important;
+  max-height: 100dvh !important;
+  max-height: 100svh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* admin_1 room/staff roots: flex column + scrollable main-wrapper */
+html:not(.abela-auth-scroll):not(.homedashboard-route) .rm-app > .main-wrapper,
+html:not(.abela-auth-scroll):not(.homedashboard-route) .app-root > .main-wrapper {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+/* Cashier POS: two-column layout uses inner scroll; stacked layout (≤900px) must scroll the whole page */
+html:not(.abela-auth-scroll):not(.homedashboard-route) .abela-pos-app .main-wrapper > .content {
+  overflow-y: hidden !important;
+}
+
+/* Narrow POS: menu + order stack vertically; allow .content to scroll or the order panel is clipped. */
+@media (max-width: 900px) {
+  html:not(.abela-auth-scroll):not(.homedashboard-route) .abela-pos-app .main-wrapper > .content {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/*
+ * Housekeeping / guest: keep overflow-x on .content as hidden (see global rule above).
+ * Wide tables scroll inside .rm-table-wrap / .rc-table-wrap with max-width:100%; min-width:0.
+ * Letting .content also scroll on the x axis broke two-axis scrolling on mobile (table body
+ * could disappear below the header while the thead remained visible).
+ */
+html:not(.abela-auth-scroll):not(.homedashboard-route) .housekeeping-portal-layout .main-wrapper > .content,
+html:not(.abela-auth-scroll):not(.homedashboard-route) .guest-portal-layout .main-wrapper > .content {
+  min-width: 0 !important;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px)) !important;
+  scroll-padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px)) !important;
+}
+
+/* Front desk: same inner table-wrap pattern; x-scroll on .content only if inner wraps still clip. */
+html:not(.abela-auth-scroll):not(.homedashboard-route) .frontdesk-app .main-wrapper > .content {
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  padding-bottom: max(2rem, env(safe-area-inset-bottom, 0px)) !important;
+  scroll-padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 0px)) !important;
+}

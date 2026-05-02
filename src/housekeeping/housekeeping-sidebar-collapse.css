@@ -1,0 +1,168 @@
+/* Housekeeping rail: same mobile drawer + collapse behavior as admin_1 (see admin-sidebar-collapse.css). */
+html[data-housekeeping-sidebar-collapsed="true"] .housekeeping-portal-layout,
+html[data-housekeeping-sidebar-collapsed="true"] .hk-settings-page-root {
+  --sidebar-w: 64px;
+}
+
+.sidebar.housekeeping-rail-shell .sidebar-logo,
+.sidebar.housekeeping-rail-shell a.sidebar-logo {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Only mounted when the mobile drawer is open (no hidden hit-target when closed). */
+.housekeeping-mobile-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 650;
+  cursor: pointer;
+}
+
+/* Top bar toggle: base reset (admin-dashboard.css is not loaded on Housekeeping routes). */
+.housekeeping-portal-layout .topbar .breadcrumb-arrow-btn,
+.hk-settings-page-root .topbar .breadcrumb-arrow-btn {
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+  line-height: 1;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.housekeeping-portal-layout .topbar .breadcrumb-arrow-btn:hover,
+.hk-settings-page-root .topbar .breadcrumb-arrow-btn:hover {
+  background: rgba(184, 146, 42, 0.12);
+}
+.housekeeping-portal-layout .topbar .breadcrumb-arrow-btn:focus-visible,
+.hk-settings-page-root .topbar .breadcrumb-arrow-btn:focus-visible {
+  outline: 2px solid var(--gold, #b8922a);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell {
+    width: 50vw !important;
+    min-width: 50vw !important;
+    max-width: 50vw !important;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell .sidebar-logo,
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell a.sidebar-logo {
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell .sidebar-logo-img,
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell .sidebar-logo img {
+    width: 120px !important;
+    height: 120px !important;
+    max-width: 120px !important;
+    max-height: 120px !important;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell .nav-item > span:last-child {
+    display: inline !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+    overflow-wrap: anywhere !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell .nav-item {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 16px 22px !important;
+    gap: 14px !important;
+    text-align: left !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell .nav-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell .sidebar-nav {
+    overflow-x: visible !important;
+  }
+
+  .housekeeping-mobile-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.12);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .housekeeping-mobile-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  /* Full-width main when the rail is a drawer (matches admin_1 mobile behavior). */
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell + .main-wrapper {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell + .main-wrapper .content,
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell + .main-wrapper .rm-wrap,
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell + .main-wrapper .rc-wrap {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell + .main-wrapper .rm-table-wrap,
+  .sidebar.housekeeping-rail-shell.housekeeping-mobile-shell + .main-wrapper .rc-table-wrap {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

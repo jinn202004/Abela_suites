@@ -1,0 +1,413 @@
+.admin-general-page {
+  --gold:      #9e7e2a;
+  --gold-dark: #8a6d24;
+  --sidebar-w: 260px;
+  --topbar-h:  62px;
+  --text-dark: #3a2e1e;
+  --text-mid:  #6b5a3e;
+  --text-light:#9a8060;
+  --border:    #d4b97a;
+  --bg-page:   #fdf8f0;
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--bg-page);
+  font-family: 'Roboto', sans-serif;
+  color: var(--text-dark);
+}
+
+.admin-general-page *,
+.admin-general-page *::before,
+.admin-general-page *::after {
+  box-sizing: border-box;
+}
+
+/* ── SIDEBAR ── */
+.admin-general-page .sidebar {
+    width: var(--sidebar-w);
+    height: 100vh;
+    max-height: 100vh;
+    background: #b8922a;
+    position: fixed; left: 0; top: 0;
+    z-index: 400;
+    display: flex; flex-direction: column; align-items: center;
+    overflow: hidden;
+  }
+  .admin-general-page .sidebar-logo { padding: 15px; border-bottom: 1px solid rgba(255,255,255,.3); width: 100%; display: flex; justify-content: center; flex-shrink: 0; }
+  .admin-general-page .sidebar-logo img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid white; }
+  .admin-general-page .sidebar-nav {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .admin-general-page .sidebar-nav::-webkit-scrollbar { width: 3px; }
+  .admin-general-page .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+  .admin-general-page .nav-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 22px; text-decoration: none; color: white;
+    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px;
+  }
+  .admin-general-page .nav-item:hover  { background: rgba(0,0,0,0.10); }
+  .admin-general-page .nav-item.active { background: rgba(0,0,0,0.20); }
+  .admin-general-page .nav-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .admin-general-page .nav-icon svg { width: 24px; height: 24px; }
+  
+  /* ── MAIN WRAPPER ── */
+  .admin-general-page .main-wrapper {
+    margin-left: var(--sidebar-w);
+    width: calc(100% - var(--sidebar-w));
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-width: 0;
+    background: var(--bg-page);
+  }
+
+  /* ── TOP BAR ── */
+  .admin-general-page .topbar {
+    position: sticky; top: 0;
+    min-height: var(--topbar-h);
+    height: auto;
+    background: var(--bg-page);
+    border-bottom: 1px solid rgba(184, 145, 48, 0.22);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 16px;
+    z-index: 300;
+  }
+  .admin-general-page .topbar-breadcrumb {
+    display: flex; align-items: center; gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .admin-general-page .breadcrumb-arrow  { font-size: 22px; font-weight: 700; color: var(--gold); line-height: 1; flex-shrink: 0; }
+  .admin-general-page .breadcrumb-title  {
+    font-family: 'Montserrat', sans-serif; font-size: 17px; font-weight: 700; color: var(--gold); letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .admin-general-page .topbar-actions    { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .admin-general-page .icon-btn {
+    position: relative; display: flex; align-items: center; gap: 4px;
+    cursor: pointer; padding: 6px; border-radius: 50%; transition: background 0.2s; user-select: none;
+  }
+  .admin-general-page .icon-btn:hover { background: rgba(184,146,42,0.10); }
+
+  .admin-general-page .topbar-icon { width: 28px; height: 28px; color: var(--text-mid); flex-shrink: 0; }
+  .admin-general-page .topbar-dropdown-user-icon { width: 18px; height: 18px; flex-shrink: 0; vertical-align: middle; margin-right: 2px; }
+  .admin-general-page .topbar-icon { width: 28px; height: 28px; object-fit: contain; }
+  .admin-general-page .notif-dot { position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; background: #e74c3c; border-radius: 50%; border: 2px solid #fff; }
+  .admin-general-page .user-arrow { font-size: 14px; color: var(--text-mid); transition: transform 0.2s; line-height: 1; }
+  
+  /* ── DROPDOWNS ── */
+  .admin-general-page .dropdown {
+    display: none; position: absolute; top: calc(100% + 10px); right: 0;
+    background: #fff; border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.16);
+    border: 1px solid #e8dcc8; z-index: 999; min-width: 220px; overflow: hidden;
+    animation: ddFadeIn 0.18s ease both;
+  }
+  .admin-general-page .dropdown.open { display: block; }
+  @keyframes ddFadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  .admin-general-page .notif-dropdown { min-width: 270px; max-height: 280px; overflow-y: auto; }
+  .admin-general-page .notif-item { padding: 12px 16px; border-bottom: 1px solid #f0e8d8; cursor: pointer; transition: background 0.15s; }
+  .admin-general-page .notif-item:last-child { border-bottom: none; }
+  .admin-general-page .notif-item:hover { background: #fdf8f0; }
+  .admin-general-page .notif-msg  { font-size: 13px; color: var(--text-dark); margin-bottom: 3px; line-height: 1.4; }
+  .admin-general-page .notif-time { font-size: 11px; color: var(--text-light); }
+  .admin-general-page .user-dropdown { min-width: 200px; }
+  .admin-general-page .user-dropdown-item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; font-size: 13.5px; color: var(--text-dark); cursor: pointer; border-bottom: 1px solid #f0e8d8; transition: background 0.15s; }
+  .admin-general-page .user-dropdown-item:last-child { border-bottom: none; }
+  .admin-general-page .user-dropdown-item:hover { background: #fdf8f0; }
+  .admin-general-page .user-dropdown-item svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--text-mid); }
+  
+  /* ══════════════════════════════════════
+     PAGE CONTENT
+  ══════════════════════════════════════ */
+  .admin-general-page .content { flex: 1; padding: 28px 32px; display: flex; flex-direction: column; gap: 20px; }
+  
+  /* ── Page header ── */
+  .admin-general-page .gen-page-header { display: flex; align-items: flex-start; justify-content: space-between; }
+  .admin-general-page .gen-back-row    { display: flex; align-items: center; gap: 10px; }
+  .admin-general-page .gen-back-arrow  { font-size: 30px; font-weight: 700; color: var(--gold); text-decoration: none; line-height: 1; transition: opacity 0.2s; }
+  .admin-general-page .gen-back-arrow:hover { opacity: 0.7; }
+  .admin-general-page .gen-title { font-family: 'Montserrat', sans-serif; font-size: 22px; font-weight: 800; color: var(--gold); }
+  .admin-general-page .gen-sub   { font-size: 13px; color: var(--text-light); margin-top: 3px; }
+  
+  .admin-general-page .gen-save-btn {
+    padding: 11px 32px;
+    background: var(--gold-dark); color: #fff;
+    border: none; border-radius: 9px;
+    font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 700;
+    cursor: pointer; transition: background 0.2s; white-space: nowrap; flex-shrink: 0;
+  }
+  .admin-general-page .gen-save-btn:hover { background: var(--gold); }
+  
+  /* ══════════════════════════════════════
+     TOP ROW: DISCOUNTS + HOLIDAYS side by side
+  ══════════════════════════════════════ */
+  .admin-general-page .gen-top-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  
+  /* ══════════════════════════════════════
+     PANEL CARD (shared)
+  ══════════════════════════════════════ */
+  .admin-general-page .gen-panel {
+    background: #fff;
+    border: 1px solid #e8dcc8;
+    border-radius: 14px;
+    padding: 24px 26px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .admin-general-page .gen-panel-header { display: flex; align-items: center; gap: 10px; }
+  .admin-general-page .gen-panel-icon   { color: var(--gold); flex-shrink: 0; }
+  .admin-general-page .gen-panel-title  { font-family: 'Montserrat', sans-serif; font-size: 15px; font-weight: 800; color: var(--text-dark); }
+  .admin-general-page .gen-panel-sub    { font-size: 12.5px; color: var(--text-light); line-height: 1.5; margin-top: -6px; }
+  
+  /* ── Form label ── */
+  .admin-general-page .gen-label { font-family: 'Roboto', sans-serif; font-size: 13px; font-weight: 600; color: var(--text-dark); margin-bottom: -8px; }
+  
+  /* ── Select ── */
+  .admin-general-page .gen-select-wrap { position: relative; }
+  .admin-general-page .gen-select {
+    width: 100%; height: 44px;
+    padding: 0 36px 0 14px;
+    border: 1.5px solid #d4c4a8; border-radius: 9px;
+    font-family: 'Roboto', sans-serif; font-size: 13.5px; color: var(--text-dark);
+    background: #fff; outline: none; appearance: none; cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .admin-general-page .gen-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184,146,42,0.10); }
+  .admin-general-page .gen-select-wrap::after { content: '\25BE'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-mid); font-size: 14px; }
+  
+  /* ── Add Discount button ── */
+  .admin-general-page .gen-add-discount-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 11px 0;
+    background: #e74c3c; color: #fff;
+    border: none; border-radius: 9px;
+    font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: background 0.2s; width: 100%;
+  }
+  .admin-general-page .gen-add-discount-btn:hover { background: #c0392b; }
+  
+  /* ── Discount list ── */
+  .admin-general-page .gen-discount-list { display: flex; flex-direction: column; gap: 8px; }
+  .admin-general-page .gen-discount-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 16px;
+    background: #faf5ec; border: 1px solid #e8dcc8; border-radius: 9px;
+    font-family: 'Roboto', sans-serif; font-size: 13.5px; color: var(--text-dark);
+    transition: box-shadow 0.15s;
+  }
+  .admin-general-page .gen-discount-item:hover { box-shadow: 0 2px 8px rgba(184,146,42,0.10); }
+  .admin-general-page .gen-discount-actions { display: flex; gap: 6px; }
+  .admin-general-page .icon-action { background: none; border: none; cursor: pointer; padding: 5px 7px; border-radius: 6px; display: flex; align-items: center; transition: background 0.15s; }
+  .admin-general-page .edit-btn        { color: var(--gold-dark); }
+  .admin-general-page .edit-btn:hover  { background: #fdf5e6; }
+  .admin-general-page .del-btn         { color: #e74c3c; }
+  .admin-general-page .del-btn:hover   { background: #fdecea; }
+  
+  /* ── Discount name + badge ── */
+  .admin-general-page .disc-name-wrap {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 2px;
+  }
+  .admin-general-page .disc-pct-badge {
+    font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 700;
+    background: #fef3d0; color: #9a7520;
+    border: 1px solid #e8d48a; border-radius: 20px;
+    padding: 2px 10px; margin-left: 8px; white-space: nowrap;
+  }
+  
+  /* ── Holiday input row ── */
+  .admin-general-page .gen-holiday-input-row { display: flex; gap: 10px; align-items: center; }
+  .admin-general-page .gen-date-input {
+    flex: 1; height: 44px; padding: 0 14px;
+    border: 1.5px solid #d4c4a8; border-radius: 9px;
+    font-family: 'Roboto', sans-serif; font-size: 13.5px; color: var(--text-dark);
+    background: #fff; outline: none; transition: border-color 0.2s;
+  }
+  .admin-general-page .gen-date-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184,146,42,0.10); }
+  .admin-general-page .gen-add-holiday-btn {
+    padding: 11px 18px;
+    background: var(--gold-dark); color: #fff;
+    border: none; border-radius: 9px;
+    font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; white-space: nowrap; transition: background 0.2s;
+  }
+  .admin-general-page .gen-add-holiday-btn:hover { background: var(--gold); }
+  
+  /* ── Holiday list ── */
+  .admin-general-page .gen-holiday-list { display: flex; flex-direction: column; gap: 8px; }
+  .admin-general-page .gen-holiday-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 16px;
+    background: #faf5ec; border: 1px solid #e8dcc8; border-radius: 9px;
+    font-family: 'Roboto', sans-serif; font-size: 13.5px; color: var(--text-dark);
+    transition: box-shadow 0.15s;
+  }
+  .admin-general-page .gen-holiday-item:hover { box-shadow: 0 2px 8px rgba(184,146,42,0.10); }
+  
+  /* ══════════════════════════════════════
+     AUDIT LOGS — full width below
+  ══════════════════════════════════════ */
+  .admin-general-page .gen-audit-panel {
+    background: #fff;
+    border: 1px solid #e8dcc8;
+    border-radius: 14px;
+    padding: 24px 26px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .admin-general-page .gen-audit-search-wrap { position: relative; max-width: 460px; }
+  .admin-general-page .gen-audit-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .admin-general-page .gen-audit-search-input {
+    width: 100%; height: 42px;
+    padding: 0 14px 0 36px;
+    border: 1.5px solid #d4c4a8; border-radius: 9px;
+    font-family: 'Roboto', sans-serif; font-size: 13.5px; color: var(--text-dark);
+    background: #fff; outline: none; transition: border-color 0.2s;
+  }
+  .admin-general-page .gen-audit-search-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184,146,42,0.10); }
+  .admin-general-page .gen-audit-search-input::placeholder { color: #bbb; }
+  
+  .admin-general-page .gen-audit-table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid #e8dcc8; }
+  .admin-general-page .gen-audit-table { width: 100%; min-width: 640px; border-collapse: collapse; font-family: 'Roboto', sans-serif; font-size: 13.5px; }
+  .admin-general-page .gen-audit-table thead tr { background: #faf5ec; border-bottom: 1.5px solid #e8dcc8; }
+  .admin-general-page .gen-audit-table th {
+    padding: 13px 18px; text-align: left;
+    font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 700;
+    color: var(--text-dark);
+  }
+  .admin-general-page .gen-audit-table td { padding: 12px 18px; color: var(--text-dark); border-bottom: 1px solid #f0e8d8; }
+  .admin-general-page .gen-audit-table tbody tr:last-child td { border-bottom: none; }
+  .admin-general-page .gen-audit-table tbody tr:hover td { background: rgba(184,146,42,0.04); }
+  .admin-general-page .audit-success { color: #27ae60; font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; background: #e8f8f0; padding: 3px 10px; border-radius: 20px; }
+  
+  /* ══════════════════════════════════════
+     DISCOUNT MODAL (Add / Edit)
+  ══════════════════════════════════════ */
+  .admin-general-page .disc-modal-backdrop {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.32); z-index: 700;
+    align-items: center; justify-content: center;
+  }
+  .admin-general-page .disc-modal-backdrop.active { display: flex; }
+  .admin-general-page .disc-modal {
+    background: #fff; border-radius: 14px;
+    padding: 30px 32px 24px; width: 360px; max-width: 94vw;
+    box-shadow: 0 16px 50px rgba(0,0,0,0.22);
+    animation: modalIn 0.22s ease both;
+  }
+  .admin-general-page .disc-modal-title {
+    font-family: 'Montserrat', sans-serif; font-size: 16px;
+    font-weight: 800; color: #3a2e1e; margin-bottom: 20px;
+  }
+  .admin-general-page .disc-modal-field { margin-bottom: 16px; }
+  .admin-general-page .disc-modal-label {
+    font-family: 'Roboto', sans-serif; font-size: 12.5px;
+    font-weight: 600; color: #3a2e1e; margin-bottom: 6px; display: block;
+  }
+  .admin-general-page .disc-modal-input {
+    width: 100%; height: 44px; padding: 0 14px;
+    border: 1.5px solid #d4c4a8; border-radius: 9px;
+    font-family: 'Roboto', sans-serif; font-size: 13.5px; color: #3a2e1e;
+    background: #fff; outline: none; transition: border-color 0.2s;
+  }
+  .admin-general-page .disc-modal-input:focus {
+    border-color: #b8922a;
+    box-shadow: 0 0 0 3px rgba(184,146,42,0.10);
+  }
+  .admin-general-page .disc-pct-wrap { position: relative; }
+  .admin-general-page .disc-pct-wrap .disc-modal-input { padding-right: 38px; }
+  .admin-general-page .disc-pct-symbol {
+    position: absolute; right: 13px; top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Montserrat', sans-serif; font-size: 14px;
+    font-weight: 700; color: #9a7520; pointer-events: none;
+  }
+  .admin-general-page .disc-modal-btns { display: flex; gap: 10px; margin-top: 6px; }
+  .admin-general-page .disc-modal-cancel {
+    flex: 1; padding: 11px 0; background: transparent;
+    color: #3a2e1e; border: 1.5px solid #d4c4a8; border-radius: 8px;
+    font-size: 13.5px; cursor: pointer; font-family: 'Roboto', sans-serif;
+    transition: border-color 0.2s;
+  }
+  .admin-general-page .disc-modal-cancel:hover { border-color: #b8922a; }
+  .admin-general-page .disc-modal-save {
+    flex: 1; padding: 11px 0; background: #9a7520; color: #fff;
+    border: none; border-radius: 8px;
+    font-family: 'Montserrat', sans-serif; font-size: 13.5px;
+    font-weight: 700; cursor: pointer; transition: background 0.2s;
+  }
+  .admin-general-page .disc-modal-save:hover { background: #b8922a; }
+  .admin-general-page .disc-modal-err {
+    font-size: 12px; color: #e74c3c;
+    margin-top: 6px; display: none;
+  }
+  
+  /* ── Confirm dialog ── */
+  .admin-general-page .gen-confirm-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.30); z-index: 600; align-items: center; justify-content: center; }
+  .admin-general-page .gen-confirm-backdrop.active { display: flex; }
+  .admin-general-page .gen-confirm-dialog { background: #fff; border-radius: 12px; padding: 36px 48px 28px; text-align: center; max-width: 340px; width: 90%; box-shadow: 0 16px 50px rgba(0,0,0,0.28); animation: modalIn 0.25s ease both; }
+  @keyframes modalIn { from { opacity:0; transform:translateY(18px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
+  .admin-general-page .gen-confirm-icon    { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px; }
+  .admin-general-page .gen-confirm-exclaim { position: absolute; font-family: 'Montserrat', sans-serif; font-size: 36px; font-weight: 800; color: #e74c3c; line-height: 1; }
+  .admin-general-page .gen-confirm-title   { font-family: 'Montserrat', sans-serif; font-size: 19px; font-weight: 700; color: var(--gold); margin-bottom: 6px; }
+  .admin-general-page .gen-confirm-sub     { font-size: 12.5px; color: var(--text-mid); margin-bottom: 22px; }
+  .admin-general-page .gen-confirm-btns    { display: flex; justify-content: center; gap: 12px; }
+  .admin-general-page .gen-confirm-cancel  { padding: 11px 30px; background: transparent; color: var(--text-dark); border: 1.5px solid #d4c4a8; border-radius: 8px; font-size: 14px; cursor: pointer; font-family: 'Roboto', sans-serif; transition: border-color 0.2s; }
+  .admin-general-page .gen-confirm-cancel:hover { border-color: var(--gold); }
+  .admin-general-page .gen-confirm-delete  { padding: 11px 30px; background: #e74c3c; color: #fff; border: none; border-radius: 8px; font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.2s; }
+  .admin-general-page .gen-confirm-delete:hover { background: #c0392b; }
+  
+  /* ── Toast ── */
+  .admin-general-page .gen-toast {
+    position: fixed; top: 72px; left: 50%; transform: translate(-50%, -10px);
+    z-index: 700; background: #fff; border: 2px solid #2ecc71; border-radius: 12px;
+    padding: 14px 26px; display: none; align-items: center; gap: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.13); min-width: 290px;
+    font-family: 'Roboto', sans-serif; font-size: 14px; color: var(--text-dark);
+  }
+  .admin-general-page .gen-toast.active { display: flex; animation: toastIn 0.28s ease both; }
+  @keyframes toastIn { from { opacity:0; transform:translate(-50%,-10px); } to { opacity:1; transform:translate(-50%,0); } }
+  
+  /* ── Responsive ── */
+  @media (max-width: 900px) { .admin-general-page .gen-top-row { grid-template-columns: 1fr; } }
+  @media (max-width: 768px) {
+    .admin-general-page .sidebar { width: 64px; }
+    .admin-general-page .nav-item span:last-child { display: none; }
+    .admin-general-page .nav-item { justify-content: center; padding: 14px 10px; }
+    .admin-general-page .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
+    .admin-general-page .content { padding: 14px 12px; }
+    .admin-general-page .gen-page-header { flex-direction: column; gap: 12px; }
+    .admin-general-page .breadcrumb-title { font-size: 15px; }
+    .admin-general-page .notif-dropdown { max-width: min(270px, calc(100vw - 20px)); }
+    .admin-general-page .gen-toast { min-width: 0; max-width: calc(100vw - 24px); padding: 12px 16px; }
+    .admin-general-page .gen-audit-table-wrap { -webkit-overflow-scrolling: touch; }
+    .admin-general-page .gen-audit-table { min-width: 580px; font-size: 12.5px; }
+    .admin-general-page .gen-audit-table th,
+    .admin-general-page .gen-audit-table td { padding: 10px 10px; }
+  }
+
+  @media (max-width: 480px) {
+    .admin-general-page .breadcrumb-title { font-size: 14px; }
+  }

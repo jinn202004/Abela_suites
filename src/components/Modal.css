@@ -1,0 +1,76 @@
+/* Reusable Modal — works with existing .modal-overlay / .modal-box rules from page CSS; adds behavior + polish */
+
+.modal-overlay.abel-modal--top {
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 16px 32px;
+}
+
+.modal-overlay.abel-modal--center {
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.modal-overlay.abel-modal {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  backdrop-filter: blur(2px);
+}
+
+.modal-box.abel-modal-panel {
+  position: relative;
+  max-height: min(90vh, 880px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  animation: abel-modal-panel-in 0.26s ease both;
+}
+
+.modal-box.modal-xl.abel-modal-panel,
+.modal-box.modal-xl {
+  max-width: 800px;
+}
+
+.modal-box.abel-modal-panel:focus {
+  outline: none;
+}
+
+.abel-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.abel-modal-footer {
+  flex-shrink: 0;
+}
+
+@keyframes abel-modal-panel-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.modal-overlay.abel-modal--center .modal-box.abel-modal-panel {
+  transform-origin: center center;
+  max-height: min(92vh, 900px);
+}
+
+/* Centered “shell” dialogs that reuse .confirm-box / .success-box (white panel) */
+.modal-overlay.abel-modal--center .modal-box.abel-modal-panel.confirm-box,
+.modal-overlay.abel-modal--center .modal-box.abel-modal-panel.success-box {
+  max-height: min(92vh, 640px);
+}

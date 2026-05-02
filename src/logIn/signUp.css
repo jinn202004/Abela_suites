@@ -1,0 +1,550 @@
+:root {
+    --gold:       #b8922a;
+    --gold-light: #c9a84c;
+    --cream:      #fdf8f0;
+    --white:      #ffffff;
+    --text-dark:  #3a2e1e;
+    --text-mid:   #6b5a3e;
+    --text-light: #9a8060;
+    --border:     #d4b97a;
+  }
+  
+  /* ── BACKGROUND ── */
+  .bgImage {
+    position: fixed;
+    inset: 0;
+    background-image: url("/login-background.png");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    z-index: 0;
+  }
+  
+  .bgOverlay {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(20,13,3,0.45) 0%, rgba(60,42,8,0.30) 100%);
+    z-index: 1;
+  }
+  
+  /* ── NAVBAR ── */
+  .navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 36px;
+    background: var(--cream);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.13);
+  }
+  
+  .navBrand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  
+  .navLogoImg {
+    height: 70px;
+    width: 70px;
+    object-fit: contain;
+    border-radius: 50%;
+  }
+  
+  .brandName {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+  
+  .navLinks {
+    display: flex;
+    list-style: none;
+    gap: 44px;
+    margin-left: auto;
+    margin-right: 48px;
+  }
+  
+  .navLinks a {
+    text-decoration: none;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--gold);
+    letter-spacing: 0.04em;
+    transition: color 0.2s;
+  }
+  
+  .navLinks a:hover {
+    color: var(--gold-light);
+  }
+  
+  .btnLoginNav {
+    background: var(--gold);
+    color: var(--white);
+    text-decoration: none;
+    padding: 9px 26px;
+    border-radius: 6px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: background 0.2s, transform 0.15s;
+  }
+  
+  .btnLoginNav:hover {
+    background: var(--gold-light);
+    transform: translateY(-1px);
+  }
+  
+  /* ── MAIN CONTENT ── */
+  .mainContent {
+    position: relative;
+    z-index: 10;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 80px;
+    padding-bottom: 40px;
+  }
+  
+  /* ── SIGN UP CARD ── */
+  .signupCard {
+    background: rgba(253,248,240,0.97);
+    border-radius: 6px;
+    width: 100%;
+    max-width: 480px;
+    padding: 32px 44px 32px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.45), 0 0 0 1px rgba(212,185,122,0.25);
+    animation: cardFadeIn 0.55s ease both;
+  }
+  
+  @keyframes cardFadeIn {
+    from { opacity: 0; transform: translateY(22px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  
+  /* ── CARD LOGO ── */
+  .cardLogo {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  
+  .cardLogoImg {
+    width: 200px;
+    height: 200px;
+    object-fit: contain;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  
+  .cardDivider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: center;
+    margin-top: 10px;
+  }
+  
+  /* ── FORM ── */
+  .signupForm {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: -20px;
+  }
+  
+  /* ── SIDE-BY-SIDE ROW ── */
+  .formRow {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  
+  .formGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .formGroup label {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-mid);
+    margin-bottom: 2px;
+  }
+  
+  .formGroup input[type="text"],
+  .formGroup input[type="password"] {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: 'Roboto', sans-serif;
+    color: var(--text-dark);
+    background: var(--white);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  
+  .formGroup input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184,146,42,0.13);
+  }
+  
+  .formGroup input::placeholder {
+    color: #bba882;
+  }
+  
+  /* ── INPUT ERROR STATE ── */
+  .inputError {
+    border-color: #e74c3c !important;
+    box-shadow: 0 0 0 3px rgba(231,76,60,0.12) !important;
+  }
+  
+  /* ── FIELD-LEVEL ERROR TEXT ── */
+  .fieldErr {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #c0392b;
+    margin-top: 1px;
+  }
+  
+  .fieldErrVisible {
+    display: flex;
+  }
+  
+  .fieldErr::before,
+  .fieldErrVisible::before {
+    content: '';
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    min-width: 13px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e74c3c' stroke-width='2.2'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Ccircle cx='12' cy='16' r='0.6' fill='%23e74c3c'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    flex-shrink: 0;
+  }
+  
+  /* ── MAIN ERROR BANNER ── */
+  .errorMessage {
+    display: none;
+    align-items: center;
+    gap: 10px;
+    background: #fdecea;
+    border: 1.5px solid #e74c3c;
+    border-radius: 7px;
+    padding: 10px 14px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: #c0392b;
+    line-height: 1.4;
+    margin-top: 2px;
+  }
+  
+  .errorMessageVisible {
+    display: flex;
+    animation: errShake 0.38s ease both;
+  }
+  
+  .errorMessage::before,
+  .errorMessageVisible::before {
+    content: '';
+    display: inline-block;
+    width: 18px;
+    height: 18px;
+    min-width: 18px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e74c3c' stroke-width='2.2'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='8' x2='12' y2='12'/%3E%3Ccircle cx='12' cy='16' r='0.5' fill='%23e74c3c'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    flex-shrink: 0;
+  }
+  
+  @keyframes errShake {
+    0%   { transform: translateX(0); }
+    18%  { transform: translateX(-6px); }
+    36%  { transform: translateX(6px); }
+    54%  { transform: translateX(-4px); }
+    72%  { transform: translateX(4px); }
+    100% { transform: translateX(0); }
+  }
+  
+  /* ── PASSWORD WRAPPER ── */
+  .passwordWrapper {
+    position: relative;
+  }
+  
+  .passwordWrapper input {
+    padding-right: 46px;
+  }
+  
+  .togglePassword {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-light);
+    display: flex;
+    align-items: center;
+    padding: 0;
+    transition: color 0.2s;
+  }
+  
+  .togglePassword:hover {
+    color: var(--gold);
+  }
+  
+  /* ── PASSWORD STRENGTH ── */
+  .strengthBarWrap {
+    height: 4px;
+    background: #e8dcc8;
+    border-radius: 99px;
+    margin-top: 5px;
+    overflow: hidden;
+  }
+  
+  .strengthBar {
+    height: 100%;
+    width: 0;
+    border-radius: 99px;
+    transition: width 0.35s ease, background-color 0.35s ease;
+  }
+  
+  .strengthLabel {
+    font-family: 'Roboto', sans-serif;
+    font-size: 11px;
+    font-weight: 500;
+    margin-top: 2px;
+    display: block;
+  }
+  
+  /* ── TERMS ROW ── */
+  .termsRow {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .termsLabel {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-mid);
+    cursor: pointer;
+    user-select: none;
+    line-height: 1.5;
+  }
+  
+  .termsLabel input[type="checkbox"] {
+    accent-color: var(--gold);
+    width: 14px;
+    height: 14px;
+    cursor: pointer;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  
+  .termsLink {
+    color: var(--gold);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  
+  .termsLink:hover {
+    color: var(--gold-light);
+    text-decoration: underline;
+  }
+  
+  /* ── BUTTONS ── */
+  .btnPrimary {
+    width: 100%;
+    padding: 12px;
+    background: var(--gold);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    margin-top: 4px;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+  
+  .btnPrimary:hover {
+    background: var(--gold-light);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(184,146,42,0.32);
+  }
+  
+  .btnPrimary:active {
+    transform: translateY(0);
+  }
+  
+  /* ── LOGIN TEXT ── */
+  .loginText {
+    text-align: center;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-light);
+    margin-top: 4px;
+  }
+  
+  .loginText a {
+    color: var(--gold);
+    text-decoration: none;
+    font-weight: 700;
+  }
+  
+  .loginText a:hover {
+    color: var(--gold-light);
+    text-decoration: underline;
+  }
+  
+  /* ── SUCCESS MODAL OVERLAY ── */
+  .modalOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    background: rgba(20, 13, 3, 0.65);
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    padding: 16px;
+  }
+  
+  .modalOverlayActive {
+    display: flex;
+  }
+  
+  /* ── MODAL CARD ── */
+  .modalCard {
+    background: var(--cream);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 400px;
+    padding: 44px 40px 40px;
+    text-align: center;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.50), 0 0 0 1px rgba(212,185,122,0.30);
+    border-top: 4px solid var(--gold);
+    opacity: 0;
+    transform: translateY(28px) scale(0.96);
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  
+  .modalCardVisible {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  
+  /* ── MODAL ICON ── */
+  .modalIcon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(184,146,42,0.10);
+    border: 2px solid rgba(184,146,42,0.25);
+    margin-bottom: 20px;
+  }
+  
+  /* ── MODAL TITLE ── */
+  .modalTitle {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text-dark);
+    letter-spacing: 0.04em;
+    margin-bottom: 12px;
+  }
+  
+  /* ── MODAL MESSAGE ── */
+  .modalMessage {
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    color: var(--text-mid);
+    line-height: 1.7;
+    margin-bottom: 28px;
+  }
+  
+  .modalMessage strong {
+    color: var(--gold);
+    font-weight: 700;
+  }
+  
+  /* ── MODAL BUTTON ── */
+  .modalBtn {
+    width: 100%;
+    padding: 12px;
+    background: var(--gold);
+    color: var(--white);
+    border: none;
+    border-radius: 6px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  }
+  
+  .modalBtn:hover {
+    background: var(--gold-light);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(184,146,42,0.32);
+  }
+  
+  .modalBtn:active {
+    transform: translateY(0);
+  }
+  
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .signupCard {
+      margin: 16px;
+      padding: 28px 20px 26px;
+    }
+    .navbar {
+      padding: 0 16px;
+    }
+    .navLinks {
+      display: none;
+    }
+    .brandName {
+      font-size: 17px;
+    }
+    .formRow {
+      grid-template-columns: 1fr;
+    }
+  }

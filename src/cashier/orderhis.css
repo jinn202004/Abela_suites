@@ -1,0 +1,499 @@
+/* ============================================
+   CSS VARIABLES
+   ============================================ */
+   .abela-pos-app {
+    --gold:      #b8922a;
+    --gold-dark: #9a7520;
+    --sidebar-w: 260px;
+    --topbar-h:  62px;
+    --text-dark: #3a2e1e;
+    --text-mid:  #6b5a3e;
+    --text-light:#9a8060;
+    --border:    #d4b97a;
+    --bg-page:   #f5f0e8;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  html, body { overflow-x: hidden; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--bg-page);
+    min-height: 100vh;
+    display: flex;
+  }
+  
+  /* ============================================
+     SIDEBAR
+     ============================================ */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: #b8922a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 400;
+  }
+  
+  .sidebar-logo {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    width: 100%;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  
+  .sidebar-logo-img {
+    width: 80px;
+    height: 80px;
+    max-height: 80px;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    object-fit: contain;
+    object-position: center;
+    background: #fff;
+    border: 2px solid white;
+    box-sizing: border-box;
+    display: block;
+    flex-shrink: 0;
+  }
+  
+  .sidebar-nav { width: 100%; }
+  
+  .nav-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 18px 25px;
+    text-decoration: none;
+    color: white;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .nav-item:hover  { background: rgba(0,0,0,0.10); color: #fff; }
+  .nav-item.active { background: rgba(0,0,0,0.20); color: #fff; }
+  
+  .nav-icon {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .nav-icon svg { width: 30px; height: 30px; }
+  
+  /* ============================================
+     MAIN WRAPPER
+     ============================================ */
+  .main-wrapper {
+    margin-left: var(--sidebar-w);
+    width: calc(100% - var(--sidebar-w));
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-width: 0;
+  }
+
+  /* ============================================
+     TOP BAR
+     ============================================ */
+  .topbar {
+    position: sticky; top: 0;
+    min-height: var(--topbar-h);
+    height: auto;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 16px;
+    z-index: 100;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+  }
+  
+  .topbar-breadcrumb {
+    display: flex;
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 0;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .breadcrumb-arrow {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .breadcrumb-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  
+  .topbar-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  
+  .icon-btn {
+    position: relative;
+    display: flex; align-items: center; gap: 5px;
+    cursor: pointer; padding: 6px;
+    border-radius: 50%; transition: background 0.2s;
+  }
+  .icon-btn:hover { background: rgba(184,146,42,0.10); }
+  
+  .topbar-icon { width: 30px; height: 30px; object-fit: contain; }
+  
+  .notif-dot {
+    position: absolute; top: 5px; right: 5px;
+    width: 9px; height: 9px;
+    background: #e74c3c; border-radius: 50%;
+    border: 2px solid #fff;
+  }
+  
+  .user-arrow { font-size: 15px; color: var(--text-mid); line-height: 1; }
+
+  /* Match POS/cashier topbar dropdowns (order history does not import pos.css). */
+  .dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+    border: 1px solid #e8dcc8;
+    z-index: 999;
+    min-width: 220px;
+    overflow: hidden;
+    animation: ohDdFadeIn 0.18s ease both;
+  }
+  .dropdown.open {
+    display: block;
+  }
+  @keyframes ohDdFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  .notif-dropdown {
+    min-width: 270px;
+    max-height: 280px;
+    overflow-y: auto;
+  }
+  .user-dropdown {
+    min-width: 200px;
+  }
+
+  /* ============================================
+     PAGE CONTENT (scoped — global `.content { padding: 0 }` was wiping Guest billing padding)
+     ============================================ */
+  .cashier-order-history-page .main-wrapper > .content {
+    flex: 1;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* ============================================
+     ORDER HISTORY WRAP
+     ============================================ */
+  .oh-wrap {
+    padding: 20px 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+  }
+  
+  /* ============================================
+     TOP ROW
+     ============================================ */
+  .oh-top-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  
+  .oh-heading { display: flex; flex-direction: column; gap: 3px; }
+  
+  .oh-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--gold);
+  }
+  
+  .oh-sub { font-family: 'Roboto', sans-serif; font-size: 13px; color: var(--text-mid); }
+  
+  .oh-search-wrap {
+    position: relative;
+    display: flex; align-items: center;
+    width: 270px;
+  }
+  
+  .oh-search-icon { position: absolute; left: 10px; pointer-events: none; }
+  
+  .oh-search-input {
+    width: 100%;
+    padding: 9px 12px 9px 34px;
+    border: 1px solid #ddd; border-radius: 7px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px; color: var(--text-dark);
+    background: #fff; outline: none;
+    transition: border-color 0.2s;
+  }
+  .oh-search-input:focus { border-color: var(--gold); }
+  .oh-search-input::placeholder { color: #bbb; }
+  
+  /* ============================================
+     TABLE CARD
+     ============================================ */
+  .oh-card {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    overflow: hidden;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  }
+  
+  .oh-table-wrap { overflow-x: auto; }
+  
+  .oh-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13.5px;
+  }
+  
+  .oh-table thead tr { border-bottom: 1px solid #e8dcc8; }
+  
+  .oh-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12.5px; font-weight: 700;
+    color: var(--text-dark);
+    background: #fff;
+    white-space: nowrap;
+  }
+  
+  .oh-table td {
+    padding: 12px 16px;
+    color: var(--text-dark);
+    border-bottom: 1px solid #f0e8d8;
+    white-space: nowrap;
+  }
+  
+  .oh-table tbody tr:last-child td { border-bottom: none; }
+  .oh-table tbody tr:hover td { background: #fdf8f0; }
+  
+  .oh-empty {
+    text-align: center;
+    color: var(--text-light);
+    padding: 36px 0 !important;
+    font-size: 13px;
+  }
+  
+  /* ============================================
+     PAYMENT BADGE
+     ============================================ */
+  .oh-pay-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11.5px; font-weight: 600;
+  }
+  .oh-pay-cash  { background: #eaf6ee; color: #2e7d4f; }
+  .oh-pay-gcash { background: #e8f0fe; color: #1a56c4; }
+  
+  /* ============================================
+     EYE BUTTON
+     ============================================ */
+  .oh-eye-btn {
+    background: none;
+    border: 1px solid #e0d4c0;
+    border-radius: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+    color: var(--text-mid);
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .oh-eye-btn:hover { border-color: var(--gold); color: var(--gold); background: #fdf5e6; }
+  
+  /* ============================================
+     PAGINATION
+     ============================================ */
+  .oh-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px;
+    border-top: 1px solid #f0e8d8;
+    font-family: 'Roboto', sans-serif;
+    font-size: 12.5px; color: var(--text-light);
+  }
+  
+  .oh-page-controls { display: flex; align-items: center; gap: 10px; }
+  
+  .oh-page-btn {
+    padding: 5px 14px;
+    border: 1.5px solid #ddd; border-radius: 6px;
+    background: #fff;
+    font-family: 'Roboto', sans-serif;
+    font-size: 12px; color: var(--text-dark);
+    cursor: pointer; transition: all 0.18s;
+  }
+  .oh-page-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+  .oh-page-btn:disabled { opacity: 0.4; cursor: default; }
+  
+  .oh-page-info { font-family: 'Roboto', sans-serif; font-size: 12.5px; color: var(--text-mid); }
+  
+  /* ============================================
+     MODAL BACKDROP
+     FIX: Removed .active toggle and display:none.
+          The component is conditionally rendered by React ({selectedOrder && <ReceiptModal />}),
+          so it is only in the DOM when it should be visible.
+          The backdrop just needs to be a flex container by default.
+     ============================================ */
+  .oh-modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 500;
+    display: flex;           /* always flex — React controls mounting */
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* ============================================
+     MODAL BOX
+     ============================================ */
+  .oh-modal {
+    background: #fff;
+    border-radius: 10px;
+    width: 90%; max-width: 500px; max-height: 88vh;
+    display: flex; flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.30);
+    animation: ohModalIn 0.26s ease both;
+  }
+  
+  @keyframes ohModalIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  
+  .oh-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 22px 14px;
+    border-bottom: 1px solid #e8dcc8;
+    flex-shrink: 0;
+  }
+  
+  .oh-modal-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18px; font-weight: 700; color: var(--gold);
+  }
+  
+  .oh-modal-close {
+    background: none; border: none;
+    font-size: 18px; color: var(--text-mid);
+    cursor: pointer; padding: 4px 6px;
+    border-radius: 4px; line-height: 1; transition: color 0.2s;
+  }
+  .oh-modal-close:hover { color: var(--gold); }
+  
+  .oh-modal-body {
+    overflow-y: auto;
+    padding: 22px 26px 26px;
+    display: flex; flex-direction: column; gap: 0;
+  }
+  
+  /* ============================================
+     RECEIPT INNER
+     ============================================ */
+  .ri-hotel-block { text-align: center; margin-bottom: 14px; }
+  
+  .ri-hotel-name {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--gold); margin-bottom: 4px;
+  }
+  
+  .ri-hotel-addr { font-size: 12px; color: var(--text-mid); line-height: 1.6; margin-bottom: 8px; }
+  .ri-meta { font-size: 12.5px; color: var(--text-dark); line-height: 1.8; }
+  .ri-divider { border: none; border-top: 1px solid #e8dcc8; margin: 14px 0; }
+  
+  .ri-items-heading {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px; font-weight: 700;
+    color: var(--text-dark); text-align: center; margin-bottom: 10px;
+  }
+  
+  .ri-items-table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin-bottom: 4px; }
+  
+  .ri-items-table th {
+    text-align: left; padding: 6px 4px;
+    border-bottom: 1px solid #e8dcc8;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px; font-weight: 700; color: var(--text-dark);
+  }
+  
+  .ri-items-table td { padding: 7px 4px; border-bottom: 1px solid #f5f0e8; color: var(--text-dark); }
+  
+  .ri-item-name { width: 55%; }
+  .ri-item-price, .ri-item-sub { text-align: right; }
+  
+  .ri-totals { display: flex; flex-direction: column; gap: 5px; }
+  
+  .ri-total-row { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-mid); }
+  
+  .ri-grand-total {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px; font-weight: 700; color: var(--gold);
+    padding-top: 6px; border-top: 1px solid #e8dcc8; margin-top: 4px;
+  }
+  
+  /* ============================================
+     RESPONSIVE
+     ============================================ */
+  @media (max-width: 768px) {
+    .sidebar                  { width: 64px; }
+    .nav-item span:last-child { display: none; }
+    .nav-item                 { justify-content: center; padding: 14px 10px; }
+    .sidebar-logo             { padding: 12px; }
+    .sidebar-logo-img         { width: 72px; height: 72px; max-height: 72px; }
+    .main-wrapper             { margin-left: 64px; width: calc(100% - 64px); }
+    .oh-wrap                  { padding: 14px 12px 24px; }
+    .oh-search-wrap           { width: 100%; }
+    .oh-top-row               { flex-direction: column; align-items: flex-start; }
+    .breadcrumb-title         { font-size: 15px; }
+    .notif-dropdown           { max-width: min(270px, calc(100vw - 20px)); }
+  }
+
+  @media (max-width: 480px) {
+    .breadcrumb-title { font-size: 14px; }
+  }

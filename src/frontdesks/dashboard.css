@@ -1,0 +1,307 @@
+/* Front desk integrated dashboard (used with frontdesk-dashboard.css base layout) */
+
+.fd-dash-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.fd-dash-refresh {
+  font-family: "Montserrat", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #d4c4a0);
+  background: #fff;
+  color: var(--gold-dark, #8f7228);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.fd-dash-refresh:hover:not(:disabled) {
+  background: #f5efe3;
+  border-color: var(--gold, #b08d32);
+}
+
+.fd-dash-refresh:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fd-dash-banner {
+  font-size: 12px;
+  color: #c0392b;
+  flex: 1 1 200px;
+  text-align: right;
+}
+
+.fd-dash-signin {
+  margin: 0;
+  padding: 12px 14px;
+  background: #fff8e6;
+  border: 1px solid #e8d4a8;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text-mid, #6b5a3e);
+}
+
+.fd-stats.fd-stats--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+@media (max-width: 1100px) {
+  .fd-stats.fd-stats--5 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .fd-stats.fd-stats--5 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .fd-stats.fd-stats--5 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fd-dash-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.9fr;
+  gap: 14px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .fd-dash-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fd-dash-panel {
+  background: #fff;
+  border: 1px solid var(--border, #d4c4a0);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  min-width: 0;
+}
+
+.fd-dash-panel--full {
+  grid-column: 1 / -1;
+}
+
+.fd-dash-panel-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gold-dark, #8f7228);
+  margin: 0 0 10px;
+}
+
+.fd-dash-panel-sub {
+  font-size: 11px;
+  color: var(--text-light, #9a8060);
+  margin: -6px 0 10px;
+}
+
+.fd-dash-err {
+  font-size: 12px;
+  color: #c0392b;
+  margin: 0 0 8px;
+}
+
+.fd-dash-table-wrap {
+  overflow-x: auto;
+  min-height: 160px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.fd-dash-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.fd-dash-table th,
+.fd-dash-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid #eee4d4;
+  vertical-align: middle;
+}
+
+.fd-dash-table th {
+  font-family: "Montserrat", sans-serif;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-mid, #6b5a3e);
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 1;
+}
+
+.fd-dash-table tbody tr {
+  cursor: pointer;
+}
+
+.fd-dash-table tbody tr:hover td {
+  background: rgba(176, 141, 50, 0.06);
+}
+
+.fd-dash-table--static tbody tr {
+  cursor: default;
+}
+
+.fd-notif-row {
+  cursor: pointer;
+}
+
+.fd-notif-row:hover {
+  background: rgba(176, 141, 50, 0.06);
+}
+
+.fd-notif-row--unread {
+  font-weight: 600;
+}
+
+.fd-clean-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: "Montserrat", sans-serif;
+  text-transform: lowercase;
+}
+
+.fd-clean-pill--needs_cleaning {
+  background: #2980b9;
+  color: #fff;
+}
+
+.fd-clean-pill--cleaning_in_progress {
+  background: #e67e22;
+  color: #fff;
+}
+
+.fd-clean-pill--ready {
+  background: #27ae60;
+  color: #fff;
+}
+
+.fd-clean-pill--other {
+  background: #95a5a6;
+  color: #fff;
+}
+
+.fd-dash-quick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 4px 0 0;
+}
+
+.fd-dash-quick a {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold-dark, #8f7228);
+}
+
+/*
+ * Do not define global `.modal-overlay` / `.modal-card` / `.modal-body` here.
+ * This file loads with the frontdesk bundle but applies site-wide; those rules
+ * broke guest “Reservation Details” (huge empty space in Venue/Contact cards,
+ * horizontal scroll). Dashboard uses shared `Modal` + `frontdesk-dashboard.css` / rooms.css.
+ */
+
+.badge-status-pending {
+  background: #b8860b;
+}
+.badge-status-approved {
+  background: #27ae60;
+}
+.badge-status-rejected,
+.badge-status-declined {
+  background: #c0392b;
+}
+.badge-status-neutral {
+  background: #7f8c8d;
+}
+
+.fd-dash-table .fd-badge {
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.fd-action-btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 10px 16px;
+  min-width: 108px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform 0.08s ease, filter 0.2s ease, opacity 0.2s ease;
+}
+
+.fd-action-btn:hover:not(:disabled) {
+  filter: brightness(0.97);
+}
+
+.fd-action-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.fd-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.fd-action-btn--primary {
+  background: var(--gold-dark, #8f7228);
+  color: #fff;
+}
+
+.fd-action-btn--approve {
+  background: #8f7228;
+  color: #fff;
+}
+
+.fd-action-btn--reject {
+  background: #7a6424;
+  color: #fff;
+}
+
+@media (max-width: 768px) {
+  .fd-dash-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    max-height: none;
+  }
+
+  .fd-dash-table {
+    min-width: 620px;
+    font-size: 12px;
+  }
+
+  .fd-dash-table th,
+  .fd-dash-table td {
+    padding: 8px 9px;
+  }
+}

@@ -1,0 +1,1098 @@
+  .sidebar.admin-rail-shell,
+  .sidebar.admin-rail-shell + .main-wrapper {
+    --gold:       #b8922a;
+    --gold-light: #c9a84c;
+    --gold-dark:  #9a7520;
+    --sidebar-bg: #b8922a;
+    --sidebar-w:  260px;
+    --topbar-h:   60px;
+    --text-dark:  #3a2e1e;
+    --text-mid:   #6b5a3e;
+    --text-light: #9a8060;
+    --border:     #d4b97a;
+    --bg-page:    #f5f0e8;
+    --card-bg:    #fdf8f0;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  /* FIX: React renders into #root, not body directly.
+     Set html/body/root to fill the full viewport. */
+  html, body {
+    height: 100%;
+    width: 100%;
+    overflow-x: hidden;
+  }
+  
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--bg-page);
+    min-height: 100vh;
+  }
+  
+  /* FIX: Make #root a flex row so sidebar + main sit side by side */
+  #root {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+  }
+  
+  /* ============================================
+     SIDEBAR
+     ============================================ */
+  .sidebar {
+    width: var(--sidebar-w);
+    height: 100vh;
+    max-height: 100vh;
+    background: #b8922a;
+    position: fixed;
+    left: 0;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: hidden;
+    z-index: 400; /* FIX: ensure sidebar stays above page bg but below modal */
+  }
+  
+  .sidebar-logo {
+    padding: 15px;
+    border-bottom: 1px solid rgba(255,255,255,.3);
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .sidebar-logo-img {
+    width: 80px; height: 80px;
+    border-radius: 50%; object-fit: cover;
+    border: 2px solid white;
+  }
+  
+  .sidebar-nav {
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+  .sidebar-nav::-webkit-scrollbar { width: 3px; }
+  .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+  
+  .nav-item {
+    display: flex; align-items: center; gap: 16px;
+    padding: 16px 22px;
+    text-decoration: none; color: white;
+    font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px;
+    transition: background 0.2s;
+  }
+  .nav-item:hover  { background: rgba(0,0,0,0.10); color: #fff; }
+  .nav-item.active { background: rgba(0,0,0,0.20); color: #fff; }
+  
+  .nav-icon {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .nav-icon svg { width: 24px; height: 24px; }
+  
+  /* ============================================
+     MAIN WRAPPER
+     FIX: margin-left pushes content away from fixed sidebar.
+     Use flex-direction column so topbar + content stack vertically.
+     ============================================ */
+  .main-wrapper {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    width: calc(100% - var(--sidebar-w)); /* FIX: explicit width prevents overflow */
+    overflow-x: hidden;
+  }
+  
+  /* ============================================
+     TOP BAR
+     FIX: sticky works correctly now that main-wrapper
+     is a flex column with defined height context.
+     ============================================ */
+  .topbar {
+    position: sticky;
+    top: 0;
+    min-height: var(--topbar-h);
+    height: auto;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 16px;
+    z-index: 100;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+    width: 100%; /* FIX: ensure topbar doesn't stretch beyond wrapper */
+  }
+  
+  .topbar-breadcrumb {
+    display: flex; align-items: center; gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .breadcrumb-arrow  { font-size: 20px; font-weight: 700; color: var(--gold); line-height: 1; flex-shrink: 0; }
+  .breadcrumb-title  {
+    font-family: 'Montserrat', sans-serif; font-size: 16px; font-weight: 700; color: var(--gold);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  
+  .topbar-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  
+  .icon-btn {
+    position: relative; display: flex; align-items: center; gap: 4px;
+    cursor: pointer; padding: 6px; border-radius: 50%;
+    transition: background 0.2s; user-select: none;
+  }
+  .icon-btn:hover { background: rgba(184,146,42,0.10); }
+  .topbar-icon { width: 28px; height: 28px; object-fit: contain; color: var(--text-dark, #3a2e1e); flex-shrink: 0; }
+  .notif-dot {
+    position: absolute; top: 5px; right: 5px;
+    width: 8px; height: 8px;
+    background: #e74c3c; border-radius: 50%; border: 2px solid #fff;
+  }
+  .user-arrow { font-size: 13px; color: var(--text-mid); transition: transform 0.2s; }
+  
+  /* Dropdowns */
+  .dropdown {
+    display: none;
+    position: absolute; top: calc(100% + 8px); right: 0;
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.16); border: 1px solid #e8dcc8;
+    z-index: 999; min-width: 210px; overflow: hidden;
+    animation: ddIn 0.18s ease both;
+  }
+  .dropdown.open { display: block; }
+  @keyframes ddIn {
+    from { opacity:0; transform:translateY(5px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  
+  .notif-dropdown { min-width: 260px; max-height: 260px; overflow-y: auto; }
+  .notif-item {
+    padding: 11px 15px; border-bottom: 1px solid #f0e8d8;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item:hover { background: #fdf8f0; }
+  .notif-msg  { font-size: 12.5px; color: var(--text-dark); margin-bottom: 2px; line-height: 1.4; }
+  .notif-time { font-size: 10.5px; color: var(--text-light); }
+  
+  .user-dropdown { min-width: 190px; }
+  .user-dropdown-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 13px 16px; font-size: 13px; color: var(--text-dark);
+    cursor: pointer; border-bottom: 1px solid #f0e8d8; transition: background 0.15s;
+  }
+  .user-dropdown-item:last-child { border-bottom: none; }
+  .user-dropdown-item:hover { background: #fdf8f0; }
+  .user-dropdown-item svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--text-mid); }
+  
+  /* ============================================
+     PAGE CONTENT
+     ============================================ */
+  .content {
+    padding: 22px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1; /* FIX: fills remaining height below topbar */
+  }
+  
+  .page-heading {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-start; /* forces content to the left */
+  }
+  
+  .page-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--gold);
+  }
+  
+  .page-sub {
+    font-size: 12.5px;
+    color: var(--text-mid);
+  }
+  
+  /* ============================================
+     STAT CARDS
+     FIX: removed dependency on body flex; grid works
+     correctly now that .content has proper width.
+     ============================================ */
+  .stat-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); /* 3 equal columns */
+    gap: 14px;
+    width: 100%; /* FIX: ensure grid fills content area */
+  }
+  
+  .stat-card {
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    padding: 16px 20px 18px;
+    display: flex; flex-direction: column; gap: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+    min-width: 0; /* FIX: prevents grid blowout */
+  }
+  
+  .stat-card-top {
+    display: flex; align-items: center; gap: 10px;
+  }
+  
+  .stat-icon {
+    color: var(--gold);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  
+  .stat-label { font-family: 'Roboto', sans-serif; font-size: 12px; color: var(--text-mid); font-weight: 500; }
+  .stat-value { font-family: 'Montserrat', sans-serif; font-size: 30px; font-weight: 800; color: var(--gold); line-height: 1; }
+
+  /* Booking-only: Room vs Event (same pattern as .rm-room-switch) */
+  .bk-booking-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+    max-width: 100%;
+    min-height: 48px;
+    gap: 0;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    overflow: hidden;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(58, 46, 30, 0.06);
+    flex-shrink: 0;
+  }
+
+  .bk-booking-switch__btn {
+    margin: 0;
+    padding: 14px 20px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.2;
+    background: #fff;
+    color: var(--gold);
+    border: none;
+    border-radius: 0;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .bk-booking-switch__btn + .bk-booking-switch__btn {
+    border-left: 1px solid #e8dcc8;
+  }
+
+  .bk-booking-switch__btn:hover:not(.bk-booking-switch__btn--active) {
+    background: #faf8f4;
+    color: var(--gold-dark);
+  }
+
+  .bk-booking-switch__btn--active {
+    background: var(--gold-dark);
+    color: #fff;
+  }
+
+  .bk-booking-switch__btn:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+    z-index: 1;
+  }
+
+  .bk-booking-search-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+  }
+
+  .bk-booking-search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    color: var(--text-light);
+    pointer-events: none;
+  }
+
+  .bk-booking-search-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 12px 0 38px;
+    border: 1px solid #e8dcc8;
+    border-radius: 10px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    background: #fff;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+
+  .bk-booking-search-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(184, 146, 42, 0.2);
+  }
+
+  .bk-booking-search-input::placeholder {
+    color: #9a8060;
+  }
+  
+  /* ============================================
+     TAB BAR
+     ============================================ */
+  .tab-bar {
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1.5px solid var(--border);
+    background: #fff;
+    
+  }
+  
+  /* ── TOP CONTROL BAR ── */
+  .top-controls{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:20px;
+    width:100%;
+  }
+  
+  /* ── TABS ── */
+  .tab-bar{
+    display:flex;
+    border-radius:8px;
+    overflow:hidden;
+    border:1.5px solid var(--border);
+    background:#fff;
+    height:44px;
+  
+    flex:1;             /* tabs take remaining space */
+    max-width:600px;
+  }
+  
+  .tab-btn{
+    flex:1;
+    height:100%;
+    padding:0 14px;
+    background:transparent;
+    border:none;
+  
+    font-family:'Montserrat',sans-serif;
+    font-size:13px;
+    font-weight:700;
+  
+    color:var(--text-mid);
+    cursor:pointer;
+    transition:all .2s;
+  }
+  
+  .tab-btn + .tab-btn{
+    border-left:1.5px solid var(--border);
+  }
+  
+  .tab-btn.active{
+    background:var(--gold-dark);
+    color:#fff;
+  }
+  
+  .tab-btn:not(.active):hover{
+    background:#fdf5e6;
+    color:var(--gold);
+  }
+  
+  
+  /* ── SEARCH ── */
+  .search-wrap{
+    position:relative;
+    display:flex;
+    align-items:center;
+  
+    width:260px;       /* fixed width so tabs won't move */
+    flex-shrink:0;     /* prevents resizing */
+  }
+  
+  .search-icon{
+    position:absolute;
+    left:11px;
+    color:var(--text-light);
+    pointer-events:none;
+  }
+  
+  .search-input{
+    width:100%;
+    height:44px;        /* same height as tabs */
+    padding:0 12px 0 32px;
+  
+    border:1.5px solid #d4c4a8;
+    border-radius:7px;
+  
+    font-family:'Roboto',sans-serif;
+    font-size:13px;
+    color:var(--text-dark);
+  
+    background:#fff;
+    outline:none;
+    transition:border-color .2s;
+  }
+  
+  .search-input:focus{
+    border-color:var(--gold);
+  }
+  
+  .search-input::placeholder{
+    color:#bbb;
+    font-size:12.5px;
+  }
+  /* ============================================
+     TABLE SECTION
+     FIX: Added overflow-x wrapper so table doesn't
+     break the page layout on smaller screens.
+     ============================================ */
+  .table-section { display: flex; flex-direction: column; gap: 10px; }
+  .table-title { font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 700; color: var(--text-dark); }
+  
+  /* FIX: wrap table in scrollable container */
+  .table-section > table,
+  .table-section > div > table {
+    min-width: 600px; /* prevent columns from squishing */
+  }
+  
+  .table-scroll-wrap {
+    overflow-x: auto;
+    border-radius: 8px;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  }
+  
+  .res-table {
+    width: 100%; min-width: 760px; border-collapse: collapse;
+    background: #fff; border-radius: 8px; overflow: hidden;
+    font-size: 13px;
+  }
+  .res-table thead tr { background: var(--gold-dark); }
+  .res-table thead th {
+    padding: 10px 14px; text-align: left;
+    font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 700;
+    color: #fff; letter-spacing: 0.02em; white-space: nowrap;
+  }
+  .res-table tbody tr { border-bottom: 1px solid #f0e8d8; transition: background 0.15s; }
+  .res-table tbody tr:last-child { border-bottom: none; }
+  .res-table tbody tr:hover { background: #fdf8f0; }
+  .res-table tbody td { padding: 10px 14px; color: var(--text-dark); }
+  
+  /* Badges */
+  .badge {
+    display: inline-block; padding: 3px 10px;
+    border-radius: 20px; font-size: 11px; font-weight: 700;
+    font-family: 'Montserrat', sans-serif; letter-spacing: 0.02em;
+  }
+  .badge-approved { background: #d4f5e2; color: #1a7a45; }
+  .badge-rejected { background: #fde8e8; color: #c0392b; }
+  .badge-pending  { background: #fff3cd; color: #856404; }
+  
+  /* Action buttons (scoped to .res-table so other admin tables keep real table cells + row borders) */
+  .res-table tbody td.action-cell { display: flex; align-items: center; gap: 6px; }
+  .res-table .action-btn {
+    width: 32px; height: 32px; border-radius: 6px; border: none;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: background 0.2s, transform 0.15s;
+    flex-shrink: 0;
+    padding: 0;
+    line-height: 1;
+  }
+  .res-table .action-btn svg {
+    display: block;
+    width: 16px !important;
+    height: 16px !important;
+    flex-shrink: 0;
+  }
+  .res-table .action-btn:hover { transform: translateY(-1px); }
+  .view-btn  { background: #e8f4fd; color: #2980b9; }
+  .view-btn:hover  { background: #cce4f6; }
+  .print-btn { background: #f0ebe0; color: var(--gold-dark); }
+  .print-btn:hover { background: #e5d9c0; }
+  .delete-btn { background: #fde8e8; color: #c0392b; }
+  .delete-btn:hover:not(:disabled) { background: #fad4d4; }
+  .res-table .action-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
+
+  /* ============================================
+     MODAL OVERLAY
+     ============================================ */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.50);
+    z-index: 500;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 60px 16px 32px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  
+  .modal-box {
+    background: #fdf8f0;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 700px;
+    max-height: min(900px, calc(100vh - 100px));
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    animation: modalSlideIn 0.28s ease both;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+  @keyframes modalSlideIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid #e8dcc8;
+    flex-shrink: 0;
+  }
+  .modal-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 20px; font-weight: 700;
+    color: var(--gold);
+    text-align: center; flex: 1;
+  }
+  .modal-close {
+    background: none; border: none;
+    font-size: 20px; cursor: pointer;
+    color: var(--text-mid); padding: 2px 6px;
+    border-radius: 4px; transition: color 0.2s;
+  }
+  .modal-close:hover { color: var(--gold); }
+  
+  .modal-body {
+    padding: 22px 28px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .modal-body-scroll {
+    overflow-y: auto;
+    max-height: 78vh;
+    padding-right: 10px;
+  }
+  .modal-body-scroll::-webkit-scrollbar { width: 4px; }
+  .modal-body-scroll::-webkit-scrollbar-track { background: #f0ebe0; border-radius: 4px; }
+  .modal-body-scroll::-webkit-scrollbar-thumb { background: #d4c4a8; border-radius: 4px; }
+  
+  .modal-two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 20px;
+    align-items: start;
+  }
+  
+  .modal-card {
+    background: #fff;
+    border-radius: 7px;
+    border: 1.5px solid #d4c4a8;
+    padding: 14px 16px;
+  }
+  
+  .modal-card-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px; font-weight: 700;
+    color: var(--gold); margin-bottom: 12px;
+  }
+  
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
+  .detail-list { display: flex; flex-direction: column; gap: 8px; }
+  .billing-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 8px; }
+  
+  .detail-label {
+    display: block;
+    font-size: 11px; font-weight: 500;
+    color: var(--text-light); margin-bottom: 2px;
+  }
+  .detail-value {
+    display: block;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-dark);
+  }
+  .detail-label.remaining, .detail-value.remaining { color: #e74c3c; }
+  .detail-label.paid,      .detail-value.paid      { color: #27ae60; }
+  
+  /* ID preview: ../guests/idUploadedCard.css */
+
+  /* Reservation details modal: prevent stretched/collapsed cards from shared global modal rules */
+  .bm-reservation-modal.abel-modal-panel {
+    background: #fff9f0;
+    border-radius: 12px;
+    max-width: min(700px, calc(100vw - 32px));
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.32);
+    animation: modalIn 0.26s ease both;
+  }
+
+  .bm-reservation-modal .abel-modal-body.modal-body.modal-body-scroll {
+    flex: 0 0 auto;
+    height: auto;
+    max-height: min(82vh, 780px);
+    padding: 20px 24px 24px;
+    gap: 16px;
+  }
+
+  .bm-reservation-modal .modal-header {
+    padding: 20px 24px 16px;
+  }
+
+  .bm-reservation-modal .modal-two-col {
+    align-items: start;
+    gap: 16px;
+  }
+
+  .bm-reservation-modal .modal-two-col > * {
+    align-self: start;
+  }
+
+  .bm-reservation-modal .modal-card {
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    border-radius: 12px;
+    border: 1px solid #e0c097;
+    box-shadow: none;
+  }
+  
+  /* ============================================
+     RESPONSIVE
+     ============================================ */
+  @media (max-width: 900px) {
+    .stat-cards { grid-template-columns: 1fr 1fr; }
+  }
+  
+  @media (max-width: 768px) {
+    .sidebar { width: 64px; }
+    .nav-item span:last-child { display: none; }
+    .nav-item { justify-content: center; padding: 14px 10px; }
+    .sidebar-logo-img { width: 46px; height: 46px; }
+    .main-wrapper {
+      margin-left: 64px;
+      width: calc(100% - 64px);
+    }
+    .content { padding: 14px 12px; }
+    .stat-cards { grid-template-columns: 1fr; }
+    .modal-two-col { grid-template-columns: 1fr; }
+    .top-controls { flex-wrap: wrap; }
+    .tab-bar { max-width: none; width: 100%; }
+    .search-wrap { width: 100%; flex-shrink: 1; }
+    .search-input { width: 100%; }
+    .breadcrumb-title { font-size: 15px; }
+    .notif-dropdown { max-width: min(260px, calc(100vw - 20px)); }
+    .table-scroll-wrap { -webkit-overflow-scrolling: touch; }
+    .res-table { min-width: 680px; font-size: 12px; }
+    .res-table thead th,
+    .res-table tbody td { padding: 9px 10px; }
+  }
+  
+  @media (max-width: 480px) {
+    .stat-cards { grid-template-columns: 1fr; }
+    .topbar { padding: 8px 12px; }
+    .content { padding: 12px; }
+    .breadcrumb-title { font-size: 14px; }
+  }
+
+  /* ── Booking Management: print toolbar & preview (month filter like Export) ── */
+  .bm-print-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 18px 24px;
+    padding: 18px 20px;
+    background: #fff;
+    border: 1px solid #e8dcc8;
+    border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  }
+
+  .bm-print-toolbar-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: min(220px, 100%);
+    flex: 1 1 200px;
+  }
+
+  .bm-print-label {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dark);
+  }
+
+  .bm-print-month-input {
+    width: 100%;
+    max-width: 260px;
+    height: 42px;
+    padding: 0 12px;
+    border: 1.5px solid #d4c4a8;
+    border-radius: 9px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13.5px;
+    color: var(--text-dark);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .bm-print-month-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.12);
+  }
+
+  .bm-print-hint {
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--text-light);
+    line-height: 1.4;
+    max-width: 320px;
+  }
+
+  .bm-print-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex: 1 1 280px;
+    justify-content: flex-end;
+  }
+
+  .bm-print-action-btn {
+    padding: 11px 18px;
+    border-radius: 9px;
+    border: none;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    background: var(--gold-dark);
+    color: #fff;
+    transition: background 0.2s, transform 0.15s;
+    white-space: nowrap;
+  }
+
+  .bm-print-action-btn:hover {
+    background: var(--gold);
+    transform: translateY(-1px);
+  }
+
+  .bm-print-action-btn--outline {
+    background: #fff;
+    color: var(--gold-dark);
+    border: 1.5px solid var(--border);
+  }
+
+  .bm-print-action-btn--outline:hover {
+    background: #fdf8f0;
+    transform: translateY(-1px);
+  }
+
+  .bm-print-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 650;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    animation: bmPrintFadeIn 0.2s ease both;
+  }
+
+  @keyframes bmPrintFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .bm-print-dialog {
+    background: #fff;
+    border-radius: 14px;
+    width: 100%;
+    max-width: 960px;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+    overflow: hidden;
+  }
+
+  .bm-print-dialog-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #f0e8d8;
+    flex-shrink: 0;
+    background: #fff;
+  }
+
+  .bm-print-dialog-title {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text-dark);
+  }
+
+  .bm-print-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    color: var(--text-mid);
+    cursor: pointer;
+    padding: 6px 10px;
+    border-radius: 8px;
+    line-height: 1;
+    transition: color 0.2s, background 0.2s;
+  }
+
+  .bm-print-close:hover {
+    color: #e74c3c;
+    background: #fdecea;
+  }
+
+  .bm-print-surface {
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+    flex: 1;
+    min-height: 0;
+    background: #fff;
+  }
+
+  .bm-print-header {
+    text-align: center;
+    margin-bottom: 20px;
+  }
+
+  .bm-print-logo-mark {
+    width: 56px;
+    height: 56px;
+    margin: 0 auto 8px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .bm-print-logo-img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  .bm-print-brand {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: var(--text-dark);
+  }
+
+  .bm-print-period {
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold-dark);
+  }
+
+  .bm-print-subtitle {
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--text-mid);
+  }
+
+  .bm-print-section {
+    margin-bottom: 28px;
+  }
+
+  .bm-print-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .bm-print-section-title {
+    margin: 0 0 12px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold);
+  }
+
+  .bm-print-table-wrap {
+    overflow-x: auto;
+    border: 1px solid #e8dcc8;
+    border-radius: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bm-print-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    font-size: 11px;
+    font-family: 'Roboto', sans-serif;
+  }
+
+  .bm-print-table thead tr {
+    background: var(--gold-dark);
+  }
+
+  .bm-print-table th {
+    padding: 9px 10px;
+    text-align: left;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+  }
+
+  .bm-print-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #eee6d8;
+    color: var(--text-dark);
+    vertical-align: top;
+  }
+
+  .bm-print-table tbody tr:nth-child(even) td {
+    background: #faf6ee;
+  }
+
+  .bm-print-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .bm-print-empty {
+    text-align: center;
+    color: var(--text-light);
+    padding: 20px !important;
+  }
+
+  .bm-print-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 18px;
+    border-top: 1px solid #f0e8d8;
+    flex-shrink: 0;
+    background: #fdfaf5;
+  }
+
+  .bm-print-footer-btn {
+    padding: 11px 22px;
+    border-radius: 9px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: background 0.2s;
+  }
+
+  .bm-print-footer-btn.secondary {
+    background: #fff;
+    border: 1.5px solid #d4c4a8;
+    color: var(--text-dark);
+  }
+
+  .bm-print-footer-btn.secondary:hover {
+    background: #f5f0e8;
+  }
+
+  .bm-print-footer-btn.primary {
+    background: var(--gold-dark);
+    color: #fff;
+  }
+
+  .bm-print-footer-btn.primary:hover {
+    background: var(--gold);
+  }
+
+  .bm-print-footer-btn.pdf {
+    background: #1e5f32;
+    color: #fff;
+  }
+
+  .bm-print-footer-btn.pdf:hover {
+    background: #164726;
+  }
+
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+
+    body * {
+      visibility: hidden;
+    }
+
+    #bm-print-surface,
+    #bm-print-surface * {
+      visibility: visible;
+    }
+
+    #bm-print-surface {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      padding: 12px !important;
+      overflow: visible !important;
+    }
+
+    .bm-print-backdrop {
+      position: static !important;
+      background: transparent !important;
+      display: block !important;
+      padding: 0 !important;
+    }
+
+    .bm-print-dialog {
+      box-shadow: none !important;
+      max-height: none !important;
+      max-width: none !important;
+    }
+  }

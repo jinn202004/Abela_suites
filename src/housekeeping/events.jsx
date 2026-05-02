@@ -1,0 +1,702 @@
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
+import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
+import { TOPBAR } from "../topbar/roleTopbarData";
+import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import { Modal } from "../components/Modal";
+import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
+import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import { useHousekeepingCleaningNotifications } from "./useHousekeepingCleaningNotifications";
+import {
+  fetchHousekeepingTasksBackend,
+  postHousekeepingReconcileMissingBackend,
+  putHousekeepingTaskStatusBackend,
+  HOUSEKEEPING_TASKS_REFRESH_EVENT,
+  HOUSEKEEPING_TASKS_STORAGE_PING_KEY,
+  dispatchHousekeepingTasksRefresh,
+} from "../api/guestApi";
+import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { useAuthRole } from "../context/AuthRoleContext";
+import HousekeepingSidebar from "./HousekeepingSidebar";
+import HousekeepingSidebarToggle from "./HousekeepingSidebarToggle";
+import { useHousekeepingSidebarLayout } from "./useHousekeepingSidebarLayout";
+import RailPortalShell from "../layouts/RailPortalShell";
+import "./housekeepingrooms.css";
+
+// ── Icons ──────────────────────────────────────────────────────────────
+const DashIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
+    <rect x="3" y="3" width="7" height="7" />
+    <rect x="14" y="3" width="7" height="7" />
+    <rect x="3" y="14" width="7" height="7" />
+    <rect x="14" y="14" width="7" height="7" />
+  </svg>
+);
+const RoomIcon = () => (
+  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
+    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
+  </svg>
+);
+const EventIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+const SettingsIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+);
+const UploadIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+);
+
+const DAMAGE_STORAGE_KEY = "abela_hk_event_damage_reports";
+
+function readDamageMap() {
+  try {
+    const raw = sessionStorage.getItem(DAMAGE_STORAGE_KEY);
+    if (!raw) return {};
+    const o = JSON.parse(raw);
+    return o && typeof o === "object" ? o : {};
+  } catch {
+    return {};
+  }
+}
+
+function assetStatusToLabel(statusRaw) {
+  const s = String(statusRaw || "").toLowerCase();
+  if (s === "available") return "Available";
+  if (s === "occupied") return "Occupied";
+  if (s === "needs_cleaning") return "Need Clean";
+  if (s === "cleaning_in_progress") return "In Progress";
+  if (s === "ready") return "Ready";
+  return statusRaw || "—";
+}
+
+function formatDateLabel(s) {
+  if (s == null || s === "") return "—";
+  const str = String(s);
+  const d = str.includes("T") ? new Date(str) : new Date(`${str}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? str : d.toLocaleDateString("en-PH");
+}
+
+/** Stable 6-digit display when venue `eventNum` is missing (from Mongo ObjectId tail). */
+function displayNumberFromBookingId(idStr) {
+  const hex = String(idStr || "").replace(/[^a-fA-F0-9]/g, "");
+  if (hex.length < 6) return "";
+  const n = parseInt(hex.slice(-6), 16);
+  if (!Number.isFinite(n)) return "";
+  const compact = (n % 900_000) + 100_000;
+  return String(compact);
+}
+
+function venueRowFromTask(t) {
+  const asset = t.eventVenue;
+  const b = t.booking;
+  const numFromVenue =
+    asset?.eventNum != null && String(asset.eventNum).trim() !== ""
+      ? String(asset.eventNum).trim()
+      : "";
+  const numFromBookingId = b?.id ? displayNumberFromBookingId(b.id) : "";
+  /** Number = venue code when linked; otherwise a numeric booking ref. */
+  const num = numFromVenue || numFromBookingId || "—";
+  const pkg =
+    String(
+      asset?.name ||
+        asset?.package ||
+        b?.venueName ||
+        b?.eventTitle ||
+        ""
+    ).trim() || "—";
+  const guest = b?.customerName?.trim() || "—";
+  const email = b?.email?.trim() || "";
+  const phone = b?.contactNumber?.trim() || "";
+  const checkIn = formatDateLabel(b?.checkIn);
+  const checkOut = formatDateLabel(b?.checkOut);
+  const assetLabel = asset
+    ? assetStatusToLabel(asset.status)
+    : b?.bookingStatus
+      ? String(b.bookingStatus)
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+      : "—";
+  const displayStatus = t.status === "completed" ? "Available" : assetLabel;
+  return {
+    taskId: t.id,
+    number: num,
+    package: pkg,
+    typeLabel: "Event",
+    guest,
+    guestDetail: [email, phone].filter(Boolean).join(" · ") || "—",
+    stayLabel: checkIn !== "—" || checkOut !== "—" ? `${checkIn} → ${checkOut}` : "—",
+    statusLabel: assetLabel,
+    displayStatus,
+    taskStatus: t.status,
+  };
+}
+
+export default function EventCleaning() {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [busyId, setBusyId] = useState("");
+  const [currentTab, setCurrentTab] = useState("pending");
+  const [search, setSearch] = useState("");
+  const [toast, setToast] = useState(null);
+  const [damageModalOpen, setDamageModalOpen] = useState(false);
+  const [damageTaskId, setDamageTaskId] = useState("");
+  const [damageDesc, setDamageDesc] = useState("");
+  const [damageImg, setDamageImg] = useState(null);
+  const [damageImgPreview, setDamageImgPreview] = useState("");
+  const [viewReport, setViewReport] = useState(null);
+  const [damageByTaskId, setDamageByTaskId] = useState(() => readDamageMap());
+
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
+  const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
+  const { role } = useAuthRole();
+  const { needsCleaningCount, displayNotifications, markHousekeepingInboxSeen } =
+    useHousekeepingCleaningNotifications();
+  const { topbarProfile } = useTopbarUserProfile("housekeeping");
+  const {
+    sidebarCollapsed,
+    isMobile,
+    mobileSidebarOpen,
+    closeMobileSidebar,
+    toggleSidebar,
+    shellClassName,
+    asideStyle,
+    mainStyle,
+    logoWrapStyle,
+    logoImgStyle,
+  } = useHousekeepingSidebarLayout();
+  const userRef = useRef(null);
+  const notifRef = useRef(null);
+
+  const loadTasks = useCallback(async (opts = {}) => {
+    const silent = opts.silent !== false;
+    const reconcile = opts.reconcile === true;
+    if (!getStoredAuthToken()) {
+      setTasks([]);
+      setLoading(false);
+      setLoadError(
+        role === "housekeeping"
+          ? "Not signed in to the API — log out and sign in with housekeeping@abela.demo / 12345678 so event venue tasks load."
+          : "Not signed in to the API."
+      );
+      return;
+    }
+    if (!silent) {
+      setLoadError("");
+      setLoading(true);
+    }
+    try {
+      if (reconcile) {
+        await postHousekeepingReconcileMissingBackend().catch(() => {});
+      }
+      const list = await fetchHousekeepingTasksBackend(true);
+      const arr = Array.isArray(list) ? list : [];
+      setTasks(arr.filter((t) => t.targetType === "event"));
+      setLoadError("");
+    } catch (e) {
+      if (!silent) {
+        setLoadError(e.message || "Could not load event venue tasks.");
+        setTasks([]);
+      }
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [role]);
+
+  useEffect(() => {
+    loadTasks({ silent: false, reconcile: true });
+  }, [loadTasks]);
+
+  useEffect(() => {
+    const onToken = () => loadTasks({ reconcile: true });
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
+    return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
+  }, [loadTasks]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(DAMAGE_STORAGE_KEY, JSON.stringify(damageByTaskId));
+    } catch {
+      /* ignore */
+    }
+  }, [damageByTaskId]);
+
+  useEffect(() => {
+    let lastFocusLoad = 0;
+    const id = window.setInterval(() => loadTasks(), 6000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") loadTasks();
+    };
+    const onFocus = () => {
+      if (!getStoredAuthToken()) return;
+      const now = Date.now();
+      if (now - lastFocusLoad < 500) return;
+      lastFocusLoad = now;
+      loadTasks();
+    };
+    const onHK = () => loadTasks({ reconcile: true });
+    const onStorage = (e) => {
+      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadTasks({ reconcile: true });
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onFocus);
+    window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHK);
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("focus", onFocus);
+      window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHK);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [loadTasks]);
+
+  useEffect(() => {
+    function handler(e) {
+      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
+      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const rows = useMemo(() => tasks.map(venueRowFromTask), [tasks]);
+
+  const tabMatch = (r, tab) => {
+    if (tab === "pending") return r.taskStatus === "pending";
+    if (tab === "inprogress") return r.taskStatus === "in_progress";
+    return r.taskStatus === "completed";
+  };
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return rows.filter((r) => {
+      if (!tabMatch(r, currentTab)) return false;
+      if (!q) return true;
+      const hay = [
+        String(r.number),
+        r.package,
+        r.typeLabel,
+        r.guest,
+        r.guestDetail,
+        r.stayLabel,
+        r.displayStatus,
+        r.statusLabel,
+        "event",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [rows, currentTab, search]);
+
+  const emptyHint = useMemo(() => {
+    if (loadError) {
+      return { title: "", sub: "" };
+    }
+    if (rows.length === 0) {
+      return {
+        title: "No event venue tasks yet",
+        sub: "Sign in with housekeeping@abela.demo (API). When front desk approves an event booking, tasks appear here automatically. Sample/offline rows on front desk do not create tasks.",
+      };
+    }
+    if (search.trim()) {
+      return { title: "No matches", sub: "Try a different search or clear the search box." };
+    }
+    return {
+      title: "Nothing in this tab",
+      sub: "Switch to In progress or Completed if the task moved already.",
+    };
+  }, [loadError, rows.length, search]);
+
+  function showToast(title, sub) {
+    setToast({ title, sub });
+    setTimeout(() => setToast(null), 3500);
+  }
+
+  async function handleStart(taskId) {
+    setBusyId(taskId);
+    try {
+      await putHousekeepingTaskStatusBackend(taskId, "in_progress");
+      await loadTasks();
+      dispatchHousekeepingTasksRefresh();
+      showToast("Started", "Cleaning marked in progress for this venue.");
+    } catch (e) {
+      showToast("Update failed", e?.message || "Request failed.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  async function handleComplete(taskId) {
+    setBusyId(taskId);
+    try {
+      await putHousekeepingTaskStatusBackend(taskId, "completed");
+      await loadTasks();
+      dispatchHousekeepingTasksRefresh();
+      showToast("Completed", "Venue marked ready.");
+    } catch (e) {
+      showToast("Update failed", e?.message || "Request failed.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
+  function getBadgeClass(displayStatus) {
+    if (displayStatus === "Need Clean") return "badge-needclean";
+    if (displayStatus === "In Progress") return "badge-inprogress";
+    if (displayStatus === "Ready" || displayStatus === "Available") return "badge-available";
+    if (displayStatus === "Occupied") return "badge-occupied";
+    const lower = String(displayStatus || "").toLowerCase();
+    if (lower === "approved" || lower === "confirmed") return "badge-booking-approved";
+    if (lower === "pending" || lower.includes("pending")) return "badge-booking-pending";
+    if (lower === "rejected" || lower === "declined" || lower === "cancelled") return "badge-booking-rejected";
+    return "badge-neutral";
+  }
+
+  function openDamageModal(taskId) {
+    setDamageTaskId(taskId);
+    setDamageDesc("");
+    setDamageImg(null);
+    setDamageImgPreview("");
+    setDamageModalOpen(true);
+  }
+
+  function onDamageFileChange(e) {
+    const f = e.target.files?.[0];
+    if (!f) {
+      setDamageImg(null);
+      setDamageImgPreview("");
+      return;
+    }
+    setDamageImg(f);
+    const reader = new FileReader();
+    reader.onload = () => setDamageImgPreview(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(f);
+  }
+
+  function submitDamageReport() {
+    const desc = damageDesc.trim() || "—";
+    setDamageByTaskId((prev) => ({
+      ...prev,
+      [damageTaskId]: { desc, imgDataUrl: damageImgPreview || "" },
+    }));
+    setDamageModalOpen(false);
+    showToast("Report submitted", "Damage report saved for this venue.");
+  }
+
+  return (
+    <>
+      <RailPortalShell
+        rootClassName="housekeeping-portal-layout"
+        shellClassName={shellClassName}
+        mainStyle={mainStyle}
+        sidebar={
+          <HousekeepingSidebar
+            navItems={[
+              { label: "Dashboard", icon: <DashIcon />, href: "/housekeeping" },
+              { label: "Rooms", icon: <RoomIcon />, href: "/housekeeping-rooms" },
+              { label: "Event Venues", icon: <EventIcon />, href: "/housekeeping-events", active: true },
+              { label: "Settings", icon: <SettingsIcon />, href: "/housekeeping-settings" },
+            ]}
+            sidebarCollapsed={sidebarCollapsed}
+            isMobile={isMobile}
+            mobileSidebarOpen={mobileSidebarOpen}
+            closeMobileSidebar={closeMobileSidebar}
+            shellClassName={shellClassName}
+            asideStyle={asideStyle}
+            logoWrapStyle={logoWrapStyle}
+            logoImgStyle={logoImgStyle}
+          />
+        }
+      >
+        <header className="topbar">
+          <div className="topbar-breadcrumb">
+            {[
+              <HousekeepingSidebarToggle
+                key="toggle"
+                sidebarCollapsed={sidebarCollapsed}
+                toggleSidebar={toggleSidebar}
+                isMobile={isMobile}
+                mobileSidebarOpen={mobileSidebarOpen}
+              />,
+              <span key="title" className="breadcrumb-title">
+                Event Venue
+              </span>,
+            ]}
+          </div>
+          <div className="topbar-actions">
+            <RoleTopbarBell
+              ref={notifRef}
+              isOpen={notifOpen}
+              onBellClick={(e) => {
+                e.stopPropagation();
+                setNotifOpen((v) => {
+                  if (!v) void markHousekeepingInboxSeen();
+                  return !v;
+                });
+              }}
+              notifications={displayNotifications}
+              title="Cleaning queue"
+              bellIconClassName="topbar-icon"
+              dot={needsCleaningCount > 0 ? "active" : null}
+              dotTitle="Cleaning tasks or alerts"
+            />
+
+            <div className="icon-btn" ref={userRef} onClick={() => setUserOpen((v) => !v)}>
+              <TopbarUserIcon className="topbar-icon" />
+              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                &#9662;
+              </span>
+              <RoleUserDropdown
+                isOpen={userOpen}
+                profile={topbarProfile}
+                profilePath={TOPBAR.housekeeping.profilePath}
+                onCloseMenus={() => {
+                  setNotifOpen(false);
+                  setUserOpen(false);
+                }}
+                onLogout={() => {
+                  setNotifOpen(false);
+                  setUserOpen(false);
+                  requestLogout();
+                }}
+              />
+            </div>
+          </div>
+        </header>
+
+        <main className="content">
+          <div className="rc-wrap">
+            <div className="rc-heading">
+              <h2 className="rc-title">Event Cleaning</h2>
+              <p className="rc-sub">Manage event venue cleaning and maintenance</p>
+            </div>
+
+            <hr className="rc-divider" />
+
+            <div className="rc-tabs">
+              {["pending", "inprogress", "completed"].map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  className={`rc-tab${currentTab === tab ? " active" : ""}`}
+                  onClick={() => setCurrentTab(tab)}
+                >
+                  {{ pending: "Pending", inprogress: "In progress", completed: "Completed" }[tab]}
+                </button>
+              ))}
+            </div>
+
+            <div className="rc-search-wrap">
+              <svg className="rc-search-icon" viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" width="16" height="16">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                type="text"
+                className="rc-search-input"
+                placeholder="Search venues, type, status…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {loadError ? <p style={{ color: "#c0392b", fontSize: "14px", margin: "0 0 12px" }}>{loadError}</p> : null}
+
+            <div className="rc-table-wrap">
+              <table className="rc-table">
+                <thead>
+                  <tr>
+                    <th>Number</th>
+                    <th>Package</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={5} className="rc-empty">
+                        Loading…
+                      </td>
+                    </tr>
+                  ) : filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="rc-empty" style={{ textAlign: "center", padding: "28px 20px", verticalAlign: "top" }}>
+                        {loadError ? (
+                          <span style={{ fontSize: 13, color: "#9a8060" }}>See the message above.</span>
+                        ) : (
+                          <>
+                            <div style={{ fontWeight: 600, color: "#4a3f2e", marginBottom: 10 }}>{emptyHint.title}</div>
+                            <div style={{ fontSize: 13, color: "#6b5b45", maxWidth: 520, margin: "0 auto", lineHeight: 1.55 }}>{emptyHint.sub}</div>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((r, idx) => (
+                      <tr key={r.taskId}>
+                        <td>{idx + 1}</td>
+                        <td>{r.package}</td>
+                        <td>{r.typeLabel}</td>
+                        <td>
+                          <span className={`rc-badge ${getBadgeClass(r.displayStatus)}`}>{r.displayStatus}</span>
+                        </td>
+                        <td>
+                          {r.taskStatus === "pending" ? (
+                            <button
+                              type="button"
+                              className="rc-action-btn btn-start"
+                              disabled={busyId === r.taskId}
+                              onClick={() => handleStart(r.taskId)}
+                            >
+                              Start
+                            </button>
+                          ) : null}
+                          {r.taskStatus === "in_progress" ? (
+                            <button
+                              type="button"
+                              className="rc-action-btn btn-completed"
+                              disabled={busyId === r.taskId}
+                              onClick={() => handleComplete(r.taskId)}
+                            >
+                              Completed
+                            </button>
+                          ) : null}
+                          {r.taskStatus === "completed" ? (
+                            damageByTaskId[r.taskId] ? (
+                              <button
+                                type="button"
+                                className="rc-action-btn btn-reportdmg"
+                                onClick={() => setViewReport({ taskId: r.taskId, ...damageByTaskId[r.taskId] })}
+                              >
+                                View Report
+                              </button>
+                            ) : (
+                              <button type="button" className="rc-action-btn btn-reportdmg" onClick={() => openDamageModal(r.taskId)}>
+                                Report Damage
+                              </button>
+                            )
+                          ) : null}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </main>
+      </RailPortalShell>
+
+      <div className={`rc-success-toast${toast ? " active" : ""}`}>
+        <div className="rc-success-inner">
+          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="9 12 11 14 15 10" />
+          </svg>
+          <div>
+            <p className="rc-success-title">{toast?.title}</p>
+            <p className="rc-success-sub">{toast?.sub}</p>
+          </div>
+        </div>
+      </div>
+
+      <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
+
+      <Modal
+        open={damageModalOpen}
+        onClose={() => setDamageModalOpen(false)}
+        title="Report Damage"
+        size="md"
+        placement="center"
+        panelClassName="rc-modal"
+        bodyClassName="rc-modal-body"
+        footer={
+          <div className="rc-modal-actions">
+            <button type="button" className="rc-action-btn btn-start" onClick={() => setDamageModalOpen(false)}>
+              Cancel
+            </button>
+            <button type="button" className="rc-action-btn btn-reportdmg" onClick={submitDamageReport}>
+              Submit
+            </button>
+          </div>
+        }
+      >
+        <label style={{ fontSize: 13, color: "#5c4d3a" }}>
+          Description
+          <textarea
+            className="rc-search-input"
+            style={{ width: "100%", minHeight: 88, marginTop: 6, resize: "vertical" }}
+            value={damageDesc}
+            onChange={(e) => setDamageDesc(e.target.value)}
+            placeholder="Describe the issue…"
+          />
+        </label>
+        <div>
+          <span style={{ fontSize: 13, color: "#5c4d3a", display: "block", marginBottom: 6 }}>Photo (optional)</span>
+          <label
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              cursor: "pointer",
+              fontSize: 13,
+              color: "var(--gold-dark)",
+            }}
+          >
+            <UploadIcon />
+            <span>Choose image</span>
+            <input type="file" accept="image/*" style={{ display: "none" }} onChange={onDamageFileChange} />
+          </label>
+          {damageImgPreview ? (
+            <img src={damageImgPreview} alt="" style={{ maxWidth: "100%", maxHeight: 160, marginTop: 10, borderRadius: 8 }} />
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={!!viewReport}
+        onClose={() => setViewReport(null)}
+        title="Damage report"
+        size="md"
+        placement="center"
+        panelClassName="rc-modal"
+        bodyClassName="rc-modal-body"
+        footer={
+          <div className="rc-modal-actions">
+            <button type="button" className="rc-action-btn btn-reportdmg" onClick={() => setViewReport(null)}>
+              Close
+            </button>
+          </div>
+        }
+      >
+        {viewReport ? (
+          <>
+            <p style={{ margin: 0, fontSize: 14, color: "#4a3f2e", whiteSpace: "pre-wrap" }}>{viewReport.desc}</p>
+            {viewReport.imgDataUrl ? (
+              <img src={viewReport.imgDataUrl} alt="" style={{ maxWidth: "100%", borderRadius: 8, marginTop: 12 }} />
+            ) : null}
+          </>
+        ) : null}
+      </Modal>
+    </>
+  );
+}

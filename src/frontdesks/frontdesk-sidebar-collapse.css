@@ -1,0 +1,230 @@
+/* Front desk rail: --sidebar-w for pages that still reference it */
+
+html[data-frontdesk-sidebar-collapsed="true"],
+html[data-frontdesk-sidebar-collapsed="true"] .events-page,
+html[data-frontdesk-sidebar-collapsed="true"] .rooms-page,
+html[data-frontdesk-sidebar-collapsed="true"] .app-layout {
+  --sidebar-w: 64px;
+}
+
+/* Keep frontdesk sidebar structure/spacing consistent across all frontdesk pages. */
+.sidebar.frontdesk-rail-shell .sidebar-logo,
+.sidebar.frontdesk-rail-shell a.sidebar-logo {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+  box-sizing: border-box;
+}
+.sidebar.frontdesk-rail-shell .sidebar-logo:link,
+.sidebar.frontdesk-rail-shell .sidebar-logo:visited {
+  color: inherit;
+}
+.sidebar.frontdesk-rail-shell .sidebar-logo-img {
+  width: 80px;
+  height: 80px;
+  border-width: 2px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.sidebar.frontdesk-rail-shell .nav-item {
+  gap: 14px;
+  padding: 16px 22px;
+  font-weight: 600;
+  font-size: 13px;
+}
+.sidebar.frontdesk-rail-shell .nav-icon {
+  width: 30px;
+  height: 30px;
+}
+.sidebar.frontdesk-rail-shell .nav-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Collapsed frontdesk rail: icon-only items, centered spacing. */
+.frontdesk-rail-shell.sidebar-collapsed .nav-item > :not(.nav-icon) {
+  display: none;
+}
+.frontdesk-rail-shell.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding: 18px 10px;
+}
+
+/* Mobile drawer backdrop (same pattern as admin_1 admin-mobile-backdrop) */
+.frontdesk-mobile-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 650;
+  cursor: pointer;
+}
+.frontdesk-mobile-backdrop.open {
+  display: block;
+}
+
+/* Topbar toggle: ensure hamburger/chevron is visible when page CSS is minimal */
+.frontdesk-app .topbar .breadcrumb-arrow-btn {
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+  line-height: 1;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.frontdesk-app .topbar .breadcrumb-arrow-btn:hover {
+  background: rgba(184, 146, 42, 0.12);
+}
+.frontdesk-app .topbar .breadcrumb-arrow-btn:focus-visible {
+  outline: 2px solid var(--gold, #b8922a);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell {
+    width: 50vw !important;
+    min-width: 50vw !important;
+    max-width: 50vw !important;
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell .sidebar-logo,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell a.sidebar-logo {
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell .sidebar-logo-img {
+    width: 120px !important;
+    height: 120px !important;
+    max-width: 120px !important;
+    max-height: 120px !important;
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell .nav-item > span:last-child {
+    display: inline !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+    overflow-wrap: anywhere !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell .nav-item {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 16px 22px !important;
+    gap: 14px !important;
+    text-align: left !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell .nav-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell .sidebar-nav {
+    overflow-x: visible !important;
+  }
+
+  .frontdesk-mobile-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.12);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .frontdesk-mobile-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .content,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .table-scroll-wrap,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .rm-table-wrap,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .bills-table-wrap,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .fd-table-wrap,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .hk-table-wrap,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .events-table-scroll-wrap,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .rooms-table-scroll-wrap,
+  .sidebar.frontdesk-rail-shell.frontdesk-mobile-shell + .main-wrapper .rh-table-wrap {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}
+
+/*
+ * Responsive tables: main column must not clip horizontal scroll (see dashboardMainScroll.css
+ * `.frontdesk-app .main-wrapper > .content`). Inner wraps keep wide tables scrollable on narrow viewports.
+ */
+.frontdesk-app .main-wrapper {
+  min-width: 0;
+}
+
+.frontdesk-app .fd-table-wrap,
+.frontdesk-app .fd-dash-table-wrap,
+.frontdesk-app .bills-table-wrap,
+.frontdesk-app .rh-table-wrap,
+.frontdesk-app .hk-table-wrap,
+.frontdesk-app .table-scroll-wrap,
+.frontdesk-app .rooms-table-scroll-wrap,
+.frontdesk-app .events-table-scroll-wrap {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+}
+
+.frontdesk-app .bills-table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+}

@@ -1,0 +1,263 @@
+:root {
+    /* Match original ABELA front desk palette (cream page, muted gold rail) */
+    --gold:      #b08d32;
+    --gold-dark: #8f7228;
+    --sidebar-w: 240px;
+    --topbar-h:  62px;
+    --text-dark: #2c2418;
+    --text-mid:  #6b5a3e;
+    --text-light:#9a8060;
+    --border:    #d4c4a0;
+    --bg-page:   #fdfaf3;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { overflow-x: hidden; }
+  /* Do not set body { display:flex } here — it breaks #root height on other routes; .frontdesk-app already fills the view. */
+  body { font-family: 'Roboto', sans-serif; background: var(--bg-page); min-height: 100vh; color: var(--text-dark); }
+
+  /* Shell: always paint text + background (other frontdesk CSS files used to set #root { overflow:hidden } and hide the whole UI). */
+  .frontdesk-app {
+    box-sizing: border-box;
+    color: var(--text-dark);
+    background: var(--bg-page);
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+  
+  /* ── SIDEBAR ── */
+  .sidebar { width: var(--sidebar-w); height: 100vh; background: var(--gold); position: fixed; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; overflow-y: auto; z-index: 400; }
+  .sidebar::-webkit-scrollbar { width: 3px; }
+  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
+  .sidebar-logo { padding: 15px; border-bottom: 1px solid rgba(255,255,255,.3); width: 100%; display: flex; justify-content: center; flex-shrink: 0; }
+  .sidebar-logo-img { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid white; }
+  .sidebar-nav { width: 100%; }
+  .nav-item { display: flex; align-items: center; gap: 14px; padding: 16px 22px; text-decoration: none; color: white; font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px; transition: background 0.18s; }
+  .nav-item:hover  { background: rgba(0,0,0,0.10); }
+  .nav-item.active { background: rgba(0,0,0,0.22); }
+  .nav-icon { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .nav-icon svg { width: 22px; height: 22px; }
+  
+  /* ── MAIN WRAPPER ── */
+  .main-wrapper {
+    margin-left: var(--sidebar-w);
+    width: calc(100% - var(--sidebar-w));
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--bg-page);
+  }
+  
+  /* ── TOP BAR ── */
+  .topbar {
+    position: sticky; top: 0;
+    min-height: var(--topbar-h);
+    height: auto;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 16px;
+    z-index: 300;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+  }
+  .topbar-breadcrumb {
+    display: flex; align-items: center; gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  .breadcrumb-arrow  { font-size: 22px; font-weight: 700; color: var(--gold); line-height: 1; flex-shrink: 0; }
+  .breadcrumb-title  {
+    font-family: 'Montserrat', sans-serif; font-size: 17px; font-weight: 700; color: var(--gold); letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .topbar-actions    { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .icon-btn { position: relative; display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 6px; border-radius: 50%; transition: background 0.2s; user-select: none; }
+  .icon-btn:hover { background: rgba(184,146,42,0.10); }
+  .topbar-icon { width: 28px; height: 28px; object-fit: contain; }
+  .topbar-svg-icon { color: #3a2e1e; transition: color 0.2s; }
+  .icon-btn:hover .topbar-svg-icon { color: var(--gold); }
+  .notif-dot { position: absolute; top: 5px; right: 5px; width: 9px; height: 9px; background: #e74c3c; border-radius: 50%; border: 2px solid #fff; }
+  .user-arrow { font-size: 14px; color: var(--text-mid); transition: transform 0.2s; line-height: 1; }
+  
+  /* ── DROPDOWNS ── */
+  .dropdown { display: none; position: absolute; top: calc(100% + 10px); right: 0; background: #fff; border-radius: 10px; box-shadow: 0 8px 28px rgba(0,0,0,0.16); border: 1px solid #e8dcc8; z-index: 999; min-width: 220px; overflow: hidden; animation: ddFadeIn 0.18s ease both; }
+  .dropdown.open { display: block; }
+  @keyframes ddFadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+  .notif-dropdown { min-width: 270px; max-height: 280px; overflow-y: auto; }
+  .notif-item { padding: 12px 16px; border-bottom: 1px solid #f0e8d8; cursor: pointer; transition: background 0.15s; }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item:hover { background: #fdf8f0; }
+  .notif-msg  { font-size: 13px; color: var(--text-dark); margin-bottom: 3px; line-height: 1.4; }
+  .notif-time { font-size: 11px; color: var(--text-light); }
+  .user-dropdown { min-width: 200px; }
+  .user-dropdown-item { display: flex; align-items: center; gap: 12px; padding: 14px 18px; font-size: 13.5px; color: var(--text-dark); cursor: pointer; border-bottom: 1px solid #f0e8d8; transition: background 0.15s; }
+  .user-dropdown-item:last-child { border-bottom: none; }
+  .user-dropdown-item:hover { background: #fdf8f0; }
+  .user-dropdown-item svg { width: 20px; height: 20px; flex-shrink: 0; color: var(--text-mid); }
+  
+  /* ── PAGE CONTENT ──
+     Scope to shell: guest-room.css ships global `.content { padding: 0 }` that can win cascade. */
+  .frontdesk-app .main-wrapper > .content { flex: 1; min-height: 0; padding: 22px 26px; display: flex; flex-direction: column; gap: 18px; background: var(--bg-page); }
+  
+  /* ── HEADING ── */
+  .fd-heading { display: flex; flex-direction: column; gap: 4px; }
+  .fd-title { font-family: 'Montserrat', sans-serif; font-size: 22px; font-weight: 800; color: var(--gold); }
+  .fd-sub   { font-size: 13px; color: var(--text-mid); margin: 0; }
+  
+  /* ── STAT CARDS ── */
+  .fd-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat-card { background: #fff; border-radius: 10px; border: 1px solid #e8dcc8; padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); }
+  .stat-icon-label { display: flex; align-items: center; gap: 6px; font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 500; }
+  .stat-value { font-family: 'Montserrat', sans-serif; font-size: 28px; font-weight: 700; color: var(--gold); }
+  .stat-value.stat-value-money { font-size: 22px; line-height: 1.2; word-break: break-word; }
+  .stat-warning { color: #e67e22; } .stat-warning svg { stroke: #e67e22; }
+  .stat-info    { color: #3498db; } .stat-info    svg { stroke: #3498db; }
+  .stat-success { color: #27ae60; } .stat-success svg { stroke: #27ae60; }
+  .stat-danger  { color: #e74c3c; } .stat-danger  svg { stroke: #e74c3c; }
+  
+  /* ── TABS ── */
+  .fd-tabs { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid #ddd; border-radius: 6px; background: #fff; }
+  .fd-tab { padding: 12px 0; background: transparent; border: none; font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 600; color: var(--text-mid); cursor: pointer; transition: background 0.2s, color 0.2s; }
+  .fd-tab-left  { border-right: 1px solid #ddd; border-radius: 5px 0 0 5px; }
+  .fd-tab-right { border-radius: 0 5px 5px 0; }
+  .fd-tab-left.active  { background: var(--gold-dark); color: #fff; border-right-color: var(--gold-dark); }
+  .fd-tab-right.active { background: var(--gold-dark); color: #fff; }
+  .fd-tab:hover:not(.active) { background: #f5efe3; color: var(--text-dark); }
+  
+  /* ── SEARCH (full width under tabs, original layout) ── */
+  .fd-search-wrap { position: relative; display: flex; align-items: center; width: 100%; }
+  .fd-search-icon { position: absolute; left: 12px; pointer-events: none; }
+  .fd-search-input { width: 100%; max-width: none; padding: 10px 14px 10px 38px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Roboto', sans-serif; font-size: 13px; color: var(--text-dark); background: #fff; outline: none; transition: border-color 0.2s; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+  .fd-search-input:focus { border-color: var(--gold); }
+  .fd-search-input::placeholder { color: #bbb; }
+  
+  /* ── TABLE (white card like original status board) ── */
+  .fd-table-wrap {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    overflow-x: auto;
+  min-height: 160px;
+    overflow-y: visible;
+    box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+  }
+.fd-table { width: 100%; min-width: 640px; border-collapse: collapse; font-family: 'Roboto', sans-serif; font-size: 13.5px; table-layout: fixed; }
+  .fd-table col.col-num { width: 11%; min-width: 72px; }
+  .fd-table col.col-type { width: 38%; }
+  .fd-table col.col-price { width: 22%; min-width: 96px; }
+  .fd-table col.col-status { width: 29%; min-width: 120px; }
+  .fd-table thead tr { border-bottom: 1px solid #e8dcc8; background: #fff; }
+  .fd-table th { padding: 13px 18px; text-align: left; font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 700; color: var(--text-dark); }
+  .fd-table th:first-child,
+  .fd-table td:first-child { white-space: nowrap; }
+  .fd-table td { padding: 13px 18px; color: var(--text-dark); border-bottom: 1px solid #f0e8d8; vertical-align: middle; word-break: break-word; }
+  .fd-table tbody tr:last-child td { border-bottom: none; }
+  .fd-table tbody tr:hover td { background: rgba(184,146,42,0.05); }
+  .fd-empty { text-align: center; color: var(--text-light); padding: 36px 0 !important; font-size: 13px; }
+  
+  /* ── BADGES ── Base background required: unknown statuses would otherwise be white on white (color: #fff with no bg). */
+  .fd-badge { display: inline-block; padding: 4px 13px; border-radius: 4px; font-family: 'Montserrat', sans-serif; font-size: 11.5px; font-weight: 700; color: #fff; white-space: nowrap; background: #7a6a58; }
+  .badge-available  { background: #27ae60; }
+  .badge-needclean  { background: #2980b9; }
+  .badge-occupied   { background: #e74c3c; }
+  .badge-inprogress { background: #e67e22; }
+  .badge-completed  { background: #16a085; }
+  .badge-pending-approval { background: #b8860b; color: #fff; }
+  .badge-active { background: #1e8f6b; }
+  .badge-pending { background: #c9a227; }
+  .badge-declined, .badge-cancelled { background: #95a5a6; }
+  .badge-neutral { background: #7a6a58; color: #fff; }
+  
+  /* ── RESPONSIVE ── */
+  @media (max-width: 960px) { .fd-stats { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 768px) {
+    .sidebar                  { width: 64px; }
+    .nav-item span:last-child { display: none; }
+    .nav-item                 { justify-content: center; padding: 14px 10px; }
+    .sidebar-logo-img         { width: 44px; height: 44px; }
+    .main-wrapper             { margin-left: 64px; width: calc(100% - 64px); }
+    .frontdesk-app .main-wrapper > .content { padding: 14px 12px; }
+    .fd-search-wrap           { width: 100%; min-width: 0; }
+    .fd-table-wrap            { -webkit-overflow-scrolling: touch; min-height: 140px; }
+    .fd-table                 { min-width: 580px; font-size: 12px; table-layout: auto; }
+    .fd-table th, .fd-table td { padding: 9px 10px; }
+    .fd-stats                 { grid-template-columns: repeat(2, 1fr); }
+    .breadcrumb-title         { font-size: 15px; }
+    .notif-dropdown           { max-width: min(270px, calc(100vw - 20px)); }
+  }
+
+  @media (max-width: 520px) {
+    .fd-stats { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 400px) {
+    .breadcrumb-title { font-size: 14px; }
+    .fd-title { font-size: 18px; }
+  }
+
+/* -----------------------------------------------------------------------------
+   Beat `guests/homedashboard.css` when `html.homedashboard-route` was left on
+   after visiting `/` or `/contact` (client-side nav). That file forces #root to a
+   column flex + dark bg; front desk needs a full-width row shell or the main
+   column can collapse to an empty-looking (white) view.
+   `data-frontdesk-view` is set in FrontdeskShellContext.jsx for all front desk URLs.
+   ----------------------------------------------------------------------------- */
+html[data-frontdesk-view="1"] {
+  height: auto !important;
+  min-height: 100dvh !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  background-color: var(--bg-page) !important;
+  background-image: none !important;
+}
+html[data-frontdesk-view="1"] body {
+  display: block !important;
+  min-height: 100dvh !important;
+  height: auto !important;
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  background: var(--bg-page) !important;
+  background-image: none !important;
+  color: var(--text-dark) !important;
+}
+html[data-frontdesk-view="1"] #root {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 100vh !important;
+  min-height: 100dvh !important;
+  height: 100vh !important;
+  max-height: none !important;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  background-color: var(--bg-page) !important;
+  background-image: none !important;
+}
+html[data-frontdesk-view="1"] #root > .frontdesk-app {
+  flex: 1 1 auto !important;
+  align-self: stretch !important;
+  min-width: 0 !important;
+  min-height: 100dvh !important;
+  width: 100% !important;
+  max-width: none !important;
+  height: auto !important;
+  max-height: none !important;
+  display: flex !important;
+  flex-direction: row !important;
+  overflow: hidden !important;
+  background: var(--bg-page) !important;
+  box-sizing: border-box;
+}

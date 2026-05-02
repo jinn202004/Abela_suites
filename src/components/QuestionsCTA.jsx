@@ -1,4 +1,4 @@
-import Button from './Button'
+import { Link } from 'react-router-dom'
 import './QuestionsCTA.css'
 
 export default function QuestionsCTA() {
@@ -11,9 +11,9 @@ export default function QuestionsCTA() {
         <p className="questions-cta__sub">
           Our team is here to help you plan your perfect stay or event
         </p>
-        <Button variant="cta" className="questions-cta__btn" type="button">
+        <Link to="/contact" className="btn btn--cta questions-cta__btn">
           Contact Us
-        </Button>
+        </Link>
       </div>
     </section>
   )

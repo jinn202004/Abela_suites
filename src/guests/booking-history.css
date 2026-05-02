@@ -1,0 +1,1008 @@
+  .guest-portal-layout {
+    --gold:       #b8922a;
+    --gold-light: #c9a84c;
+    --gold-dark:  #9a7520;
+    --sidebar-bg: #b8922a;
+    --sidebar-w:  260px;
+    --topbar-h:   60px;
+    --text-dark:  #3a2e1e;
+    --text-mid:   #6b5a3e;
+    --text-light: #9a8060;
+    --border:     #d4b97a;
+    --bg-page:    #f5f0e8;
+    width: 100%;
+    min-width: 0;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  html, body { overflow-x: hidden; }
+
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--bg-page);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #root {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  
+  /* ============================================
+     SIDEBAR
+     ============================================ */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 400;
+  }
+  
+  .sidebar-logo {
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    border-bottom: 1px solid rgba(255,255,255,0.3);
+  }
+  
+  .sidebar-logo img,
+  .sidebar-logo-img {
+    width: 90px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid white;
+  }
+  
+  .sidebar-nav {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding:18px 25px;
+    text-decoration:none;
+    color:white;
+    font-family:'Montserrat',sans-serif;
+    font-weight:600;
+  }
+  
+  .nav-item:hover  { background: rgba(0,0,0,0.10); color: #fff; }
+  .nav-item.active { background: rgba(0,0,0,0.20); color: #fff; }
+  /* ICON CONTAINER */
+  
+  .nav-icon{
+    width:36px;
+    height:36px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  
+  /* MAKE SVG BIG */
+  
+  .nav-icon svg{
+    width:30px;
+    height:30px;
+  }
+  
+  /* ============================================
+     MAIN WRAPPER
+     ============================================ */
+  .main-wrapper {
+    margin-left: var(--sidebar-w);
+    width: calc(100% - var(--sidebar-w));
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    min-width: 0;
+    background: var(--bg-page);
+  }
+  
+  /* ============================================
+     TOP BAR
+     ============================================ */
+  .topbar {
+    position: sticky;
+    top: 0;
+    min-height: var(--topbar-h);
+    height: auto;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    padding: 10px 16px;
+    z-index: 100;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+  }
+  
+  .topbar-breadcrumb {
+    display: flex; align-items: center; gap: 8px;
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+  
+  .breadcrumb-arrow {
+    font-size: 20px; font-weight: 700;
+    color: var(--gold); line-height: 1;
+    flex-shrink: 0;
+  }
+  
+  .breadcrumb-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 17px; font-weight: 700;
+    color: var(--gold); letter-spacing: 0.02em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  
+  .topbar-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  
+  .icon-btn {
+    position: relative;
+    display: flex; align-items: center; gap: 5px;
+    cursor: pointer; padding: 6px;
+    border-radius: 50%; transition: background 0.2s;
+  }
+  .icon-btn:hover { background: rgba(184,146,42,0.10); }
+  
+  .topbar-icon { width: 30px; height: 30px; object-fit: contain; }
+  
+  .notif-dot {
+    position: absolute; top: 5px; right: 5px;
+    width: 9px; height: 9px;
+    background: #e74c3c; border-radius: 50%;
+    border: 2px solid #fff;
+  }
+
+  /* Notification dropdown (same behavior as guest home) */
+  .dropdown {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    min-width: 230px;
+    z-index: 300;
+    overflow: hidden;
+    display: none;
+    animation: bhDropIn 0.18s ease;
+  }
+  .dropdown.open { display: block; }
+  @keyframes bhDropIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .notif-dropdown { right: 0; min-width: 270px; }
+  .notif-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f0ebe0;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-item:hover { background: #faf6ee; }
+  .notif-item--unread {
+    border-left: 3px solid var(--gold);
+    padding-left: 13px;
+    background: #fffdf8;
+  }
+  .notif-msg {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-dark);
+    margin-bottom: 3px;
+  }
+  .notif-time {
+    font-family: 'Roboto', sans-serif;
+    font-size: 11px;
+    color: var(--text-light);
+  }
+  
+  .user-arrow { font-size: 15px; color: var(--text-mid); line-height: 1; }
+  
+  /* ============================================
+     PAGE CONTENT (scoped — guest home/events CSS ships global `.content { padding: 0 }`)
+     ============================================ */
+  .guest-booking-history-page.guest-portal-layout .main-wrapper > .content {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* ============================================
+     BOOKING HISTORY WRAP
+     ============================================ */
+  .bh-wrap {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .bh-wrap--reservation {
+    gap: 16px;
+  }
+
+  .breadcrumb-chevron {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .bh-page-hero {
+    text-align: center;
+    padding: 4px 8px 8px;
+  }
+
+  .bh-page-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+    font-weight: 700;
+    color: var(--gold);
+    letter-spacing: 0.04em;
+  }
+
+  .bh-card--reservation {
+    border-radius: 14px;
+    border: 1px solid #e5d9c4;
+    box-shadow: 0 4px 16px rgba(58, 46, 30, 0.07);
+    overflow: visible;
+  }
+
+  .bh-segment {
+    padding: 14px 14px 0;
+    background: #fff;
+    border-radius: 14px 14px 0 0;
+  }
+
+  .bh-tabs--segment {
+    display: flex;
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid #e8dcc8;
+    grid-template-columns: unset;
+    border-bottom: none;
+  }
+
+  .bh-tabs--segment .bh-tab {
+    flex: 1;
+    border-right: 1px solid #e8dcc8;
+    background: #ffffff;
+    color: #2c2416;
+    padding: 14px 18px;
+    font-size: 15px;
+  }
+
+  .bh-tabs--segment .bh-tab:last-child {
+    border-right: none;
+  }
+
+  .bh-tabs--segment .bh-tab.active {
+    background: var(--gold-dark);
+    color: #ffffff;
+  }
+
+  .bh-tabs--segment .bh-tab:hover:not(.active) {
+    background: #faf6ee;
+    color: var(--text-dark);
+  }
+
+  .bh-card-body {
+    padding: 16px 20px 22px;
+    background: #fff;
+    border-radius: 0 0 14px 14px;
+  }
+
+  .bh-search-wrap {
+    display: block;
+    position: relative;
+    margin-bottom: 18px;
+  }
+
+  .bh-search-icon {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #a89472;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+  }
+
+  .bh-search-input {
+    width: 100%;
+    padding: 12px 14px 12px 46px;
+    border-radius: 12px;
+    border: 1px solid #ddd4c4;
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    color: var(--text-dark);
+    background: #fffdf9;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .bh-search-input::placeholder {
+    color: #b0a08c;
+  }
+
+  .bh-search-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.15);
+  }
+
+  .bh-loading-msg,
+  .bh-error-msg {
+    margin: 12px 4px;
+    font-size: 14px;
+  }
+  .bh-loading-msg { color: var(--text-light); }
+  .bh-error-msg { color: #c0392b; }
+
+  .bh-empty-cell {
+    text-align: center;
+    color: var(--text-light);
+    padding: 40px 16px !important;
+  }
+
+  .bh-table--reservation .bh-th-action {
+    text-align: center;
+    width: 96px;
+  }
+
+  .bh-table--reservation tbody td:last-child {
+    text-align: center;
+    vertical-align: middle;
+  }
+
+  .bh-table-wrap--zebra tbody tr:nth-child(even) td {
+    background: #faf8f3;
+  }
+
+  .bh-btn-eye {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 38px;
+    border-radius: 10px;
+    border: none;
+    background: #a8d8f0;
+    color: #1a5276;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  }
+
+  .bh-btn-eye:hover {
+    background: #85c9ea;
+    transform: scale(1.04);
+  }
+
+  .bh-btn-eye:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+
+  .bh-modal-detail-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+    padding-top: 18px;
+    border-top: 1px solid #e8dcc8;
+  }
+
+  .bh-modal-secondary-btn {
+    padding: 10px 20px;
+    background: #8d7a5c;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .bh-modal-secondary-btn:hover {
+    background: #7a6a52;
+  }
+  
+  /* ============================================
+     HEADING
+     ============================================ */
+  .bh-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .back-arrow {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--gold);
+    text-decoration: none;
+    line-height: 1;
+    transition: opacity 0.2s;
+  }
+  .back-arrow:hover { opacity: 0.7; }
+  
+  .bh-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px; font-weight: 700;
+    color: #A6761D;
+  }
+  
+  .bh-sub {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-top: 2px;
+  }
+  
+  /* ============================================
+     TABLE CARD
+     ============================================ */
+  .bh-card {
+    background: #ffffff;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  
+  /* ============================================
+     TABS
+     ============================================ */
+  .bh-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid #e8dcc8;
+  }
+  
+  .bh-tab {
+    padding: 13px 0;
+    background: #f5f0e8;
+    border: none;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-mid);
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+    border-right: 1px solid #e8dcc8;
+  }
+  
+  .bh-tab:last-child { border-right: none; }
+  
+  .bh-tab.active {
+    background: var(--gold-dark);
+    color: #ffffff;
+  }
+  
+  .bh-tab:hover:not(.active) {
+    background: #ede5d5;
+    color: var(--text-dark);
+  }
+  
+  /* ============================================
+     TABLE
+     ============================================ */
+  .bh-table-wrap {
+    overflow-x: auto;
+  }
+  
+  .bh-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13.5px;
+  }
+  
+  .bh-table thead tr {
+    border-bottom: 1px solid #e8dcc8;
+  }
+  
+  .bh-table th {
+    padding: 13px 18px;
+    text-align: left;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-dark);
+    background: #ffffff;
+  }
+  
+  .bh-table td {
+    padding: 13px 18px;
+    color: var(--text-dark);
+    border-bottom: 1px solid #f0e8d8;
+  }
+  
+  .bh-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  
+  .bh-table tbody tr:hover td {
+    background: #fdf8f0;
+  }
+  
+  /* ============================================
+     LEAVE REVIEW BUTTON
+     ============================================ */
+  .btn-leave-review {
+    background: var(--gold-dark);
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    padding: 7px 14px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+  }
+  .btn-leave-review:hover { background: var(--gold); }
+  
+  /* ============================================
+     RESPONSIVE
+     ============================================ */
+  @media (max-width: 1200px) {
+    .sidebar-logo {
+      padding: 12px;
+    }
+    .sidebar-logo img,
+    .sidebar-logo-img {
+      width: 72px;
+      height: 72px;
+    }
+  }
+
+  @media (max-width: 960px) {
+    .sidebar-logo {
+      padding: 10px;
+    }
+    .sidebar-logo img,
+    .sidebar-logo-img {
+      width: 56px;
+      height: 56px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .sidebar { width: 64px; }
+    .nav-item span:last-child { display: none; }
+    .nav-item { justify-content: center; padding: 14px 10px; }
+    .sidebar-logo {
+      padding: 8px 6px;
+    }
+    .sidebar-logo img,
+    .sidebar-logo-img {
+      width: 36px;
+      height: 36px;
+    }
+    .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
+    .bh-wrap { padding: 14px 12px; }
+    .breadcrumb-title { font-size: 15px; }
+    .dropdown { max-width: min(230px, calc(100vw - 20px)); }
+    .bh-success-inner { min-width: 0; max-width: min(320px, calc(100vw - 24px)); padding: 14px 16px; }
+    .bh-confirm-dialog { padding: 28px 20px 22px; }
+  }
+
+  @media (max-width: 480px) {
+    .breadcrumb-title { font-size: 14px; }
+    .bh-table-wrap { -webkit-overflow-scrolling: touch; }
+  }
+  
+  /* ============================================
+     MODAL BACKDROP
+     ============================================ */
+  .bh-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    /* Above sidebar/topbar/dropdowns; below confirm + toast */
+    z-index: 10040;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 60px;
+  }
+  .bh-modal-backdrop.active { display: flex; }
+  
+  /* ============================================
+     MODAL BOX
+     ============================================ */
+  .bh-modal {
+    background: #fdf8f0;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35);
+    animation: bhModalIn 0.28s ease both;
+  }
+  
+  @keyframes bhModalIn {
+    from { opacity: 0; transform: translateY(20px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  
+  .bh-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 24px 14px;
+    border-bottom: 1px solid #e8dcc8;
+    flex-shrink: 0;
+  }
+  
+  .bh-modal-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 18px; font-weight: 700;
+    color: var(--gold);
+    flex: 1;
+    text-align: center;
+  }
+  
+  .bh-modal-close {
+    background: none; border: none;
+    font-size: 18px; color: var(--text-mid);
+    cursor: pointer; padding: 4px 6px;
+    border-radius: 4px; line-height: 1;
+    transition: color 0.2s;
+  }
+  .bh-modal-close:hover { color: var(--gold); }
+  
+  .bh-modal-body {
+    overflow-y: auto;
+    padding: 20px 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .bh-modal-header--id-only {
+    justify-content: flex-end;
+    border-bottom: none;
+    padding-bottom: 8px;
+  }
+  .bh-modal-body--id-card {
+    padding-top: 8px;
+  }
+  
+  /* ============================================
+     STAR RATING
+     ============================================ */
+  .star-rating {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+  }
+  
+  .star {
+    font-size: 28px;
+    color: #d4c4a8;
+    cursor: pointer;
+    transition: color 0.15s, transform 0.1s;
+    user-select: none;
+  }
+  .star:hover,
+  .star.filled { color: var(--gold); }
+  .star:hover { transform: scale(1.15); }
+  
+  .rate-us-label {
+    text-align: center;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 15px; font-weight: 700;
+    color: var(--gold);
+    margin-top: -6px;
+  }
+  
+  /* ============================================
+     FORM GROUP
+     ============================================ */
+  .bh-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  
+  .bh-form-group label {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-dark);
+  }
+  
+  .bh-form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #d4c4a8;
+    border-radius: 5px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px; color: var(--text-dark);
+    background: #fff; outline: none;
+    resize: vertical;
+    transition: border-color 0.2s;
+  }
+  .bh-form-group textarea:focus { border-color: var(--gold); }
+  
+  /* ============================================
+     UPLOAD BOX
+     ============================================ */
+  .bh-upload-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 100px;
+    border: 1.5px dashed #d4c4a8;
+    border-radius: 5px;
+    background: #fff;
+    cursor: pointer;
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .bh-upload-box:hover { border-color: var(--gold); background: #fdf5e6; }
+  .bh-upload-box input[type="file"] { display: none; }
+  
+  .bh-upload-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-light);
+    font-size: 12.5px;
+    padding: 16px;
+    text-align: center;
+  }
+  
+  .bh-upload-box:has(.bh-upload-preview) {
+    min-height: 160px;
+    padding: 10px;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .bh-upload-preview {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    max-height: 200px;
+    min-height: 72px;
+    object-fit: contain;
+    object-position: center;
+    border-radius: 4px;
+    flex: 1;
+  }
+  
+  /* ============================================
+     MODAL ACTIONS
+     ============================================ */
+  .bh-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  
+  .bh-btn-clear {
+    padding: 10px 28px;
+    background: transparent;
+    color: var(--text-dark);
+    border: 1.5px solid #d4c4a8;
+    border-radius: 6px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .bh-btn-clear:hover { border-color: var(--gold); }
+  
+  .bh-btn-submit {
+    padding: 10px 28px;
+    background: var(--gold-dark);
+    color: #fff; border: none;
+    border-radius: 6px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 13px; font-weight: 700;
+    letter-spacing: 0.04em; cursor: pointer;
+    transition: background 0.2s;
+  }
+  .bh-btn-submit:hover { background: var(--gold); }
+  
+  /* ============================================
+     CONFIRM DIALOG
+     ============================================ */
+  .bh-confirm-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.30);
+    /* Must sit above .bh-modal-backdrop so “Submit Review?” is visible and clickable */
+    z-index: 10050;
+    align-items: center;
+    justify-content: center;
+  }
+  .bh-confirm-backdrop.active { display: flex; }
+  
+  .bh-confirm-dialog {
+    background: #fff;
+    border-radius: 10px;
+    padding: 36px 48px 28px;
+    text-align: center;
+    max-width: 340px;
+    width: 90%;
+    box-shadow: 0 16px 50px rgba(0,0,0,0.28);
+    animation: bhModalIn 0.25s ease both;
+  }
+  
+  .bh-confirm-icon {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+  
+  .bh-confirm-exclaim {
+    position: absolute;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 36px; font-weight: 800;
+    color: #e74c3c; line-height: 1;
+  }
+  
+  .bh-confirm-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 19px; font-weight: 700;
+    color: var(--gold);
+    margin-bottom: 24px;
+  }
+  
+  .bh-confirm-btns {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+  
+  .bh-btn-cancel-confirm {
+    padding: 10px 28px;
+    background: transparent;
+    color: var(--text-dark);
+    border: 1.5px solid #d4c4a8;
+    border-radius: 6px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px; font-weight: 500;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .bh-btn-cancel-confirm:hover { border-color: var(--gold); }
+  
+  .bh-btn-submit-confirm {
+    padding: 10px 28px;
+    background: var(--gold-dark);
+    color: #fff; border: none;
+    border-radius: 6px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px; font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .bh-btn-submit-confirm:hover { background: var(--gold); }
+  
+  /* ============================================
+     SUCCESS TOAST
+     ============================================ */
+  .bh-success-toast {
+    display: none;
+    position: fixed;
+    top: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10060;
+    animation: bhModalIn 0.3s ease both;
+  }
+  .bh-success-toast.active { display: block; }
+  
+  .bh-success-inner {
+    background: #fff;
+    border: 2px solid #BCB7B7;
+    border-radius: 10px;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.15);
+    min-width: 320px;
+  }
+  
+  .bh-success-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--gold);
+  }
+  
+  .bh-success-sub {
+    font-family: 'Roboto', sans-serif;
+    font-size: 12.5px;
+    color: var(--text-mid);
+    margin-top: 2px;
+  }
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  html, body, #root {
+    width: 100%;
+    min-height: 100vh;
+    overflow-x: hidden;
+    background: #f5f0e8;
+  }
+  
+  body {
+    display: flex;
+    font-family: 'Roboto', sans-serif;
+  }
+  
+  #root {
+    display: flex;
+    flex: 1;
+  }
+
+  .bh-status {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-family: 'Roboto', sans-serif;
+  }
+  .bh-status--pending {
+    background: rgba(183, 148, 58, 0.2);
+    color: #7a6220;
+  }
+  .bh-status--approved {
+    background: rgba(46, 204, 113, 0.2);
+    color: #1e8449;
+  }
+  .bh-status--rejected {
+    background: rgba(192, 57, 43, 0.15);
+    color: #922b21;
+  }
+  .bh-status--muted {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-mid);
+  }

@@ -14,3 +14,15 @@ The React Compiler is not enabled on this template because of its impact on dev 
 ## Expanding the ESLint configuration
 
 If you are developing a production application, consider adding `eslint-plugin-react` for React-specific rules and tightening the recommended rules in `eslint.config.js` as needed.
+
+---
+
+## Abela — Front desk dashboard
+
+**Files:** `src/frontdesks/dashboard.jsx`, `dashboard.service.js`, `dashboard.css`; `frontdesk-dashboard.jsx` re-exports for `/frontdesk-dashboard`.
+
+**Layout:** Four summary cards (today’s reservations & check-outs, billing total, outstanding balance), **Room Status** / **Event Status** tabs, search, and inventory table — matching the classic front desk screen.
+
+**Endpoints:** `GET /api/frontdesk/summary` (card metrics from MongoDB, same rules as bookings + billing), `GET /api/rooms` (room status table), `GET /api/event-venues` (event status table), `GET /api/frontdesk/bookings/:id` (booking modal).
+
+**Refresh:** Toolbar button + 60s auto-refresh + listeners for auth and cross-tab pings.

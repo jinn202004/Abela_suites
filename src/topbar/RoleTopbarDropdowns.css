@@ -1,0 +1,106 @@
+/* Button row styled like .user-dropdown-item (pages already style the link variant). */
+.user-dropdown-item--logout {
+  width: 100%;
+  margin: 0;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.user-dropdown-item--logout:hover {
+  background: #fdf8f0;
+}
+
+/* Shared notification dropdown (imported with RoleTopbarDropdowns.jsx) */
+.notif-dropdown {
+  min-width: 280px;
+  max-height: 320px;
+  overflow-y: auto;
+  z-index: 200;
+}
+
+.notif-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0e8d8;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+
+.notif-item:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(184, 146, 42, 0.45);
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item--unread {
+  border-left: 3px solid #e74c3c;
+  padding-left: 11px;
+  background: linear-gradient(90deg, rgba(231, 76, 60, 0.06), transparent);
+}
+
+.notif-msg {
+  font-size: 13px;
+  line-height: 1.35;
+  color: #2c2c2c;
+}
+
+.notif-detail {
+  font-size: 11px;
+  color: #7a6a58;
+  letter-spacing: 0.02em;
+}
+
+.notif-time {
+  font-size: 11px;
+  color: #9a8b7a;
+}
+
+.user-dropdown-avatar-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.user-dropdown-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(184, 150, 53, 0.35);
+  background: #f0ebe3;
+}
+
+.user-dropdown-profile-line--muted {
+  font-size: 12px;
+  color: #6b5c4d;
+}
+
+.user-dropdown-profile-id {
+  font-size: 11px;
+  color: #8a7b6a;
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+
+@keyframes abela-notif-dot-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(231, 76, 60, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(231, 76, 60, 0);
+  }
+}
+
+.icon-btn .notif-dot--active {
+  animation: abela-notif-dot-pulse 2s ease-in-out infinite;
+}

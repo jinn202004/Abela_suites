@@ -1,0 +1,12 @@
+/**
+ * Shared tokens for profile & settings screens (cream shell + muted gold accents).
+ * Import after any local :root if you need to override per-page.
+ */
+:root {
+  --settings-cream: #fdf8f0;
+  --settings-gold: #9e7e2a;
+  --settings-gold-dark: #8a6d24;
+  --settings-border: #e8dcc8;
+  --settings-input-border: #d4c4a8;
+  --settings-card-shadow: 0 2px 14px rgba(58, 46, 30, 0.08);
+}

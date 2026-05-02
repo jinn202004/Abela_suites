@@ -1,0 +1,88 @@
+/* Housekeeping/frontdesk-matched sidebar structure for all guest portal pages. */
+.guest-portal-layout.guest-rail-shell > .sidebar.sidebar--frontdesk-template {
+  width: 240px !important;
+  min-width: 240px !important;
+  max-width: 240px !important;
+}
+
+.guest-portal-layout.guest-rail-shell > .main-wrapper {
+  margin-left: 240px !important;
+  width: calc(100% - 240px) !important;
+}
+
+.guest-portal-layout.guest-rail-shell.sidebar-collapsed > .sidebar.sidebar--frontdesk-template {
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+}
+
+.guest-portal-layout.guest-rail-shell.sidebar-collapsed > .main-wrapper {
+  margin-left: 64px !important;
+  width: calc(100% - 64px) !important;
+}
+
+.guest-portal-layout > .sidebar.sidebar--frontdesk-template .sidebar-logo {
+  padding: 15px !important;
+}
+
+.guest-portal-layout > .sidebar.sidebar--frontdesk-template .sidebar-logo img,
+.guest-portal-layout > .sidebar.sidebar--frontdesk-template .sidebar-logo-img {
+  width: 80px !important;
+  height: 80px !important;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff !important;
+  box-sizing: border-box;
+}
+
+.guest-portal-layout > .sidebar.sidebar--frontdesk-template .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 14px !important;
+  padding: 16px 22px !important;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+}
+
+.guest-portal-layout > .sidebar.sidebar--frontdesk-template .nav-item.active {
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.guest-portal-layout > .sidebar.sidebar--frontdesk-template .nav-icon {
+  width: 30px !important;
+  height: 30px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.guest-portal-layout > .sidebar.sidebar--frontdesk-template .nav-icon svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+@media (max-width: 768px) {
+  .guest-portal-layout > .sidebar.sidebar--frontdesk-template {
+    width: 64px !important;
+    min-width: 64px !important;
+    max-width: 64px !important;
+  }
+  .guest-portal-layout > .main-wrapper {
+    margin-left: 64px !important;
+    width: calc(100% - 64px) !important;
+  }
+  .guest-portal-layout > .sidebar.sidebar--frontdesk-template .nav-item {
+    justify-content: center;
+    padding: 14px 10px !important;
+  }
+  .guest-portal-layout > .sidebar.sidebar--frontdesk-template .nav-item > span:not(.nav-icon) {
+    display: none;
+  }
+  .guest-portal-layout > .sidebar.sidebar--frontdesk-template .sidebar-logo img,
+  .guest-portal-layout > .sidebar.sidebar--frontdesk-template .sidebar-logo-img {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}

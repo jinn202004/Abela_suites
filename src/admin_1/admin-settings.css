@@ -1,0 +1,444 @@
+@import "./admin-dashboard.css";
+
+/* Uses :root tokens from admin-dashboard (--gold, --bg-page, --text-dark, --border, …) */
+.admin-settings-page {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  font-family: "Roboto", sans-serif;
+  background: var(--bg-page);
+}
+
+/* ── Sidebar ── */
+.admin-settings-page .sidebar {
+  width: var(--sidebar-w);
+  height: 100vh;
+  max-height: 100vh;
+  background: var(--gold);
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  overflow: hidden;
+  z-index: 400;
+  flex-shrink: 0;
+}
+
+.admin-settings-page .sidebar-logo {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-settings-page .sidebar-logo-img {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+}
+
+.admin-settings-page .sidebar-nav {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.admin-settings-page .sidebar-nav::-webkit-scrollbar {
+  width: 3px;
+}
+.admin-settings-page .sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.admin-settings-page .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 22px;
+  text-decoration: none;
+  color: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-weight: 600;
+  font-size: 13px;
+  transition: background 0.18s;
+}
+
+.admin-settings-page .nav-item:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+.admin-settings-page .nav-item.active {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.admin-settings-page .nav-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-settings-page .nav-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* ── Main column ── */
+.admin-settings-page .main-wrapper {
+  margin-left: var(--sidebar-w);
+  width: calc(100% - var(--sidebar-w));
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-width: 0;
+  background: var(--bg-page);
+}
+
+.admin-settings-page .topbar {
+  position: sticky;
+  top: 0;
+  min-height: var(--topbar-h);
+  height: auto;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  row-gap: 8px;
+  padding: 10px 16px;
+  z-index: 300;
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.07);
+}
+
+.admin-settings-page .topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.admin-settings-page .breadcrumb-arrow {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.admin-settings-page .breadcrumb-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.admin-settings-page .topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.admin-settings-page .icon-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 50%;
+  transition: background 0.2s;
+  user-select: none;
+}
+
+.admin-settings-page .topbar-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  color: var(--text-dark);
+  flex-shrink: 0;
+}
+
+.admin-settings-page .topbar-dropdown-user-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  vertical-align: middle;
+  margin-right: 2px;
+}
+
+.admin-settings-page .icon-btn:hover {
+  background: rgba(184, 146, 42, 0.1);
+}
+
+.admin-settings-page .notif-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 9px;
+  height: 9px;
+  background: #e74c3c;
+  border-radius: 50%;
+  border: 2px solid #fff;
+}
+
+.admin-settings-page .user-arrow {
+  font-size: 14px;
+  color: var(--text-mid);
+  transition: transform 0.2s;
+  line-height: 1;
+}
+
+/* Dropdowns */
+.admin-settings-page .dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.16);
+  border: 1px solid #e8dcc8;
+  z-index: 999;
+  min-width: 220px;
+  overflow: hidden;
+  animation: as-dd-in 0.18s ease both;
+}
+
+.admin-settings-page .dropdown.open {
+  display: block;
+}
+
+@keyframes as-dd-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.admin-settings-page .notif-dropdown {
+  min-width: 270px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.admin-settings-page .notif-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0e8d8;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.admin-settings-page .notif-item:last-child {
+  border-bottom: none;
+}
+.admin-settings-page .notif-item:hover {
+  background: #fdf8f0;
+}
+
+.admin-settings-page .notif-msg {
+  font-size: 13px;
+  color: var(--text-dark);
+  margin-bottom: 3px;
+  line-height: 1.4;
+}
+
+.admin-settings-page .notif-time {
+  font-size: 11px;
+  color: var(--text-light);
+}
+
+.admin-settings-page .user-dropdown {
+  min-width: 200px;
+}
+
+.admin-settings-page .user-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 18px;
+  font-size: 13.5px;
+  color: var(--text-dark);
+  cursor: pointer;
+  border-bottom: 1px solid #f0e8d8;
+  transition: background 0.15s;
+}
+.admin-settings-page .user-dropdown-item:last-child {
+  border-bottom: none;
+}
+.admin-settings-page .user-dropdown-item:hover {
+  background: #fdf8f0;
+}
+
+.admin-settings-page .user-dropdown-item svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--text-mid);
+}
+
+/* ── Page content ── */
+.admin-settings-page .content {
+  flex: 1;
+  padding: 28px 36px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+/* Same scale as .rm-dashboard-header / .rm-dashboard-title / .rm-dashboard-sub (room-management, event-management) */
+.admin-settings-page .settings-heading {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: 4px;
+  padding-bottom: 0;
+  margin-bottom: 32px;
+  width: 100%;
+  max-width: 520px;
+}
+
+.admin-settings-page .settings-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: clamp(1.15rem, 2vw, 1.35rem);
+  font-weight: 800;
+  color: var(--gold);
+  margin: 0;
+  padding: 0;
+  line-height: 1.2;
+}
+
+.admin-settings-page .settings-sub {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-mid);
+  line-height: 1.45;
+}
+
+.admin-settings-page .settings-card {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border: 1px solid #e8dcc8;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-settings-page .settings-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  text-decoration: none;
+  color: var(--text-dark);
+  font-family: "Roboto", sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  transition:
+    background 0.18s,
+    box-shadow 0.18s,
+    border-color 0.18s;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.admin-settings-page .settings-menu-item:hover {
+  background: #fff;
+  border-color: rgba(184, 146, 42, 0.35);
+  box-shadow: 0 4px 14px rgba(184, 146, 42, 0.12);
+}
+
+.admin-settings-page .settings-menu-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--text-dark);
+}
+
+.admin-settings-page .settings-menu-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.admin-settings-page .settings-menu-label {
+  font-family: "Roboto", sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-dark);
+}
+
+@media (max-width: 768px) {
+  .admin-settings-page .sidebar {
+    width: 64px;
+  }
+  .admin-settings-page .nav-item span:not(.nav-icon) {
+    display: none;
+  }
+  .admin-settings-page .nav-item {
+    justify-content: center;
+    padding: 14px 10px;
+  }
+  .admin-settings-page .sidebar-logo-img {
+    width: 44px;
+    height: 44px;
+  }
+  .admin-settings-page .main-wrapper {
+    margin-left: 64px;
+    width: calc(100% - 64px);
+  }
+  .admin-settings-page .content {
+    padding: 16px 12px 28px;
+  }
+  .admin-settings-page .settings-card {
+    max-width: 100%;
+  }
+  .admin-settings-page .breadcrumb-title {
+    font-size: 15px;
+  }
+  .admin-settings-page .notif-dropdown {
+    max-width: min(270px, calc(100vw - 20px));
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-settings-page .breadcrumb-title {
+    font-size: 14px;
+  }
+}

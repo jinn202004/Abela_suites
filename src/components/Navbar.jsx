@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import AbelaLogo from './AbelaLogo'
 import Button from './Button'
 import './Navbar.css'
@@ -5,7 +6,7 @@ import './Navbar.css'
 const LINKS = [
   { href: '#home', label: 'Home' },
   { href: '#testimonials', label: 'Testimonials' },
-  { href: '#contact', label: 'Contact Us' },
+  { to: '/contact', label: 'Contact Us' },
 ]
 
 export default function Navbar({ onLoginClick = () => {} }) {
@@ -18,9 +19,13 @@ export default function Navbar({ onLoginClick = () => {} }) {
 
       <nav className="navbar__nav" aria-label="Main">
         <ul className="navbar__links">
-          {LINKS.map(({ href, label }) => (
-            <li key={href}>
-              <a href={href}>{label}</a>
+          {LINKS.map((item) => (
+            <li key={item.href ?? item.to}>
+              {'href' in item ? (
+                <a href={item.href}>{item.label}</a>
+              ) : (
+                <Link to={item.to}>{item.label}</Link>
+              )}
             </li>
           ))}
         </ul>

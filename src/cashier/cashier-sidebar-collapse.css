@@ -1,0 +1,129 @@
+/* Cashier: mobile drawer + desktop collapse, aligned with admin_1 (admin-sidebar-collapse.css). */
+html[data-cashier-sidebar-collapsed="true"] .abela-pos-app,
+html[data-cashier-sidebar-collapsed="true"] .cashier-settings-page-root.abela-pos-app {
+  --sidebar-w: 64px;
+}
+
+/* Only mounted when the mobile drawer is open (no hidden hit-target when closed). */
+.cashier-mobile-backdrop {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 9990;
+  cursor: pointer;
+}
+
+@media (max-width: 768px) {
+  .sidebar.abela-pos-app.cashier-mobile-shell {
+    width: 50vw !important;
+    min-width: 50vw !important;
+    max-width: 50vw !important;
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    min-height: 100vh;
+    height: 100vh;
+    z-index: 10000 !important;
+  }
+
+  /* Off-screen drawer must not capture taps (portaled aside stays mounted while closed). */
+  .sidebar.abela-pos-app.cashier-mobile-shell:not(.mobile-open) {
+    pointer-events: none !important;
+  }
+  .sidebar.abela-pos-app.cashier-mobile-shell.mobile-open {
+    pointer-events: auto !important;
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell .sidebar-logo {
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell .sidebar-logo-img,
+  .sidebar.abela-pos-app.cashier-mobile-shell .sidebar-logo img {
+    width: 120px !important;
+    height: 120px !important;
+    max-width: 120px !important;
+    max-height: 120px !important;
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell .nav-item > span:last-child {
+    display: inline !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+    overflow-wrap: anywhere !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell .nav-item {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 16px 22px !important;
+    gap: 14px !important;
+    text-align: left !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell .nav-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell .sidebar-nav {
+    overflow-x: visible !important;
+  }
+
+  .cashier-mobile-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.12);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .cashier-mobile-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell + .main-wrapper {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .sidebar.abela-pos-app.cashier-mobile-shell + .main-wrapper .content,
+  .sidebar.abela-pos-app.cashier-mobile-shell + .main-wrapper .st-wrap,
+  .sidebar.abela-pos-app.cashier-mobile-shell + .main-wrapper .oh-wrap {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+}

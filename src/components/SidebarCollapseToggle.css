@@ -1,0 +1,33 @@
+/* Sidebar chevron (was `.guest-header__crumb-toggle` in removed GuestHeader.css) */
+.guest-header__crumb-toggle {
+  background: transparent;
+  border: none;
+  margin: 0;
+  padding: 4px;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 6px;
+  transition: background 0.2s, transform 0.3s ease;
+  vertical-align: middle;
+}
+
+.guest-header__crumb-toggle::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+.guest-header__crumb-toggle:hover {
+  background: rgba(184, 146, 42, 0.12);
+}
+
+.guest-header__crumb-toggle--collapsed {
+  transform: rotate(180deg);
+}

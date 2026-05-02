@@ -1,0 +1,173 @@
+/* Import on cashier (abela-pos-app), admin (admin-rail-shell), front desk (frontdesk-rail-shell). */
+
+.sidebar.abela-pos-app .sidebar-logo,
+.abela-pos-app .sidebar-logo {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.sidebar.abela-pos-app .sidebar-logo-img,
+.abela-pos-app .sidebar-logo-img {
+  width: 80px;
+  height: 80px;
+  border-width: 2px;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: #fff;
+  object-fit: cover;
+  object-position: center;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.sidebar.abela-pos-app .nav-item,
+.abela-pos-app .nav-item {
+  gap: 14px;
+  padding: 16px 22px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.sidebar.abela-pos-app .nav-icon,
+.abela-pos-app .nav-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.sidebar.abela-pos-app .nav-icon svg,
+.abela-pos-app .nav-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.abela-pos-app.sidebar-collapsed .nav-item span:last-child,
+.admin-rail-shell.sidebar-collapsed .nav-item span:last-child,
+.frontdesk-rail-shell.sidebar-collapsed .nav-item span:last-child,
+.housekeeping-rail-shell.sidebar-collapsed .nav-item span:last-child,
+.guest-rail-shell.sidebar-collapsed .nav-item span:last-child {
+  display: none;
+}
+.abela-pos-app.sidebar-collapsed .nav-item,
+.admin-rail-shell.sidebar-collapsed .nav-item,
+.frontdesk-rail-shell.sidebar-collapsed .nav-item,
+.housekeeping-rail-shell.sidebar-collapsed .nav-item,
+.guest-rail-shell.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding: 18px 10px;
+}
+
+.breadcrumb-sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin: 0;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  line-height: 1;
+  transition: background 0.18s, transform 0.2s;
+}
+.breadcrumb-sidebar-toggle:hover {
+  background: rgba(184, 146, 42, 0.12);
+}
+.breadcrumb-sidebar-toggle:focus-visible {
+  outline: 2px solid #b8922a;
+  outline-offset: 2px;
+}
+.breadcrumb-sidebar-toggle:active {
+  background: rgba(184, 146, 42, 0.2);
+}
+
+.breadcrumb-arrow {
+  font-size: 22px;
+  font-weight: 700;
+  color: #b8922a;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.2s;
+}
+.abela-pos-app.sidebar-collapsed .breadcrumb-arrow {
+  transform: rotate(180deg);
+}
+
+/* Admin / front desk: aside and .main-wrapper are siblings */
+.admin-rail-shell.sidebar-collapsed + .main-wrapper .breadcrumb-arrow-btn,
+.frontdesk-rail-shell.sidebar-collapsed + .main-wrapper .breadcrumb-arrow-btn,
+.housekeeping-rail-shell.sidebar-collapsed + .main-wrapper .breadcrumb-arrow-btn,
+.guest-rail-shell.sidebar-collapsed + .main-wrapper .breadcrumb-arrow-btn {
+  display: inline-block;
+  transform: rotate(180deg);
+  transition: transform 0.2s;
+}
+
+/* Collapsed rail only: align logo row with topbar + small circle */
+.abela-pos-app.sidebar-collapsed .sidebar,
+.admin-rail-shell.sidebar-collapsed,
+.frontdesk-rail-shell.sidebar-collapsed,
+.housekeeping-rail-shell.sidebar-collapsed,
+.guest-rail-shell.sidebar-collapsed {
+  overflow-x: hidden !important;
+}
+
+.abela-pos-app.sidebar-collapsed .sidebar-logo,
+.abela-pos-app.sidebar-collapsed a.sidebar-logo,
+.admin-rail-shell.sidebar-collapsed .sidebar-logo,
+.admin-rail-shell.sidebar-collapsed a.sidebar-logo,
+.frontdesk-rail-shell.sidebar-collapsed .sidebar-logo,
+.frontdesk-rail-shell.sidebar-collapsed a.sidebar-logo,
+.housekeeping-rail-shell.sidebar-collapsed .sidebar-logo,
+.housekeeping-rail-shell.sidebar-collapsed a.sidebar-logo,
+.guest-rail-shell.sidebar-collapsed .sidebar-logo,
+.guest-rail-shell.sidebar-collapsed a.sidebar-logo {
+  height: var(--topbar-h, 62px) !important;
+  min-height: var(--topbar-h, 62px) !important;
+  max-height: var(--topbar-h, 62px) !important;
+  padding: 0 4px !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 0 0 auto !important;
+  line-height: 0 !important;
+  border-bottom: 1px solid var(--border, #d4b97a) !important;
+}
+
+.abela-pos-app.sidebar-collapsed .sidebar-logo-img,
+.abela-pos-app.sidebar-collapsed .sidebar-logo img,
+.admin-rail-shell.sidebar-collapsed .sidebar-logo-img,
+.admin-rail-shell.sidebar-collapsed .sidebar-logo img,
+.frontdesk-rail-shell.sidebar-collapsed .sidebar-logo-img,
+.frontdesk-rail-shell.sidebar-collapsed .sidebar-logo img,
+.housekeeping-rail-shell.sidebar-collapsed .sidebar-logo-img,
+.housekeeping-rail-shell.sidebar-collapsed .sidebar-logo img,
+.guest-rail-shell.sidebar-collapsed .sidebar-logo-img,
+.guest-rail-shell.sidebar-collapsed .sidebar-logo img {
+  width: 28px !important;
+  height: 28px !important;
+  max-width: 28px !important;
+  max-height: 28px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  aspect-ratio: 1 / 1 !important;
+  border-width: 1px !important;
+  box-sizing: border-box !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  flex: 0 0 auto !important;
+  align-self: center !important;
+  display: block !important;
+}

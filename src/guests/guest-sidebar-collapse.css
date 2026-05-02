@@ -1,0 +1,136 @@
+/* Guest portal rail: same mobile drawer + collapse behavior as housekeeping (housekeeping-sidebar-collapse.css). */
+html[data-guest-sidebar-collapsed="true"] .guest-portal-layout {
+  --sidebar-w: 64px;
+}
+
+.sidebar.guest-rail-shell .sidebar-logo,
+.sidebar.guest-rail-shell a.sidebar-logo {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+/* Backdrop / close: housekeeping-sidebar-collapse.css (HousekeepingSidebar) */
+
+/* Top bar toggle: base reset (guest may not load admin-dashboard.css). */
+.guest-portal-layout .topbar .breadcrumb-arrow-btn,
+.guest-home-root .topbar .breadcrumb-arrow-btn,
+.guest-settings-page-root .topbar .breadcrumb-arrow-btn {
+  font: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+  line-height: 1;
+  background: none;
+  border: none;
+  margin: 0;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.guest-portal-layout .topbar .breadcrumb-arrow-btn:hover,
+.guest-home-root .topbar .breadcrumb-arrow-btn:hover,
+.guest-settings-page-root .topbar .breadcrumb-arrow-btn:hover {
+  background: rgba(184, 146, 42, 0.12);
+}
+.guest-portal-layout .topbar .breadcrumb-arrow-btn:focus-visible,
+.guest-home-root .topbar .breadcrumb-arrow-btn:focus-visible,
+.guest-settings-page-root .topbar .breadcrumb-arrow-btn:focus-visible {
+  outline: 2px solid var(--gold, #b8922a);
+  outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+  .sidebar.guest-rail-shell.guest-mobile-shell {
+    width: 50vw !important;
+    min-width: 50vw !important;
+    max-width: 50vw !important;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell .sidebar-logo,
+  .sidebar.guest-rail-shell.guest-mobile-shell a.sidebar-logo {
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell .sidebar-logo-img,
+  .sidebar.guest-rail-shell.guest-mobile-shell .sidebar-logo img {
+    width: 120px !important;
+    height: 120px !important;
+    max-width: 120px !important;
+    max-height: 120px !important;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell .nav-item > span:last-child {
+    display: inline !important;
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+    overflow-wrap: anywhere !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell .nav-item {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 16px 22px !important;
+    gap: 14px !important;
+    text-align: left !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell .nav-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell .sidebar-nav {
+    overflow-x: visible !important;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell + .main-wrapper {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell + .main-wrapper .content,
+  .sidebar.guest-rail-shell.guest-mobile-shell + .main-wrapper .rm-wrap,
+  .sidebar.guest-rail-shell.guest-mobile-shell + .main-wrapper .rc-wrap {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  .sidebar.guest-rail-shell.guest-mobile-shell + .main-wrapper .rm-table-wrap,
+  .sidebar.guest-rail-shell.guest-mobile-shell + .main-wrapper .rc-table-wrap {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

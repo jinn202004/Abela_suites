@@ -1,0 +1,66 @@
+@import "./room-management.css";
+
+/* Breadcrumb matches admin shell: › Dashboard */
+.em-event .em-event-breadcrumb-link {
+  text-decoration: none;
+}
+.em-event .em-event-breadcrumb-link:hover {
+  text-decoration: underline;
+}
+
+/* Event Management uses the same .rm-room-switch / .rm-top-row / .rm-search-wrap
+   pattern as Room Management (see room-management.css). */
+
+/* Stat cards: icon + label row, gold icons & values */
+.em-event .rm-stat-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.em-event .rm-stat-card__icon {
+  flex-shrink: 0;
+  color: var(--gold);
+}
+
+.em-event .rm-stat-name {
+  font-family: "Roboto", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-mid);
+  line-height: 1.35;
+}
+
+/* Four stat cards on event dashboard */
+.rm-app .rm-stats-row.rm-stats-row--events {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .rm-app .rm-stats-row.rm-stats-row--events {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  .rm-app .rm-stats-row.rm-stats-row--events {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rm-badge.badge-approved,
+.rm-badge.badge-available {
+  background: #d4edda;
+  color: #1e7e34;
+}
+
+.rm-badge.badge-pending {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.rm-badge.badge-rejected,
+.rm-badge.badge-cancelled {
+  background: #f8d7da;
+  color: #721c24;
+}

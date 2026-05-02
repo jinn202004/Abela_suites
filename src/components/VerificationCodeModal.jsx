@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import Button from './Button'
 import ModalFrame from './ModalFrame'
-import './LoginModal.css'
+import '../logIn/LoginModal.css'
 import './VerificationCodeModal.css'
 
 const CODE_LEN = 6

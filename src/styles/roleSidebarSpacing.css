@@ -1,0 +1,74 @@
+/* Match sidebar spacing to frontdesk layout across other roles. */
+
+.sidebar.sidebar--frontdesk-template .sidebar-logo {
+  padding: 15px !important;
+}
+
+.sidebar.sidebar--frontdesk-template .sidebar-logo-img {
+  width: 80px !important;
+  height: 80px !important;
+  border-width: 2px !important;
+}
+
+/* Enforce one logo presentation across role sidebars (guest baseline). */
+.sidebar.frontdesk-rail-shell .sidebar-logo-img,
+.sidebar.admin-rail-shell .sidebar-logo-img,
+.abela-pos-app .sidebar .sidebar-logo-img,
+.housekeeping-portal-layout > .sidebar.sidebar--frontdesk-template .sidebar-logo-img,
+.housekeeping-portal-layout > .sidebar.sidebar--frontdesk-template .sidebar-logo img {
+  width: 80px !important;
+  height: 80px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+  object-position: center !important;
+  background: #fff !important;
+  border: 2px solid #fff !important;
+  box-sizing: border-box !important;
+  display: block !important;
+}
+
+.sidebar.sidebar--frontdesk-template .sidebar-nav .nav-item {
+  gap: 14px !important;
+  padding: 16px 22px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.sidebar.sidebar--frontdesk-template .sidebar-nav .nav-icon {
+  width: 30px !important;
+  height: 30px !important;
+}
+
+.sidebar.sidebar--frontdesk-template .sidebar-nav .nav-icon svg {
+  width: 22px !important;
+  height: 22px !important;
+}
+
+/* Admin: force rail/main geometry to match other sidebars exactly. */
+.sidebar.admin-rail-shell.sidebar--frontdesk-template {
+  width: 240px !important;
+  min-width: 240px !important;
+  max-width: 240px !important;
+}
+
+.sidebar.admin-rail-shell.sidebar--frontdesk-template + .main-wrapper {
+  margin-left: 240px !important;
+  width: calc(100% - 240px) !important;
+}
+
+/* Keep collapsed rail spacing aligned with frontdesk compact rail. */
+.sidebar.sidebar--frontdesk-template.sidebar-collapsed .nav-item,
+.abela-pos-app.sidebar-collapsed .sidebar.sidebar--frontdesk-template .nav-item {
+  padding: 14px 10px !important;
+}
+
+.sidebar.admin-rail-shell.sidebar--frontdesk-template.sidebar-collapsed {
+  width: 64px !important;
+  min-width: 64px !important;
+  max-width: 64px !important;
+}
+
+.sidebar.admin-rail-shell.sidebar--frontdesk-template.sidebar-collapsed + .main-wrapper {
+  margin-left: 64px !important;
+  width: calc(100% - 64px) !important;
+}

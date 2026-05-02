@@ -1,0 +1,189 @@
+/* Admin rail keeps the same layout structure as frontdesk. */
+html[data-admin-sidebar-collapsed="true"],
+html[data-admin-sidebar-collapsed="true"] .bills-page,
+html[data-admin-sidebar-collapsed="true"] .admin-general-page,
+html[data-admin-sidebar-collapsed="true"] .settings-page,
+html[data-admin-sidebar-collapsed="true"] .rm-page,
+html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
+  --sidebar-w: 64px;
+}
+
+.sidebar.admin-rail-shell .sidebar-logo {
+  padding: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.sidebar.admin-rail-shell .sidebar-logo-img {
+  width: 80px;
+  height: 80px;
+  border-width: 2px;
+  border-radius: 50%;
+  border-style: solid;
+  border-color: #fff;
+  object-fit: cover;
+  object-position: center;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.sidebar.admin-rail-shell .nav-item {
+  gap: 14px;
+  padding: 16px 22px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.sidebar.admin-rail-shell .nav-icon {
+  width: 30px;
+  height: 30px;
+}
+
+.sidebar.admin-rail-shell .nav-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.admin-rail-shell.sidebar-collapsed .nav-item > :not(.nav-icon) {
+  display: none;
+}
+
+.admin-rail-shell.sidebar-collapsed .nav-item {
+  justify-content: center;
+  padding: 18px 10px;
+}
+
+.admin-mobile-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 650;
+  cursor: pointer;
+}
+
+.admin-mobile-backdrop.open {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  /* Mobile drawer: show icon labels (page-level CSS hides them by default). */
+  .sidebar.admin-rail-shell.admin-mobile-shell {
+    width: 50vw !important;
+    min-width: 50vw !important;
+    max-width: 50vw !important;
+  }
+
+  .sidebar.admin-rail-shell.admin-mobile-shell .sidebar-logo {
+    padding-top: 20px !important;
+    padding-bottom: 20px !important;
+  }
+
+  .sidebar.admin-rail-shell.admin-mobile-shell .sidebar-logo-img {
+    width: 120px !important;
+    height: 120px !important;
+    max-width: 120px !important;
+    max-height: 120px !important;
+  }
+
+  .sidebar.admin-rail-shell.admin-mobile-shell .nav-item > span:last-child {
+    display: inline !important;
+    /* Keep long labels readable in half-width drawer (no hard truncation). */
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    line-height: 1.2 !important;
+    overflow-wrap: anywhere !important;
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .sidebar.admin-rail-shell.admin-mobile-shell .nav-item {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 16px 22px !important;
+    gap: 14px !important;
+    text-align: left !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+  }
+
+  .sidebar.admin-rail-shell.admin-mobile-shell .nav-icon {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 32px !important;
+    height: 32px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .sidebar.admin-rail-shell.admin-mobile-shell .sidebar-nav {
+    overflow-x: visible !important;
+  }
+
+  .admin-mobile-close-btn {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    width: 34px;
+    height: 34px;
+    border: none;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.12);
+    color: #fff;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    z-index: 2;
+  }
+
+  .admin-mobile-close-btn:hover {
+    background: rgba(0, 0, 0, 0.2);
+  }
+
+  /*
+   * Overlay drawer: main must be full viewport width. Many admin page stylesheets
+   * still set .main-wrapper { margin-left: 64px } at this breakpoint — override so
+   * content and tables are not clipped on the right.
+   */
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box;
+  }
+
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .content {
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+  }
+
+  /* Horizontal scroll for wide data tables (booking, staff, rooms, etc.) */
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .table-scroll-wrap,
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .sm-table-wrap,
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .rm-table-wrap,
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .inv-table-wrap,
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .bills-table-wrap,
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .gen-audit-table-wrap,
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper .print-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}

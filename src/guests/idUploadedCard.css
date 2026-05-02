@@ -1,0 +1,61 @@
+/**
+ * Shared “ID Uploaded” block — white outer card, gold title, beige inner frame (guest + frontdesk).
+ */
+.id-uploaded-card {
+  background: #fff;
+  border: 1.5px solid #d4b97a;
+  border-radius: 10px;
+  padding: 14px 16px 16px;
+  box-sizing: border-box;
+}
+
+.id-uploaded-card-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #b8922a;
+  margin: 0 0 12px 0;
+  text-align: left;
+}
+
+.id-uploaded-frame {
+  background: #ebe6dc;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 8px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  box-sizing: border-box;
+}
+
+.id-uploaded-frame .id-img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+  margin: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+}
+
+.id-uploaded-frame .id-placeholder {
+  margin: 0;
+  padding: 0.75rem;
+  text-align: center;
+  font-size: 13px;
+  color: #6b5a3e;
+  background: transparent;
+  border: none;
+  width: 100%;
+}
+
+/* When the whole preview is only this card (e.g. booking-history modal) */
+.id-uploaded-card--standalone {
+  width: 100%;
+}

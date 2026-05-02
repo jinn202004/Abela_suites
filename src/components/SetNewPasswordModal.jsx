@@ -2,7 +2,7 @@ import { useId, useMemo, useState } from 'react'
 import Button from './Button'
 import ModalFrame from './ModalFrame'
 import PasswordField from './PasswordField'
-import './LoginModal.css'
+import '../logIn/LoginModal.css'
 import './SetNewPasswordModal.css'
 
 const PASSWORD_RULES = [

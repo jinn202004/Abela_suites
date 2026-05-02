@@ -1,8 +1,7 @@
-import '../guest/GuestHeader.css'
+import './SidebarCollapseToggle.css'
 
 /**
  * Chevron in the top bar: collapses/expands the shell sidebar (guest or admin).
- * Styles reuse `.guest-header__crumb-toggle` from GuestHeader.css.
  */
 export default function SidebarCollapseToggle({ sidebarCollapsed, onToggle, sidebarId }) {
   return (

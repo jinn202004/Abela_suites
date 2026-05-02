@@ -1,0 +1,355 @@
+.guest-portal-layout {
+    --gold:       #b8922a;
+    --gold-light: #c9a84c;
+    --gold-dark:  #9a7520;
+    --sidebar-bg: #b8922a;
+    --sidebar-w:  260px;
+    --topbar-h:   60px;
+    --text-dark:  #3a2e1e;
+    --text-mid:   #6b5a3e;
+    --text-light: #9a8060;
+    --border:     #d4b97a;
+    --bg-page:    #f5f0e8;
+  }
+  
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: 'Roboto', sans-serif;
+    background: var(--bg-page);
+    min-height: 100vh;
+    display: flex;
+  }
+  
+  /* ============================================
+     SIDEBAR
+     ============================================ */
+  .sidebar {
+    position: fixed;
+    top: 0; left: 0; bottom: 0;
+    width: var(--sidebar-w);
+    background: var(--sidebar-bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 200;
+  }
+  
+  .sidebar-logo {
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    border-bottom: 1px solid rgba(255,255,255,0.3);
+  }
+  
+  .sidebar-logo img,
+  .sidebar-logo-img {
+    width: 90px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid white;
+  }
+  
+  .sidebar-nav {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .nav-item{
+    display:flex;
+    align-items:center;
+    gap:16px;
+    padding:18px 25px;
+    text-decoration:none;
+    color:white;
+    font-family:'Montserrat',sans-serif;
+    font-weight:600;
+  }
+  
+  .nav-item:hover  { background: rgba(0,0,0,0.10); color: #fff; }
+  .nav-item.active { background: rgba(0,0,0,0.20); color: #fff; }
+  /* ICON CONTAINER */
+  
+  .nav-icon{
+    width:36px;
+    height:36px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  
+  /* MAKE SVG BIG */
+  
+  .nav-icon svg{
+    width:30px;
+    height:30px;
+  }
+  /* ============================================
+     MAIN WRAPPER
+     ============================================ */
+  .main-wrapper {
+    margin-left: var(--sidebar-w);
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+  
+  /* ============================================
+     TOP BAR
+     ============================================ */
+  .topbar {
+    position: sticky;
+    top: 0;
+    height: var(--topbar-h);
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 32px;
+    z-index: 100;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.07);
+  }
+  
+  .topbar-breadcrumb { display: flex; align-items: center; gap: 8px; }
+  
+  .breadcrumb-arrow {
+    font-size: 20px; font-weight: 700;
+    color: var(--gold); line-height: 1;
+  }
+  
+  .breadcrumb-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 17px; font-weight: 700;
+    color: var(--gold); letter-spacing: 0.02em;
+  }
+  
+  .topbar-actions { display: flex; align-items: center; gap: 14px; }
+  
+  .icon-btn {
+    position: relative;
+    display: flex; align-items: center; gap: 5px;
+    cursor: pointer; padding: 6px;
+    border-radius: 50%; transition: background 0.2s;
+  }
+  .icon-btn:hover { background: rgba(184,146,42,0.10); }
+  
+  .topbar-icon { width: 30px; height: 30px; object-fit: contain; }
+  
+  .notif-dot {
+    position: absolute; top: 5px; right: 5px;
+    width: 9px; height: 9px;
+    background: #e74c3c; border-radius: 50%;
+    border: 2px solid #fff;
+  }
+  
+  .user-arrow { font-size: 15px; color: var(--text-mid); line-height: 1; }
+  
+  /* ============================================
+     PAGE CONTENT (scoped — guest home/events CSS ships global `.content { padding: 0 }`)
+     ============================================ */
+  .guest-doc-page.guest-portal-layout .main-wrapper > .content {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  
+  /* ============================================
+     TC WRAP
+     ============================================ */
+  .tc-wrap {
+    padding: 20px 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  /* ============================================
+     HEADING
+     ============================================ */
+  .tc-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  
+  .back-arrow {
+    font-size: 26px; font-weight: 700;
+    color: var(--gold);
+    text-decoration: none;
+    line-height: 1;
+    transition: opacity 0.2s;
+  }
+  .back-arrow:hover { opacity: 0.7; }
+  
+  .tc-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--gold);;
+  }
+  
+  .tc-sub {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-mid);
+    margin-top: 2px;
+  }
+  
+  /* ============================================
+     CONTENT CARD
+     ============================================ */
+  .tc-card {
+    background: #fdf8f0;
+    border-radius: 8px;
+    border: 1px solid #e8dcc8;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    padding: 28px 36px 40px;
+  }
+  
+  /* ============================================
+     HOTEL HEADER
+     ============================================ */
+  .tc-hotel-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 3px;
+    margin-bottom: 16px;
+  }
+  
+  .tc-hotel-logo {
+    width: 140px; height: 140px;
+    object-fit: contain;
+    border-radius: 50%;
+  }
+  
+  .tc-hotel-name {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px; font-weight: 700;
+    color: var(--text-mid);
+    letter-spacing: 0.12em;
+  }
+  
+  .tc-welcome {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 22px; font-weight: 700;
+    color: var(--gold);
+    margin-top: 4px;
+  }
+  
+  .tc-intro {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-mid);
+    line-height: 1.7;
+  }
+  
+  /* ============================================
+     DIVIDER
+     ============================================ */
+  .tc-divider {
+    border: none;
+    border-top: 1px solid #e8dcc8;
+    margin-bottom: 22px;
+  }
+  
+  /* ============================================
+     TERMS CONTENT
+     ============================================ */
+  .tc-content {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
+    padding-right: 6px;
+  }
+  
+  .tc-content::-webkit-scrollbar { width: 5px; }
+  .tc-content::-webkit-scrollbar-track { background: #f0e8d8; border-radius: 4px; }
+  .tc-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  
+  .tc-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .tc-section-title {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13.5px;
+    font-weight: 700;
+    color: var(--gold);
+  }
+  
+  .tc-list {
+    list-style: none;
+    padding-left: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .tc-list li {
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    line-height: 1.65;
+    padding-left: 14px;
+    position: relative;
+  }
+  
+  .tc-list li::before {
+    content: "•";
+    position: absolute;
+    left: 0;
+    color: var(--text-dark);
+    font-size: 12px;
+  }
+  
+  /* ============================================
+     RESPONSIVE
+     ============================================ */
+  @media (max-width: 1200px) {
+    .sidebar-logo {
+      padding: 12px;
+    }
+    .sidebar-logo img,
+    .sidebar-logo-img {
+      width: 72px;
+      height: 72px;
+    }
+  }
+
+  @media (max-width: 960px) {
+    .sidebar-logo {
+      padding: 10px;
+    }
+    .sidebar-logo img,
+    .sidebar-logo-img {
+      width: 56px;
+      height: 56px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .sidebar { width: 64px; }
+    .nav-item span:last-child { display: none; }
+    .sidebar-logo {
+      padding: 8px 6px;
+    }
+    .sidebar-logo img,
+    .sidebar-logo-img {
+      width: 36px;
+      height: 36px;
+    }
+    .main-wrapper { margin-left: 64px; }
+    .tc-wrap { padding: 16px; }
+    .tc-card { padding: 20px 18px; }
+  }

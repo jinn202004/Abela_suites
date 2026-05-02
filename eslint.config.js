@@ -17,7 +17,9 @@ export default defineConfig([
       reactRefresh.configs.vite,
     ],
     languageOptions: {
-      ecmaVersion: 2020,
+      // 2021+ for numeric separators (e.g. 60_000); align with Vite / modern browsers
+      ecmaVersion: 2022,
+      sourceType: 'module',
       globals: globals.browser,
     },
     settings: {

@@ -129,7 +129,7 @@ function buildInventoryRows(rooms, venues) {
     key: `room-${r.id}`,
     number: r.roomNumber,
     housekeeping: staffForSeed(`room-${r.roomNumber}`),
-    package: String(r.title || r.package || "—").trim() || "—",
+    package: String(r.package || r.title || "—").trim() || "—",
     type: "Room",
     displayStatus: displayStatusLabel(r.status),
     sort: sortKey(r.roomNumber),

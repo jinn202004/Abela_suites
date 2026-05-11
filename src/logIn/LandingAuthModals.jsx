@@ -11,9 +11,10 @@ export default function LandingAuthModals({
   closeModals,
   openLogin,
   openForgot,
-  openVerifyFromForgot,
-  openSetPasswordFromVerify,
-  handlePasswordSetComplete,
+  onRequestPasswordReset,
+  onResendResetCode,
+  onVerifyResetCode,
+  onSetNewPassword,
   handleLoginSuccess,
 }) {
   return (
@@ -30,20 +31,21 @@ export default function LandingAuthModals({
         isOpen={forgotOpen}
         onClose={closeModals}
         onBackToLogin={openLogin}
-        onSubmitted={openVerifyFromForgot}
+        onSubmitted={(email) => void onRequestPasswordReset?.(email)}
       />
       <VerificationCodeModal
         key={verifyOpen ? 'verify-open' : 'verify-closed'}
         isOpen={verifyOpen}
         onClose={closeModals}
-        onValidCode={openSetPasswordFromVerify}
+        onResend={() => void onResendResetCode?.()}
+        onValidCode={(code) => void onVerifyResetCode?.(code)}
       />
       <SetNewPasswordModal
         key={newPasswordOpen ? 'setpw-open' : 'setpw-closed'}
         isOpen={newPasswordOpen}
         onClose={closeModals}
         onBackToLogin={openLogin}
-        onPasswordSet={handlePasswordSetComplete}
+        onPasswordSet={(password) => void onSetNewPassword?.(password)}
       />
     </>
   )

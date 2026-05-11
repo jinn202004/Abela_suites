@@ -1,4 +1,3 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import './styles/dashboardMainScroll.css'
@@ -9,8 +8,4 @@ import App from './App.jsx'
 // html.homedashboard-route must be set immediately for `/` and `/contact`.
 applyMarketingShellHtmlClass(getRouterStylePathname())
 
-createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+createRoot(document.getElementById('root')).render(<App />)

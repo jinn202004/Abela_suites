@@ -498,8 +498,8 @@
   /* ============================================
      SUCCESS TOAST
      ============================================ */
-  .rc-success-toast { display: none; position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 700; animation: rcModalIn 0.3s ease both; }
-  .rc-success-toast.active { display: block; }
+  /* Mounted only while a message is shown (see rooms.jsx / events.jsx) — avoids a stray visible banner if display:none is overridden. */
+  .rc-success-toast { display: block; position: fixed; top: 70px; left: 50%; transform: translateX(-50%); z-index: 700; animation: rcModalIn 0.3s ease both; }
   
   .rc-success-inner { background: #fff; border: 2px solid #BCB7B7; border-radius: 10px; padding: 18px 28px; display: flex; align-items: center; gap: 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.15); min-width: 320px; }
   

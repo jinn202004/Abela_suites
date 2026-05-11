@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom'
 
@@ -9,6 +9,17 @@ import { useAuthRole } from '../context/AuthRoleContext'
 import LandingAuthModals from '../logIn/LandingAuthModals'
 
 import { getHomePathForRole } from '../logIn/rolePaths'
+
+import {
+  clearPasswordResetFlow,
+  getPasswordResetEmail,
+  getPasswordResetToken,
+  requestPasswordReset,
+  resetPasswordWithToken,
+  setPasswordResetEmail,
+  setPasswordResetToken,
+  verifyPasswordResetOtp,
+} from '../api/authApi'
 
 import { FRONTDESK_APP_ROUTES } from './frontdesksRoutes'
 
@@ -81,8 +92,6 @@ import HousekeepingEvents from '../housekeeping/events'
 import HousekeepingSettings from '../housekeeping/settings'
 
 import Cashier from '../cashier/pos'
-
-import CashierBillingDashboard from '../cashier/CashierBillingDashboard'
 
 import OrderHistory from '../cashier/orderhis'
 
@@ -219,7 +228,7 @@ const GUEST_PORTAL_ROUTES = [
 
   <Route key="housekeeping-settings" path="/housekeeping-settings" element={<HousekeepingSettings />} />,
 
-  <Route key="cashier-billing" path="/cashier-billing" element={<CashierBillingDashboard />} />,
+  <Route key="cashier-billing-redirect" path="/cashier-billing" element={<Navigate to="/cashier" replace />} />,
 
   <Route key="cashier" path="/cashier" element={<Cashier />} />,
 
@@ -289,11 +298,15 @@ export default function AppRoutes() {
 
     setNewPasswordOpen(false)
 
+    clearPasswordResetFlow()
+
   }
 
 
 
   const openLogin = () => {
+
+    clearPasswordResetFlow()
 
     setForgotOpen(false)
 
@@ -309,6 +322,8 @@ export default function AppRoutes() {
 
   const openForgot = () => {
 
+    clearPasswordResetFlow()
+
     setLoginOpen(false)
 
     setVerifyOpen(false)
@@ -321,7 +336,11 @@ export default function AppRoutes() {
 
 
 
-  const openVerifyFromForgot = () => {
+  const onRequestPasswordReset = useCallback(async (email) => {
+
+    await requestPasswordReset(email)
+
+    setPasswordResetEmail(email)
 
     setNewPasswordOpen(false)
 
@@ -329,27 +348,67 @@ export default function AppRoutes() {
 
     setVerifyOpen(true)
 
-  }
+  }, [])
 
 
 
-  const openSetPasswordFromVerify = () => {
+  const onResendResetCode = useCallback(async () => {
+
+    const em = getPasswordResetEmail()
+
+    if (!em) {
+
+      throw new Error('Session expired. Start again from Forgot password.')
+
+    }
+
+    await requestPasswordReset(em)
+
+  }, [])
+
+
+
+  const onVerifyResetCode = useCallback(async (code) => {
+
+    const em = getPasswordResetEmail()
+
+    if (!em) {
+
+      throw new Error('Session expired. Start again from Forgot password.')
+
+    }
+
+    const token = await verifyPasswordResetOtp(em, code)
+
+    setPasswordResetToken(token)
 
     setVerifyOpen(false)
 
     setNewPasswordOpen(true)
 
-  }
+  }, [])
 
 
 
-  const handlePasswordSetComplete = () => {
+  const onSetNewPassword = useCallback(async (password) => {
+
+    const token = getPasswordResetToken()
+
+    if (!token) {
+
+      throw new Error('Session expired. Start again from Forgot password.')
+
+    }
+
+    await resetPasswordWithToken(token, password)
+
+    clearPasswordResetFlow()
 
     setNewPasswordOpen(false)
 
     setLoginOpen(true)
 
-  }
+  }, [])
 
 
 
@@ -431,11 +490,13 @@ export default function AppRoutes() {
 
         openForgot={openForgot}
 
-        openVerifyFromForgot={openVerifyFromForgot}
+        onRequestPasswordReset={onRequestPasswordReset}
 
-        openSetPasswordFromVerify={openSetPasswordFromVerify}
+        onResendResetCode={onResendResetCode}
 
-        handlePasswordSetComplete={handlePasswordSetComplete}
+        onVerifyResetCode={onVerifyResetCode}
+
+        onSetNewPassword={onSetNewPassword}
 
         handleLoginSuccess={handleLoginSuccess}
 

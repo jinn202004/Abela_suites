@@ -7,10 +7,10 @@
 
 import { getStoredAuthToken } from "../api/authApi";
 import {
-  fetchBookingsBackend,
   fetchRoomsCatalog,
   fetchEventVenuesBackend,
   fetchFrontdeskBookingDetailsBackend,
+  fetchFrontdeskDashboardBundleBackend,
   fetchFrontdeskDashboardSummaryBackend,
 } from "../api/guestApi";
 
@@ -164,7 +164,7 @@ export async function getRoomStatusRows() {
     const number = Number.isFinite(numParsed) && String(numParsed) === numRaw ? numParsed : i + 1;
     return {
       number,
-      type: String(r.title || r.package || "Room").trim() || "Room",
+      type: String(r.package || r.title || "Room").trim() || "Room",
       price: Number(r.price) || 0,
       status: dashboardAssetStatusLabel(r.status),
     };
@@ -218,6 +218,33 @@ const pack = (p) =>
     (e) => ({ ok: false, e: packErrorMessage(e) })
   );
 
+/** Map server `bookingsLite` to the shape the integrated dashboard calendar/tables expect. */
+function mapBookingsLiteToDashboardBookings(liteList) {
+  return (Array.isArray(liteList) ? liteList : []).map((b) => ({
+    id: b.id,
+    type: b.type,
+    status: b.status,
+    checkIn: b.checkIn,
+    checkOut: b.checkOut,
+    eventDate: b.eventDate,
+    eventEndDate: b.eventEndDate,
+    customerName: b.customerName,
+    email: b.email,
+    paymentAmount: b.paymentAmount,
+    totalAmount: b.totalAmount,
+    venuePrice: b.venuePrice,
+    createdAt: b.createdAt,
+    updatedAt: b.updatedAt,
+    roomId: b.roomId,
+    roomNumber: b.roomNumber,
+    roomTitle: b.roomTitle,
+    eventVenueId: b.eventVenueId,
+    venueName: b.venueName,
+    eventTitle: b.eventTitle,
+    guest: { displayName: String(b.guestDisplayName ?? "").trim() },
+  }));
+}
+
 /**
  * Classic front desk dashboard: summary + room/event catalog tables.
  */
@@ -234,11 +261,13 @@ export async function loadDashboardBundle() {
       roomCatalogError: roomsR.ok ? null : roomsR.e,
       eventRows: [],
       eventCatalogError: null,
+      bookings: [],
+      bookingsError: null,
     };
   }
 
-  const [summaryR, roomsR, eventsR] = await Promise.all([
-    pack(getDashboardSummary()),
+  const [bundleR, roomsR, eventsR] = await Promise.all([
+    pack(fetchFrontdeskDashboardBundleBackend()),
     roomsP,
     pack(getEventStatusRows()),
   ]);
@@ -247,28 +276,31 @@ export async function loadDashboardBundle() {
   let eventRows = eventsR.ok ? eventsR.v : [];
   const roomCatalogError = roomsR.ok ? null : roomsR.e;
   const eventCatalogError = eventsR.ok ? null : eventsR.e;
+  const bookings = bundleR.ok ? mapBookingsLiteToDashboardBookings(bundleR.v.bookingsLite) : [];
+  const bundleErr = bundleR.ok ? null : bundleR.e;
+  const summary = bundleR.ok ? bundleR.v.summary : null;
+  const summaryError = bundleErr;
+  const bookingsError = bundleErr;
 
   const needBookingFallback = roomRows.length === 0 || eventRows.length === 0;
-  if (needBookingFallback) {
-    const bookingsR = await pack(fetchBookingsBackend());
-    if (bookingsR.ok) {
-      const bookings = bookingsR.v;
-      if (roomRows.length === 0) {
-        roomRows = buildRoomStatusRowsFromBookings(bookings);
-      }
-      if (eventRows.length === 0) {
-        eventRows = buildEventStatusRowsFromBookings(bookings);
-      }
+  if (needBookingFallback && bookings.length > 0) {
+    if (roomRows.length === 0) {
+      roomRows = buildRoomStatusRowsFromBookings(bookings);
+    }
+    if (eventRows.length === 0) {
+      eventRows = buildEventStatusRowsFromBookings(bookings);
     }
   }
 
   return {
     authenticated: true,
-    summary: summaryR.ok ? summaryR.v : null,
-    summaryError: summaryR.ok ? null : summaryR.e,
+    summary,
+    summaryError,
     roomRows,
     roomCatalogError,
     eventRows,
     eventCatalogError,
+    bookings,
+    bookingsError,
   };
 }

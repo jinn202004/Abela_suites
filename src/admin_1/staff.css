@@ -1,4 +1,5 @@
 @import "./admin-dashboard.css";
+@import "./room-management.css";
 
 /* Full-height shell inside React #root (sidebar is fixed; this holds layout) */
 .app-root {
@@ -172,68 +173,11 @@
   background: #fdecea;
 }
 
-/* ── Add / Edit modal ── */
-.sm-modal-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(58, 46, 30, 0.45);
-  z-index: 1000;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.sm-modal-backdrop.active {
-  display: flex;
-}
-
-.sm-modal {
-  width: 100%;
+/* Modal shell + delete confirm + toast: room-management.css.
+   Staff/attendance forms keep .sm-* field classes below. */
+.rm-modal.sm-staff-dialog,
+.rm-modal.att-modal {
   max-width: 520px;
-  max-height: calc(100vh - 40px);
-  overflow: auto;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
-  border: 1px solid #e8dcc8;
-}
-
-.sm-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 20px;
-  border-bottom: 1px solid #f0e8d8;
-}
-
-.sm-modal-title {
-  font-family: "Montserrat", sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--gold);
-  margin: 0;
-}
-
-.sm-modal-close {
-  width: 36px;
-  height: 36px;
-  border: none;
-  border-radius: 8px;
-  background: #f5f0e8;
-  color: var(--text-mid);
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.sm-modal-close:hover {
-  background: #ebe4d8;
-}
-
-.sm-modal-body {
-  padding: 20px;
 }
 
 .sm-form-group {
@@ -311,169 +255,6 @@
   font-size: 12px;
   color: #e74c3c;
   margin-bottom: 8px;
-}
-
-.sm-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 8px;
-  padding-top: 16px;
-  border-top: 1px solid #f0e8d8;
-}
-
-.sm-btn-clear {
-  padding: 10px 18px;
-  font-family: "Montserrat", sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-mid);
-  background: #f5f0e8;
-  border: 1px solid #e8dcc8;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.sm-btn-clear:hover {
-  background: #ebe4d8;
-}
-
-.sm-btn-save {
-  padding: 10px 20px;
-  font-family: "Montserrat", sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  background: var(--gold);
-  border: 1px solid var(--gold-dark);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: filter 0.15s;
-}
-
-.sm-btn-save:hover {
-  filter: brightness(1.05);
-}
-
-/* ── Delete confirm ── */
-.sm-confirm-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(58, 46, 30, 0.45);
-  z-index: 1100;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
-
-.sm-confirm-backdrop.active {
-  display: flex;
-}
-
-.sm-confirm-dialog {
-  width: 100%;
-  max-width: 380px;
-  padding: 28px 24px 24px;
-  background: #fff;
-  border-radius: 12px;
-  text-align: center;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
-  border: 1px solid #e8dcc8;
-}
-
-.sm-confirm-icon {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  margin-bottom: 12px;
-}
-
-.sm-confirm-exclaim {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -52%);
-  font-size: 28px;
-  font-weight: 800;
-  color: #e74c3c;
-}
-
-.sm-confirm-title {
-  font-family: "Montserrat", sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-dark);
-  margin: 0 0 8px;
-}
-
-.sm-confirm-sub {
-  font-size: 13px;
-  color: var(--text-mid);
-  margin: 0 0 22px;
-}
-
-.sm-confirm-btns {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-}
-
-.sm-btn-cancel-confirm {
-  padding: 10px 22px;
-  font-family: "Montserrat", sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-mid);
-  background: #f5f0e8;
-  border: 1px solid #e8dcc8;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.sm-btn-delete-confirm {
-  padding: 10px 22px;
-  font-family: "Montserrat", sans-serif;
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  background: #e74c3c;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.sm-btn-delete-confirm:hover {
-  filter: brightness(1.05);
-}
-
-/* ── Toast ── */
-.sm-toast {
-  position: fixed;
-  bottom: 28px;
-  left: 50%;
-  transform: translateX(-50%) translateY(100px);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
-  border: 1px solid #d4edda;
-  font-family: "Roboto", sans-serif;
-  font-size: 14px;
-  color: var(--text-dark);
-  z-index: 1200;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.25s ease, transform 0.25s ease;
-}
-
-.sm-toast.active {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  pointer-events: auto;
 }
 
 @media (max-width: 768px) {

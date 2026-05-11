@@ -182,6 +182,7 @@ export default function EventCleaning() {
   } = useHousekeepingSidebarLayout();
   const userRef = useRef(null);
   const notifRef = useRef(null);
+  const toastDismissRef = useRef(null);
 
   const loadTasks = useCallback(async (opts = {}) => {
     const silent = opts.silent !== false;
@@ -606,18 +607,20 @@ export default function EventCleaning() {
         </main>
       </RailPortalShell>
 
-      <div className={`rc-success-toast${toast ? " active" : ""}`}>
-        <div className="rc-success-inner">
-          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="9 12 11 14 15 10" />
-          </svg>
-          <div>
-            <p className="rc-success-title">{toast?.title}</p>
-            <p className="rc-success-sub">{toast?.sub}</p>
+      {toast ? (
+        <div className="rc-success-toast" role="status" aria-live="polite">
+          <div className="rc-success-inner">
+            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="9 12 11 14 15 10" />
+            </svg>
+            <div>
+              <p className="rc-success-title">{toast.title}</p>
+              <p className="rc-success-sub">{toast.sub}</p>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
 

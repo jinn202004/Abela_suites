@@ -17,7 +17,7 @@ export function formatCleaningTaskMessage(t) {
   const suffix = st === "in_progress" ? " — cleaning in progress" : " — needs cleaning";
   if (t.targetType === "room") {
     const rm = (t.room && t.room.roomNumber) || "—";
-    const label = String((t.room && (t.room.title || t.room.package)) || "").trim() || "Room";
+    const label = String((t.room && t.room.package) || "").trim() || "Room";
     const guest = String((t.booking && t.booking.customerName) || "").trim();
     const who = guest ? ` · ${guest}` : "";
     return `Room ${rm} · ${label}${who}${suffix}`;

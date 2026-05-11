@@ -10,9 +10,7 @@ import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { useFrontdeskPendingNotifications } from "../frontdesks/useFrontdeskPendingNotifications";
 import { StaffNotificationDetailModal, useStaffNotificationDetail } from "../frontdesks/StaffNotificationDetailModal";
 import {
-  fetchBookingsBackend,
-  fetchFrontdeskDashboardSummaryBackend,
-  fetchRoomsCatalog,
+  fetchFrontdeskDashboardBundleBackend,
 } from "../api/guestApi";
 import { formatPeso } from "../frontdesks/dashboard.service";
 import "./admin-dashboard.css";
@@ -89,16 +87,6 @@ function countUpcomingBookings(bookings) {
     n++;
   }
   return n;
-}
-
-function countAvailableRooms(rooms) {
-  if (!Array.isArray(rooms)) return 0;
-  return rooms.filter((r) => {
-    const s = String(r?.status || "")
-      .trim()
-      .toLowerCase();
-    return s === "available" || s === "ready";
-  }).length;
 }
 
 /** Maps backend booking.status to dashboard pill class keys. */
@@ -213,7 +201,6 @@ const SALES_LEGENDS = [
   { color: "#3498db", label: "Room Revenue" },
   { color: "#e67e22", label: "Event Revenue" },
   { color: "#9b59b6", label: "POS Sales" },
-  { color: "#27ae60", label: "Total Sales" },
 ];
 
 export default function AdminDashboard() {
@@ -232,51 +219,69 @@ export default function AdminDashboard() {
 
   const [summary, setSummary] = useState(null);
   const [bookings, setBookings] = useState([]);
-  const [rooms, setRooms] = useState([]);
-  /** Which requests succeeded (partial dashboard still useful). */
+  const [availableRoomsCount, setAvailableRoomsCount] = useState(null);
   const [fetchOk, setFetchOk] = useState({
     summary: false,
     bookings: false,
     rooms: false,
   });
-  const [loadError, setLoadError] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [overviewDays, setOverviewDays] = useState(7);
   const [recentDays, setRecentDays] = useState(7);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.allSettled([
-      fetchFrontdeskDashboardSummaryBackend(),
-      fetchBookingsBackend(),
-      fetchRoomsCatalog(),
-    ]).then((results) => {
-      if (cancelled) return;
-      const msgs = [];
-      const ok = {
-        summary: results[0].status === "fulfilled",
-        bookings: results[1].status === "fulfilled",
-        rooms: results[2].status === "fulfilled",
-      };
-      setFetchOk(ok);
-      if (results[0].status === "fulfilled") setSummary(results[0].value);
-      else {
+    fetchFrontdeskDashboardBundleBackend()
+      .then((data) => {
+        if (cancelled) return;
+        const s = data.summary;
+        setSummary(
+          s && typeof s === "object"
+            ? {
+                reservationsToday: typeof s.reservationsToday === "number" ? s.reservationsToday : 0,
+                checkOutsToday: typeof s.checkOutsToday === "number" ? s.checkOutsToday : 0,
+                totalRevenue: typeof s.totalRevenue === "number" ? s.totalRevenue : 0,
+                outstandingBalances: typeof s.outstandingBalances === "number" ? s.outstandingBalances : 0,
+              }
+            : null,
+        );
+        setAvailableRoomsCount(
+          typeof data.availableRoomsCount === "number" ? data.availableRoomsCount : 0,
+        );
+        setBookings(
+          (data.bookingsLite || []).map((b) => ({
+            id: b.id,
+            type: b.type,
+            status: b.status,
+            checkIn: b.checkIn,
+            checkOut: b.checkOut,
+            eventDate: b.eventDate,
+            eventEndDate: b.eventEndDate,
+            customerName: b.customerName,
+            email: b.email,
+            paymentAmount: b.paymentAmount,
+            totalAmount: b.totalAmount,
+            venuePrice: b.venuePrice,
+            createdAt: b.createdAt,
+            updatedAt: b.updatedAt,
+            guest: { displayName: b.guestDisplayName || "" },
+          })),
+        );
+        setFetchOk({ summary: true, bookings: true, rooms: true });
+        setLoadError("");
+      })
+      .catch(() => {
+        if (cancelled) return;
         setSummary(null);
-        msgs.push("Summary unavailable (needs admin/front desk session).");
-      }
-      if (results[1].status === "fulfilled") setBookings(results[1].value);
-      else {
         setBookings([]);
-        msgs.push("Bookings could not be loaded.");
-      }
-      if (results[2].status === "fulfilled") setRooms(results[2].value);
-      else {
-        setRooms([]);
-        msgs.push("Room catalog could not be loaded.");
-      }
-      setLoadError(msgs.length ? msgs.join(" ") : null);
-      setLoading(false);
-    });
+        setAvailableRoomsCount(null);
+        setFetchOk({ summary: false, bookings: false, rooms: false });
+        setLoadError("Dashboard could not be loaded. Sign in as admin or front desk and ensure the API is running.");
+      })
+      .finally(() => {
+        if (!cancelled) setDashboardLoading(false);
+      });
     return () => {
       cancelled = true;
     };
@@ -294,28 +299,28 @@ export default function AdminDashboard() {
 
   const statCards = useMemo(() => {
     const dash = "—";
-    const pending = loading ? "…" : dash;
     const todayBookings =
       fetchOk.summary && summary && typeof summary.reservationsToday === "number"
         ? String(summary.reservationsToday)
-        : loading
-          ? pending
+        : dashboardLoading
+          ? "…"
           : dash;
     const upcoming = fetchOk.bookings
       ? String(countUpcomingBookings(bookings))
-      : loading
-        ? pending
+      : dashboardLoading
+        ? "…"
         : dash;
-    const avail = fetchOk.rooms
-      ? String(countAvailableRooms(rooms))
-      : loading
-        ? pending
-        : dash;
+    const avail =
+      fetchOk.rooms && typeof availableRoomsCount === "number"
+        ? String(availableRoomsCount)
+        : dashboardLoading
+          ? "…"
+          : dash;
     const revenue =
       fetchOk.summary && summary && typeof summary.totalRevenue === "number"
         ? formatPeso(summary.totalRevenue)
-        : loading
-          ? pending
+        : dashboardLoading
+          ? "…"
           : dash;
 
     return [
@@ -344,7 +349,7 @@ export default function AdminDashboard() {
         colorClass: "stat-danger",
       },
     ];
-  }, [summary, bookings, rooms, loading, fetchOk]);
+  }, [summary, bookings, availableRoomsCount, dashboardLoading, fetchOk]);
 
   useEffect(() => {
     if (!bookingChartRef.current) return;
@@ -421,7 +426,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (!salesChartRef.current) return;
     salesChartIns.current?.destroy();
-    const { room, event, pos, total } = salesBuckets;
+    const { room, event, pos } = salesBuckets;
     const maxBar = Math.max(1000, ...room, ...event, ...pos, 1);
     salesChartIns.current = new Chart(salesChartRef.current, {
       type: "bar",
@@ -431,15 +436,6 @@ export default function AdminDashboard() {
           { label: "Room Revenue", data: room, backgroundColor: "#3498db" },
           { label: "Event Revenue", data: event, backgroundColor: "#e67e22" },
           { label: "POS Sales", data: pos, backgroundColor: "#9b59b6" },
-          {
-            label: "Total Sales",
-            data: total,
-            type: "line",
-            borderColor: "#27ae60",
-            backgroundColor: "transparent",
-            tension: 0.4,
-            pointRadius: 4,
-          },
         ],
       },
       options: {
@@ -495,7 +491,7 @@ export default function AdminDashboard() {
 
           {loadError ? (
             <p className="db-sub" style={{ color: "#c0392b", marginBottom: "0.75rem" }}>
-              {loadError} Sign in as admin or front desk to load summary and bookings.
+              {loadError}
             </p>
           ) : null}
 
@@ -590,7 +586,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
               <div className="recent-list">
-                {loading ? (
+                {dashboardLoading ? (
                   <p className="db-sub">Loading…</p>
                 ) : recentList.length === 0 ? (
                   <p className="db-sub">No bookings in this range.</p>

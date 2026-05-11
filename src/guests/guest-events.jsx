@@ -627,7 +627,9 @@ export default function EventVenues() {
                     <span>{st ? st.label : "Available"}</span>
                   </span>
                   <div className="venue-img-wrap">
-                    <img src={v.img} alt={v.name} />
+                    <div className="venue-img-aspect">
+                      <img src={v.img} alt={v.name} decoding="async" />
+                    </div>
                   </div>
                   <div className="venue-info">
                     <h2 className="venue-name">{v.name}</h2>
@@ -657,12 +659,13 @@ export default function EventVenues() {
       {resOpen && (
         <div className="ev-modal-backdrop active"
           onClick={e => { if (e.target === e.currentTarget) closeRes(); }}>
-          <div className="ev-modal">
-            <div className="ev-modal-header">
-              <h2 className="ev-modal-title">{resVenue} — Reservation</h2>
-              <button className="ev-modal-close" onClick={closeRes}>✕</button>
+          <div className="ev-modal ev-modal--reservation" role="dialog" aria-modal="true" aria-labelledby="ev-reservation-modal-title">
+            <div className="ev-modal-header ev-modal-header--reservation">
+              <h2 id="ev-reservation-modal-title" className="ev-modal-title">{resVenue} — Reservation</h2>
+              <button type="button" className="ev-modal-close" onClick={closeRes} aria-label="Close">✕</button>
             </div>
-            <div className="ev-modal-body">
+            <div className="ev-modal-body ev-modal-body--reservation">
+              <div className="ev-reservation-form">
 
               <div className={`ev-error-banner${showBanner ? " visible" : ""}`}>
                 Please fill in all required fields before submitting.
@@ -726,12 +729,12 @@ export default function EventVenues() {
 
               <div className="ev-form-row">
                 <div className="ev-form-group">
-                  <label>Customer ID <span style={{ color: "#e74c3c" }}>*</span></label>
-                  <label className={`ev-upload-box${formErrors.id ? " ev-error" : ""}`}>
-                    <input type="file" accept="image/*" onChange={handleIdUpload} style={{ display: "none" }} />
+                  <span className="ev-form-label-static">Customer ID <span style={{ color: "#e74c3c" }}>*</span></span>
+                  <label htmlFor="ev-id-file" className={`ev-upload-box ev-upload-box--id${formErrors.id ? " ev-error" : ""}`}>
+                    <input id="ev-id-file" type="file" accept="image/*" onChange={handleIdUpload} />
                     {idPreview
-                      ? <img src={idPreview} className="ev-upload-preview" alt="ID Preview" />
-                      : <div className="ev-upload-placeholder"><UserIcon /><span>Click to upload ID</span></div>}
+                      ? <img src={idPreview} className="ev-upload-preview" alt="ID preview" />
+                      : <div className="ev-upload-placeholder"><UserIcon /><span>Upload government ID</span></div>}
                   </label>
                   <span className={`ev-field-err${formErrors.id ? " visible" : ""}`}>Please upload a valid government ID.</span>
                 </div>
@@ -745,19 +748,20 @@ export default function EventVenues() {
                 </div>
               </div>
 
-              <div className="ev-form-group ev-full-width">
-                <label>Additional Requests</label>
-                <textarea name="requests" rows={4} value={form.requests}
-                  placeholder="Any special requests or notes..."
+              <div className="ev-form-section ev-form-section--textarea">
+                <label className="ev-form-section__label" htmlFor="ev-requests">Additional requests</label>
+                <textarea id="ev-requests" name="requests" rows={4} value={form.requests}
+                  placeholder="Special requests or notes (optional)"
                   onChange={handleFormChange} />
               </div>
 
               {/* Payment Options */}
-              <div className="ev-payment-block">
-                <div className="ev-payment-heading">
-                  <CardIcon /><strong>Payment Options</strong>
+              <div className="ev-form-section ev-form-section--payment">
+                <div className="ev-form-section__head">
+                  <CardIcon aria-hidden />
+                  <h3 className="ev-form-section__title">Payment options</h3>
                 </div>
-                <p className="ev-payment-sub">Pay with cash on arrival, or choose GCash to scan and complete the payment form. A deposit may be required per your agreement with the venue.</p>
+                <p className="ev-form-section__desc">Pay with cash on arrival, or choose GCash to scan and complete the payment form. A deposit may be required per your agreement with the venue.</p>
                 <div className="ev-payment-options">
                   <label className={`ev-payment-card${form.payment === "cash" ? " ev-selected" : ""}`}
                     onClick={() => selectPayment("cash")}>
@@ -824,8 +828,9 @@ export default function EventVenues() {
               </div>
 
               <div className="ev-modal-actions">
-                <button className="ev-btn-clear" onClick={clearResForm}>Clear</button>
-                <button className="ev-btn-submit" onClick={handleSubmitRes}>Submit Reservation</button>
+                <button type="button" className="ev-btn-clear" onClick={clearResForm}>Clear</button>
+                <button type="button" className="ev-btn-submit" onClick={handleSubmitRes}>Submit Reservation</button>
+              </div>
               </div>
             </div>
           </div>
@@ -834,12 +839,12 @@ export default function EventVenues() {
 
       {/* ══ PAYMENT MODAL ══ */}
       {payOpen && (
-        <div className="ev-modal-backdrop active"
+        <div id="evPaymentBackdrop" className="ev-modal-backdrop active"
           onClick={e => { if (e.target === e.currentTarget) closePay(); }}>
           <div className="ev-modal ev-payment-modal">
             <div className="ev-modal-header">
               <h2 className="ev-modal-title">GCash Payment</h2>
-              <button className="ev-modal-close" onClick={closePay}>✕</button>
+              <button type="button" className="ev-modal-close" onClick={closePay} aria-label="Close">✕</button>
             </div>
             <div className="ev-modal-body ev-payment-modal-body">
               <div className="ev-payment-qr-side">
@@ -894,7 +899,7 @@ export default function EventVenues() {
                 <div className="ev-form-group" style={{ marginTop: "10px" }}>
                   <label>Proof of Payment <span style={{ color: "#e74c3c" }}>*</span></label>
                   <label className={`ev-upload-box ev-proof-upload${payErrors.proof ? " ev-error" : ""}`}>
-                    <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: "none" }} />
+                    <input type="file" accept="image/*" onChange={handleProofUpload} />
                     {proofPreview
                       ? <img src={proofPreview} className="ev-upload-preview" alt="Proof Preview" />
                       : <div className="ev-upload-placeholder"><UploadIcon /><span>Upload your proof of payment here...</span></div>}

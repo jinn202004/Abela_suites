@@ -175,6 +175,15 @@
   
   /* ---------- Password Wrapper ---------- */
   .password-wrapper { position: relative; }
+
+  .password-wrapper input[type="password"]::-ms-reveal,
+  .password-wrapper input[type="password"]::-ms-clear {
+    display: none;
+  }
+
+  .password-wrapper input[type="password"]::-webkit-textfield-decoration-container {
+    display: none !important;
+  }
   
   .toggle-password {
     position: absolute; right: 12px; top: 50%;

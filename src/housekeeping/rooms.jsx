@@ -93,7 +93,7 @@ function formatDateLabel(s) {
 function roomRowFromTask(t) {
   const asset = t.room;
   const num = asset?.roomNumber ?? "—";
-  const pkg = String(asset?.title || asset?.package || "").trim() || "—";
+  const pkg = String(asset?.package || asset?.title || "").trim() || "—";
   const b = t.booking;
   const guest = b?.customerName?.trim() || "—";
   const email = b?.email?.trim() || "";
@@ -154,6 +154,7 @@ export default function RoomCleaning() {
   } = useHousekeepingSidebarLayout();
   const userRef = useRef(null);
   const notifRef = useRef(null);
+  const toastDismissRef = useRef(null);
 
   const loadTasks = useCallback(async (opts = {}) => {
     const silent = opts.silent !== false;
@@ -297,9 +298,22 @@ export default function RoomCleaning() {
   }, [loadError, rows.length, search]);
 
   function showToast(title, sub) {
+    if (toastDismissRef.current) {
+      clearTimeout(toastDismissRef.current);
+      toastDismissRef.current = null;
+    }
     setToast({ title, sub });
-    setTimeout(() => setToast(null), 3500);
+    toastDismissRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastDismissRef.current = null;
+    }, 3500);
   }
+
+  useEffect(() => {
+    return () => {
+      if (toastDismissRef.current) clearTimeout(toastDismissRef.current);
+    };
+  }, []);
 
   async function handleStart(taskId) {
     setBusyId(taskId);
@@ -578,18 +592,20 @@ export default function RoomCleaning() {
         </main>
       </RailPortalShell>
 
-      <div className={`rc-success-toast${toast ? " active" : ""}`}>
-        <div className="rc-success-inner">
-          <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="9 12 11 14 15 10" />
-          </svg>
-          <div>
-            <p className="rc-success-title">{toast?.title}</p>
-            <p className="rc-success-sub">{toast?.sub}</p>
+      {toast ? (
+        <div className="rc-success-toast" role="status" aria-live="polite">
+          <div className="rc-success-inner">
+            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="9 12 11 14 15 10" />
+            </svg>
+            <div>
+              <p className="rc-success-title">{toast.title}</p>
+              <p className="rc-success-sub">{toast.sub}</p>
+            </div>
           </div>
         </div>
-      </div>
+      ) : null}
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
 

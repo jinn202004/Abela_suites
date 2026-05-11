@@ -209,6 +209,22 @@
   /* ============================================
      PAGE CONTENT (scoped — global `.content { padding: 0 }` was wiping Guest billing padding)
      ============================================ */
+  .oh-api-banner {
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: 'Roboto', sans-serif;
+    background: #f5f0e8;
+    border: 1px solid var(--border);
+    color: var(--text-dark);
+  }
+  .oh-api-banner--err {
+    background: #fdecea;
+    border-color: #f5c6cb;
+    color: #721c24;
+  }
+
   .cashier-order-history-page .main-wrapper > .content {
     flex: 1;
     padding: 0;
@@ -329,6 +345,10 @@
   }
   .oh-pay-cash  { background: #eaf6ee; color: #2e7d4f; }
   .oh-pay-gcash { background: #e8f0fe; color: #1a56c4; }
+  .oh-pay-paid    { background: #eaf6ee; color: #2e7d4f; }
+  .oh-pay-partial { background: #fff8e6; color: #9a7520; }
+  .oh-pay-unpaid  { background: #f5f5f5; color: #666; }
+  .oh-pay-none    { background: #f0f0f0; color: #888; }
   
   /* ============================================
      EYE BUTTON

@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useState } from 'react'
 import Button from '../components/Button'
 import ModalFrame from '../components/ModalFrame'
 import './LoginModal.css'
@@ -6,10 +6,22 @@ import './ForgotPasswordModal.css'
 
 export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin, onSubmitted }) {
   const titleId = useId()
+  const [email, setEmail] = useState('')
+  const [error, setError] = useState('')
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    onSubmitted?.()
+    setError('')
+    const trimmed = email.trim()
+    if (!trimmed) {
+      setError('Please enter your email address.')
+      return
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    onSubmitted?.(trimmed.toLowerCase())
   }
 
   return (
@@ -35,7 +47,16 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin, on
           autoComplete="email"
           placeholder="Your email"
           aria-label="Your email"
+          value={email}
+          onChange={(ev) => setEmail(ev.target.value)}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${titleId}-err` : undefined}
         />
+        {error ? (
+          <p id={`${titleId}-err`} className="forgot-modal__error" role="alert">
+            {error}
+          </p>
+        ) : null}
 
         <Button type="submit" variant="cta" className="login-modal__btn-primary forgot-modal__submit">
           Submit

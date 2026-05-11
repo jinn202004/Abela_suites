@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getStoredAuthToken } from "../api/authApi";
 import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
@@ -8,10 +8,14 @@ import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import { computeRoomAvailabilitySearch } from "./roomAvailabilitySearch";
 import { isRoomAvailableForDates } from "./guestAvailability";
+import { parseLocalYmd, formatLocalYmd, blockedCheckInSetFromRanges, addLocalDays } from "./roomStayDates";
 import {
   createBookingBackend,
   fetchRoomsCatalog,
+  fetchRoomAvailabilityWindow,
+  fetchRoomGuestOccupancy,
   bookingSaveAlertMessage,
   dispatchFrontdeskNotificationsRefresh,
 } from "../api/guestApi";
@@ -21,6 +25,8 @@ import { GuestArchiveIcon } from "./guestArchiveIcon";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
+import { DayPicker } from "react-day-picker";
+import "react-day-picker/style.css";
 import "./guest-room.css";
 
 /** GCash mark for payment card: `public/Gcash.png`. Scan-to-pay QR: `public/gcash-payment-qr.png`. */
@@ -119,11 +125,14 @@ function formatRoomPriceDisplay(n) {
 function mapApiRoomToView(api) {
   const priceNum = Number(api.price);
   const guests = Math.max(1, parseInt(String(api.guests), 10) || 1);
-  const title = String(api.title ?? "").trim();
+  const name =
+    String(api.package ?? "").trim() ||
+    String(api.title ?? "").trim() ||
+    `Room ${String(api.roomNumber ?? "").trim() || "—"}`;
   return {
     id: String(api.id ?? ""),
     roomNumber: String(api.roomNumber ?? "").trim(),
-    name: title || `Room ${String(api.roomNumber ?? "").trim() || "—"}`,
+    name,
     priceOld: null,
     priceNew: formatRoomPriceDisplay(api.price),
     priceNum: Number.isFinite(priceNum) ? priceNum : 0,
@@ -132,7 +141,7 @@ function mapApiRoomToView(api) {
     desc: String(api.description ?? "").trim() || "—",
     features: Array.isArray(api.features) && api.features.length ? api.features : [],
     img: String(api.image ?? "").trim() || "https://placehold.co/800x500/f5f5f5/666666?text=Room",
-    packageLabel: String(api.package ?? "").trim(),
+    packageLabel: String(api.package ?? api.title ?? "").trim(),
   };
 }
 
@@ -162,15 +171,6 @@ function applyAbelaSuitePresentation(viewRooms) {
 }
 
 // --- Helpers ---
-function isRoomAvailable(roomId, wantIn, wantOut, bookedDates) {
-  return isRoomAvailableForDates(roomId, wantIn, wantOut, bookedDates);
-}
-
-function fmtDate(str) {
-  const d = new Date(str + "T00:00:00");
-  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
-}
-
 function parsePriceToNumber(priceStr) {
   const n = Number(String(priceStr || "").replace(/[₱,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -256,13 +256,14 @@ export default function Rooms() {
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [roomsError, setRoomsError] = useState(null);
-  /** Local overlap hints until bookings are loaded from the API. */
-  const [bookedDates, setBookedDates] = useState([]);
+  /** After a successful availability search, list only rooms that match dates + PAX. */
+  const [availabilityFilterActive, setAvailabilityFilterActive] = useState(false);
+  const [availSearchLoading, setAvailSearchLoading] = useState(false);
   // Availability bar
   const [barCheckIn, setBarCheckIn]   = useState("");
   const [barCheckOut, setBarCheckOut] = useState("");
   const [barGuests, setBarGuests]     = useState("1");
-  const [availResult, setAvailResult] = useState(null);
+  const [availError, setAvailError] = useState(null);
   const [roomStatuses, setRoomStatuses] = useState({});
 
   // Reservation modal
@@ -276,6 +277,9 @@ export default function Rooms() {
   const [idFile, setIdFile]         = useState(null);
   const [idPreview, setIdPreview]   = useState(null);
   const [formErrors, setFormErrors] = useState({});
+  const [roomOccupancyRanges, setRoomOccupancyRanges] = useState([]);
+  const [occupancyLoading, setOccupancyLoading] = useState(false);
+  const [occupancyErr, setOccupancyErr] = useState("");
 
   // Payment modal
   const [payOpen, setPayOpen]   = useState(false);
@@ -285,10 +289,10 @@ export default function Rooms() {
   const [proofPreview, setProofPreview] = useState(null);
   const [payErrors, setPayErrors]       = useState({});
 
-  // Confirm & success
+  // Confirm & success (toast only — no full-screen overlay)
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [resSuccess, setResSuccess]   = useState(false);
-  const [paySuccess, setPaySuccess]   = useState(false);
+  /** null | "room" (cash / direct submit) | "gcash" (payment flow) */
+  const [bookingSuccessToast, setBookingSuccessToast] = useState(null);
   const [resSubmitting, setResSubmitting] = useState(false);
   const {
     sidebarCollapsed,
@@ -311,6 +315,12 @@ export default function Rooms() {
     document.addEventListener("mousedown", onMouseDown);
     return () => document.removeEventListener("mousedown", onMouseDown);
   }, [notifRef, setNotifOpen]);
+
+  useEffect(() => {
+    if (!bookingSuccessToast) return undefined;
+    const t = window.setTimeout(() => setBookingSuccessToast(null), 5200);
+    return () => window.clearTimeout(t);
+  }, [bookingSuccessToast]);
 
   useEffect(() => {
     if (payOpen) setPayQrMissing(false);
@@ -341,44 +351,128 @@ export default function Rooms() {
     };
   }, [location.key]);
 
-  // --- Availability ---
-  function checkAvailability() {
+  const displayedRooms = useMemo(() => {
+    if (!availabilityFilterActive) return rooms;
+    return rooms.filter((r) => roomStatuses[r.id]?.ok);
+  }, [rooms, availabilityFilterActive, roomStatuses]);
+
+  const resRoomId = useMemo(() => {
+    const r = rooms.find((x) => x.name === resRoom);
+    return r ? String(r.id) : "";
+  }, [rooms, resRoom]);
+
+  const occupancyWindowTo = useMemo(() => addLocalDays(today, 540), []);
+
+  const occupancyRangesForAvailability = useMemo(
+    () =>
+      roomOccupancyRanges.map((b) => ({
+        roomId: resRoomId,
+        checkIn: String(b.checkIn ?? "").trim(),
+        checkOut: String(b.checkOut ?? "").trim(),
+      })),
+    [roomOccupancyRanges, resRoomId],
+  );
+
+  const blockedCheckInSet = useMemo(() => blockedCheckInSetFromRanges(roomOccupancyRanges), [roomOccupancyRanges]);
+
+  const checkInDisabledMatchers = useMemo(() => {
+    const t0 = parseLocalYmd(today);
+    return [t0 ? { before: t0 } : { before: new Date() }, (date) => blockedCheckInSet.has(formatLocalYmd(date))];
+  }, [blockedCheckInSet, today]);
+
+  const checkoutDisabledMatcher = useCallback(
+    (date) => {
+      if (!form.checkInDate) return true;
+      const s = formatLocalYmd(date);
+      if (s <= form.checkInDate) return true;
+      if (!resRoomId) return false;
+      return !isRoomAvailableForDates(resRoomId, form.checkInDate, s, occupancyRangesForAvailability);
+    },
+    [form.checkInDate, resRoomId, occupancyRangesForAvailability],
+  );
+
+  useEffect(() => {
+    if (!resOpen || !resRoomId) return undefined;
+    let cancelled = false;
+    setOccupancyLoading(true);
+    setOccupancyErr("");
+    (async () => {
+      try {
+        const data = await fetchRoomGuestOccupancy(resRoomId, today, occupancyWindowTo);
+        if (!cancelled) setRoomOccupancyRanges(Array.isArray(data.bookedRanges) ? data.bookedRanges : []);
+      } catch (e) {
+        if (!cancelled) {
+          setRoomOccupancyRanges([]);
+          setOccupancyErr(e?.message || "Could not load room availability.");
+        }
+      } finally {
+        if (!cancelled) setOccupancyLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resOpen, resRoomId, occupancyWindowTo]);
+
+  /** Changing dates or guest count exits the filtered view until the guest runs search again. */
+  useEffect(() => {
+    setAvailabilityFilterActive(false);
+    setRoomStatuses({});
+    setAvailError(null);
+  }, [barCheckIn, barCheckOut, barGuests]);
+
+  // --- Availability (server-backed overlaps + capacity) ---
+  const checkAvailability = useCallback(async () => {
     if (!barCheckIn || !barCheckOut) {
-      setAvailResult({ dot: "#9a8060", text: "Please select both a check-in and check-out date." }); return;
-    }
-    if (barCheckOut <= barCheckIn) {
-      setAvailResult({ dot: "#e74c3c", text: "Check-out date must be after check-in date." }); return;
-    }
-    if (new Date(barCheckIn) < new Date(today)) {
-      setAvailResult({ dot: "#e74c3c", text: "Check-in date cannot be in the past." }); return;
-    }
-    const guests = parseInt(barGuests, 10);
-    const statuses = {};
-    let availCount = 0;
-    for (const r of rooms) {
-      const guestOk = guests <= r.maxGuests;
-      const dateOk  = isRoomAvailable(r.id, barCheckIn, barCheckOut, bookedDates);
-      const ok = guestOk && dateOk;
-      statuses[r.id] = {
-        ok,
-        label: !guestOk ? "Too many guests" : ok ? "Available" : "Not Available",
-        dateLabel: fmtDate(barCheckIn) + " – " + fmtDate(barCheckOut),
-      };
-      if (ok) availCount++;
-    }
-    setRoomStatuses(statuses);
-    if (rooms.length === 0) {
-      setAvailResult({ dot: "#9a8060", text: "No rooms to check — load the room list first." });
+      setAvailError("Please select both check-in and check-out.");
       return;
     }
-    if (availCount === rooms.length)
-      setAvailResult({ dot: "#27ae60", text: `All rooms are available for ${fmtDate(barCheckIn)} – ${fmtDate(barCheckOut)} (${guests} guest${guests > 1 ? "s" : ""})` });
-    else if (availCount === 0)
-      setAvailResult({ dot: "#e74c3c", text: "No rooms available for the selected dates / guest count." });
-    else
-      setAvailResult({ dot: "#e6a817", text: `${availCount} of ${rooms.length} rooms available for ${fmtDate(barCheckIn)} – ${fmtDate(barCheckOut)}` });
-    setForm(f => ({ ...f, checkInDate: barCheckIn, checkOutDate: barCheckOut }));
-  }
+    if (barCheckOut <= barCheckIn) {
+      setAvailError("Check-out must be after check-in.");
+      return;
+    }
+    if (new Date(barCheckIn) < new Date(today)) {
+      setAvailError("Check-in cannot be in the past.");
+      return;
+    }
+    if (rooms.length === 0) {
+      setAvailError("No rooms loaded yet.");
+      return;
+    }
+
+    setAvailSearchLoading(true);
+    setAvailError(null);
+    const snapIn = barCheckIn;
+    const snapOut = barCheckOut;
+    const snapGuests = barGuests;
+    try {
+      const windowData = await fetchRoomAvailabilityWindow(snapIn, snapOut);
+      if (snapIn !== barCheckIn || snapOut !== barCheckOut || snapGuests !== barGuests) {
+        return;
+      }
+      const guests = Math.max(1, parseInt(snapGuests, 10) || 1);
+      const { statuses } = computeRoomAvailabilitySearch(
+        rooms,
+        windowData,
+        barCheckIn,
+        barCheckOut,
+        guests,
+      );
+      setRoomStatuses(statuses);
+      setAvailabilityFilterActive(true);
+      setForm((f) => ({ ...f, checkInDate: snapIn, checkOutDate: snapOut }));
+    } catch (err) {
+      const msg =
+        err?.message && /network|fetch|failed/i.test(String(err.message))
+          ? "Could not reach the server. Check the API and try again."
+          : err?.message || "Availability check failed.";
+      setAvailError(msg);
+      setRoomStatuses({});
+      setAvailabilityFilterActive(false);
+    } finally {
+      setAvailSearchLoading(false);
+    }
+  }, [rooms, barCheckIn, barCheckOut, barGuests]);
 
   // --- Reservation (POST /api/bookings requires JWT — same as guest Home bookings) ---
   function openRes(name) {
@@ -395,12 +489,40 @@ export default function Rooms() {
     setResRoom(name);
     setResOpen(true);
   }
-  function closeRes()    { setResOpen(false); setFormErrors({}); }
+  function closeRes() {
+    setResOpen(false);
+    setFormErrors({});
+    setRoomOccupancyRanges([]);
+    setOccupancyErr("");
+  }
 
   function handleFormChange(e) {
     const { name, value } = e.target;
     setForm(f => ({ ...f, [name]: value }));
     setFormErrors(fe => ({ ...fe, [name]: false }));
+  }
+
+  function handleSelectCheckIn(d) {
+    const s = d ? formatLocalYmd(d) : "";
+    setForm((f) => {
+      const next = { ...f, checkInDate: s };
+      if (
+        f.checkOutDate &&
+        (f.checkOutDate <= s ||
+          (resRoomId &&
+            !isRoomAvailableForDates(resRoomId, s, f.checkOutDate, occupancyRangesForAvailability)))
+      ) {
+        next.checkOutDate = "";
+      }
+      return next;
+    });
+    setFormErrors((fe) => ({ ...fe, checkInDate: false, checkOutDate: false }));
+  }
+
+  function handleSelectCheckOut(d) {
+    const s = d ? formatLocalYmd(d) : "";
+    setForm((f) => ({ ...f, checkOutDate: s }));
+    setFormErrors((fe) => ({ ...fe, checkOutDate: false }));
   }
 
   function handleIdUpload(e) {
@@ -426,6 +548,17 @@ export default function Rooms() {
     if (!form.checkInDate.trim())     errs.checkInDate = "Check-in date is required.";
     if (!form.checkOutDate.trim())    errs.checkOutDate = "Check-out date is required.";
     else if (form.checkInDate && form.checkOutDate <= form.checkInDate) errs.checkOutDate = "Check-out must be after check-in.";
+    if (form.checkInDate && blockedCheckInSet.has(form.checkInDate)) {
+      errs.checkInDate = "This check-in date is unavailable (already booked).";
+    }
+    if (
+      resRoomId &&
+      form.checkInDate &&
+      form.checkOutDate &&
+      !isRoomAvailableForDates(resRoomId, form.checkInDate, form.checkOutDate, occupancyRangesForAvailability)
+    ) {
+      errs.checkOutDate = "These dates overlap an existing stay for this room. Please adjust your check-out.";
+    }
     if (!idFile) errs.id = "Please upload a valid government ID.";
     if (!form.termsCheck)   errs.termsCheck = "You must accept the Terms and Conditions.";
     if (!form.privacyCheck) errs.privacyCheck = "You must agree to the Data Privacy & Policy.";
@@ -462,11 +595,10 @@ export default function Rooms() {
       } catch {
         /* ignore */
       }
-      setBookedDates((bd) => [...bd, { roomId: roomMeta.id, checkIn: form.checkInDate, checkOut: form.checkOutDate }]);
       setConfirmOpen(false);
       setResOpen(false);
       clearResForm();
-      setResSuccess(true);
+      setBookingSuccessToast("room");
     } catch (err) {
       window.alert(bookingSaveAlertMessage(err));
     } finally {
@@ -533,7 +665,7 @@ export default function Rooms() {
 
     if (form.payment !== "gcash") {
       closePay();
-      setPaySuccess(true);
+      setBookingSuccessToast("room");
       return;
     }
 
@@ -571,11 +703,10 @@ export default function Rooms() {
       } catch {
         /* ignore */
       }
-      setBookedDates((bd) => [...bd, { roomId: roomMeta.id, checkIn: form.checkInDate, checkOut: form.checkOutDate }]);
       closePay();
       setResOpen(false);
       clearResForm();
-      setPaySuccess(true);
+      setBookingSuccessToast("gcash");
     } catch (err) {
       window.alert(bookingSaveAlertMessage(err));
     } finally {
@@ -686,24 +817,20 @@ export default function Rooms() {
             </div>
             <div className="avail-field">
               <label>Check Availability</label>
-              <button className="btn-availability" onClick={checkAvailability}>Availability</button>
+              <button
+                type="button"
+                className="btn-availability"
+                disabled={availSearchLoading || roomsLoading}
+                onClick={() => void checkAvailability()}
+              >
+                {availSearchLoading ? "Checking…" : "Availability"}
+              </button>
             </div>
           </div>
 
-          {/* Results Banner */}
-          {availResult && (
-            <div className="avail-results-bar">
-              <span className="avail-dot" style={{ background: availResult.dot }}></span>
-              <span>{availResult.text}</span>
-            </div>
-          )}
+          {availError ? <p className="avail-error-line">{availError}</p> : null}
 
-          {roomsError && (
-            <div className="avail-results-bar" style={{ marginBottom: "12px" }}>
-              <span className="avail-dot" style={{ background: "#e74c3c" }} />
-              <span>{roomsError}</span>
-            </div>
-          )}
+          {roomsError ? <p className="avail-error-line avail-error-line--rooms">{roomsError}</p> : null}
 
           {/* Room Cards */}
           <div className="rooms-list">
@@ -713,34 +840,60 @@ export default function Rooms() {
             {!roomsLoading && !roomsError && rooms.length === 0 && (
               <p style={{ padding: "24px", color: "#666" }}>No rooms are published yet.</p>
             )}
-            {rooms.map(r => {
+            {!roomsLoading && !roomsError && rooms.length > 0 && displayedRooms.length === 0 && (
+              <div className="rooms-empty-search" role="status">
+                <p className="rooms-empty-search__text">No rooms match these dates and guest count.</p>
+              </div>
+            )}
+            {displayedRooms.map((r) => {
               const st = roomStatuses[r.id];
-              const isUnavailable = st && !st.ok;
+              const isUnavailable = Boolean(st && !st.ok);
+              const highlightMatch = Boolean(availabilityFilterActive && st?.ok);
               return (
-                <div key={r.id} className={`room-card${isUnavailable ? " unavailable" : ""}`}>
+                <div
+                  key={r.id}
+                  className={`room-card${isUnavailable ? " unavailable" : ""}${highlightMatch ? " room-card--search-match" : ""}`}
+                >
                   <span className={`avail-badge${st ? (st.ok ? " badge-available" : " badge-unavailable") : ""}`}>
                     {st && !st.ok ? <XIcon /> : <CheckIcon />}
                     <span>{st ? st.label : "Available"}</span>
                   </span>
                   <div className="room-img-wrap">
-                    <img src={r.img} alt={r.name} />
+                    <div className="room-img-aspect">
+                      <img src={r.img} alt={r.name} decoding="async" />
+                    </div>
                   </div>
                   <div className="room-info">
                     <h2 className="room-name">{r.name}</h2>
+                    <p className="room-type-line">
+                      <span className="room-type-label">Type</span>{" "}
+                      <span className="room-type-value">{r.packageLabel || "Room"}</span>
+                    </p>
                     <div className="room-pricing">
                       {r.priceOld && <span className="room-price-old">{r.priceOld}</span>}
                       <span className="room-price-new">{r.priceNew}</span>
-                      <span className="room-guests"><GuestsIcon /> {r.guestLabel}</span>
+                      <span className="room-guests">
+                        <GuestsIcon /> {r.guestLabel}
+                      </span>
                     </div>
                     <p className="room-desc">{r.desc}</p>
                     <p className="features-label">Features:</p>
                     <div className="features-grid">
-                      {r.features.map(f => <span key={f} className="feature-item">✔ {f}</span>)}
+                      {r.features.map((f) => (
+                        <span key={f} className="feature-item">
+                          ✔ {f}
+                        </span>
+                      ))}
                     </div>
                     <div className="room-footer">
                       <span className="dates-tag">{st?.dateLabel || ""}</span>
-                      <button className="btn-book-now" disabled={isUnavailable}
-                        onClick={() => openRes(r.name)}>Book Now</button>
+                      <button
+                        className="btn-book-now"
+                        disabled={isUnavailable}
+                        onClick={() => openRes(r.name)}
+                      >
+                        Book Now
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -754,25 +907,26 @@ export default function Rooms() {
       {resOpen && (
         <div className="modal-backdrop active"
           onClick={e => { if (e.target === e.currentTarget) closeRes(); }}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2 className="modal-title">{resRoom} — Reservation</h2>
-              <button className="modal-close" onClick={closeRes}>✕</button>
+          <div className="modal modal--booking" role="dialog" aria-modal="true" aria-labelledby="booking-modal-title">
+            <div className="modal-header modal-header--booking">
+              <h2 id="booking-modal-title" className="modal-title">{resRoom} — Reservation</h2>
+              <button type="button" className="modal-close" onClick={closeRes} aria-label="Close">✕</button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body modal-body--booking">
+              <div className="booking-form">
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Customer Name <span className="required">*</span></label>
-                  <input type="text" name="customerName" value={form.customerName}
+                  <label htmlFor="booking-customer-name">Full name <span className="required">*</span></label>
+                  <input id="booking-customer-name" type="text" name="customerName" value={form.customerName}
                     placeholder="Enter your full name"
                     className={formErrors.customerName ? "input-error" : ""}
                     onChange={handleFormChange} />
                   {formErrors.customerName && <span className="field-error">{formErrors.customerName}</span>}
                 </div>
                 <div className="form-group">
-                  <label>Email <span className="required">*</span></label>
-                  <input type="email" name="customerEmail" value={form.customerEmail}
+                  <label htmlFor="booking-customer-email">Email <span className="required">*</span></label>
+                  <input id="booking-customer-email" type="email" name="customerEmail" value={form.customerEmail}
                     placeholder="Enter your email"
                     className={formErrors.customerEmail ? "input-error" : ""}
                     onChange={handleFormChange} />
@@ -782,16 +936,16 @@ export default function Rooms() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Contact Number <span className="required">*</span></label>
-                  <input type="text" name="contactNumber" value={form.contactNumber}
+                  <label htmlFor="booking-contact">Contact number <span className="required">*</span></label>
+                  <input id="booking-contact" type="text" name="contactNumber" value={form.contactNumber}
                     placeholder="Enter contact number"
                     className={formErrors.contactNumber ? "input-error" : ""}
                     onChange={handleFormChange} />
                   {formErrors.contactNumber && <span className="field-error">{formErrors.contactNumber}</span>}
                 </div>
                 <div className="form-group">
-                  <label>Address <span className="required">*</span></label>
-                  <input type="text" name="customerAddress" value={form.customerAddress}
+                  <label htmlFor="booking-address">Address <span className="required">*</span></label>
+                  <input id="booking-address" type="text" name="customerAddress" value={form.customerAddress}
                     placeholder="Enter your address"
                     className={formErrors.customerAddress ? "input-error" : ""}
                     onChange={handleFormChange} />
@@ -799,55 +953,96 @@ export default function Rooms() {
                 </div>
               </div>
 
-              <div className="form-row">
+              <div className="form-row form-row--stay-calendars">
                 <div className="form-group">
-                  <label>Check-In Date <span className="required">*</span></label>
-                  <input type="date" name="checkInDate" value={form.checkInDate}
-                    className={formErrors.checkInDate ? "input-error" : ""}
-                    onChange={handleFormChange} />
+                  <span className="form-label-static" id="booking-checkin-label">Check-in date <span className="required">*</span></span>
+                  <div className={formErrors.checkInDate ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"}>
+                    <DayPicker
+                      mode="single"
+                      selected={form.checkInDate ? parseLocalYmd(form.checkInDate) : undefined}
+                      onSelect={handleSelectCheckIn}
+                      startMonth={parseLocalYmd(today) ?? undefined}
+                      endMonth={parseLocalYmd(occupancyWindowTo) ?? undefined}
+                      defaultMonth={parseLocalYmd(form.checkInDate) ?? parseLocalYmd(today) ?? undefined}
+                      disabled={checkInDisabledMatchers}
+                      modifiers={{ booked: (date) => blockedCheckInSet.has(formatLocalYmd(date)) }}
+                      modifiersClassNames={{ booked: "booking-cal-day-booked" }}
+                      className="booking-day-picker"
+                      id="booking-checkin-calendar"
+                      aria-labelledby="booking-checkin-label"
+                    />
+                  </div>
+                  {occupancyLoading && <span className="booking-cal-hint">Loading availability…</span>}
                   {formErrors.checkInDate && <span className="field-error">{formErrors.checkInDate}</span>}
                 </div>
                 <div className="form-group">
-                  <label>Additional Guest</label>
-                  <input type="text" name="additionalGuest" value={form.additionalGuest}
-                    placeholder="Number of additional guests"
-                    onChange={handleFormChange} />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Guests ID <span className="required">*</span></label>
-                  <label className={`upload-box${formErrors.id ? " box-error" : ""}`}>
-                    <input type="file" accept="image/*" onChange={handleIdUpload} style={{ display: "none" }} />
-                    {idPreview
-                      ? <img src={idPreview} className="upload-preview" alt="ID Preview" />
-                      : <div className="upload-placeholder"><UserIcon /><span>Click to upload ID image</span></div>}
-                  </label>
-                  {formErrors.id && <span className="field-error">{formErrors.id}</span>}
-                </div>
-                <div className="form-group">
-                  <label>Check-Out Date <span className="required">*</span></label>
-                  <input type="date" name="checkOutDate" value={form.checkOutDate}
-                    className={formErrors.checkOutDate ? "input-error" : ""}
-                    onChange={handleFormChange} />
+                  <span className="form-label-static" id="booking-checkout-label">Check-out date <span className="required">*</span></span>
+                  <div className={formErrors.checkOutDate ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"}>
+                    <DayPicker
+                      mode="single"
+                      selected={form.checkOutDate ? parseLocalYmd(form.checkOutDate) : undefined}
+                      onSelect={handleSelectCheckOut}
+                      startMonth={parseLocalYmd(today) ?? undefined}
+                      endMonth={parseLocalYmd(occupancyWindowTo) ?? undefined}
+                      defaultMonth={
+                        parseLocalYmd(form.checkOutDate) ??
+                        parseLocalYmd(form.checkInDate) ??
+                        parseLocalYmd(today) ??
+                        undefined
+                      }
+                      disabled={checkoutDisabledMatcher}
+                      className="booking-day-picker"
+                      id="booking-checkout-calendar"
+                      aria-labelledby="booking-checkout-label"
+                    />
+                  </div>
+                  {!form.checkInDate && (
+                    <span className="booking-cal-hint">Select check-in first, then choose check-out.</span>
+                  )}
                   {formErrors.checkOutDate && <span className="field-error">{formErrors.checkOutDate}</span>}
                 </div>
               </div>
+              {occupancyErr ? (
+                <p className="booking-occupancy-warn" role="status">
+                  Calendar could not load server data ({occupancyErr}). You can still submit; the front desk will confirm availability.
+                </p>
+              ) : null}
+              <p className="booking-schedule-note" role="note">
+                <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Red-shaded dates are booked nights and cannot be selected as check-in. The next guest may check in from 2:00 PM on the departure date shown for an existing booking. Calendar reflects approved, confirmed, and in-house stays.
+              </p>
 
-              <div className="form-group full-width">
-                <label>Additional Requests</label>
-                <textarea name="additionalRequests" rows={5} value={form.additionalRequests}
-                  placeholder="Any special requests or notes..."
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="booking-additional-guests">Additional guests</label>
+                  <input id="booking-additional-guests" type="text" name="additionalGuest" inputMode="numeric" value={form.additionalGuest}
+                    placeholder="0"
+                    onChange={handleFormChange} />
+                </div>
+                <div className="form-group">
+                  <span className="form-label-static">Guest ID <span className="required">*</span></span>
+                  <label htmlFor="booking-id-file" className={`upload-box upload-box--booking-id${formErrors.id ? " box-error" : ""}`}>
+                    <input id="booking-id-file" type="file" accept="image/*" onChange={handleIdUpload} />
+                    {idPreview
+                      ? <img src={idPreview} className="upload-preview" alt="ID preview" />
+                      : <div className="upload-placeholder"><UserIcon /><span>Upload government ID</span></div>}
+                  </label>
+                  {formErrors.id && <span className="field-error">{formErrors.id}</span>}
+                </div>
+              </div>
+
+              <div className="form-section form-section--textarea">
+                <label className="form-section__label" htmlFor="booking-requests">Additional requests</label>
+                <textarea id="booking-requests" name="additionalRequests" rows={4} value={form.additionalRequests}
+                  placeholder="Special requests or notes (optional)"
                   onChange={handleFormChange} />
               </div>
 
-              {/* Payment Options */}
-              <div className="payment-block">
-                <div className="payment-heading">
-                  <CardIcon /><strong>Payment Options</strong>
+              <div className="form-section form-section--payment">
+                <div className="form-section__head">
+                  <CardIcon aria-hidden />
+                  <h3 className="form-section__title">Payment options</h3>
                 </div>
-                <p className="payment-sub">Pay with cash on arrival, or choose GCash to scan and complete the payment form.</p>
+                <p className="form-section__desc">Pay with cash on arrival, or choose GCash to scan and complete the payment form.</p>
                 <div className="payment-options">
                   <label className={`payment-card${form.payment === "cash" ? " selected" : ""}`}
                     onClick={() => selectPayment("cash")}>
@@ -914,8 +1109,9 @@ export default function Rooms() {
               </div>
 
               <div className="modal-actions">
-                <button className="btn-clear" onClick={clearResForm}>Clear</button>
-                <button className="btn-submit-reservation" onClick={handleSubmitRes}>Submit Reservation</button>
+                <button type="button" className="btn-clear" onClick={clearResForm}>Clear</button>
+                <button type="button" className="btn-submit-reservation" onClick={handleSubmitRes}>Submit Reservation</button>
+              </div>
               </div>
             </div>
           </div>
@@ -984,7 +1180,7 @@ export default function Rooms() {
                 <div className="form-group" style={{ marginTop: "10px" }}>
                   <label>Proof of payment <span className="required">*</span></label>
                   <label className={`upload-box proof-upload${payErrors.proof ? " box-error" : ""}`}>
-                    <input type="file" accept="image/*" onChange={handleProofUpload} style={{ display: "none" }} />
+                    <input type="file" accept="image/*" onChange={handleProofUpload} />
                     {proofPreview
                       ? <img src={proofPreview} className="upload-preview" alt="Proof Preview" />
                       : <div className="upload-placeholder"><UploadIcon /><span>Upload your proof of payment here...</span></div>}
@@ -1028,39 +1224,28 @@ export default function Rooms() {
         </div>
       )}
 
-      {/* ══ RESERVATION SUCCESS ══ */}
-      {resSuccess && (
-        <div className="success-overlay visible">
-          <div className="success-card">
-            <div className="success-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#27ae60" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      {/* ══ Booking submitted toast (no full-page overlay) ══ */}
+      {bookingSuccessToast && (
+        <div className="booking-success-toast-anchor" aria-live="polite">
+          <div className="booking-success-toast" role="status">
+            <button
+              type="button"
+              className="booking-success-toast__close"
+              aria-label="Dismiss notification"
+              onClick={() => setBookingSuccessToast(null)}
+            >
+              ×
+            </button>
+            <div className="booking-success-toast__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <h1 className="success-title">Reservation Submitted!</h1>
-            <p className="success-msg">
-              Your reservation has been submitted successfully.<br />
-              We will confirm your booking shortly.<br />
-              <a href="#" onClick={e => { e.preventDefault(); setResSuccess(false); }}>Back to Rooms</a>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* ══ PAYMENT SUCCESS ══ */}
-      {paySuccess && (
-        <div className="success-overlay visible">
-          <div className="success-card">
-            <div className="success-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#27ae60" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <h1 className="success-title">GCash payment submitted!</h1>
-            <p className="success-msg">
-              Your GCash payment details were received.<br />
-              We will verify your payment shortly.<br />
-              <a href="#" onClick={e => { e.preventDefault(); setPaySuccess(false); }}>Back to Rooms</a>
+            <h2 className="booking-success-toast__title">Submitted Successfully!</h2>
+            <p className="booking-success-toast__text">
+              {bookingSuccessToast === "gcash"
+                ? "Your booking and GCash payment are under review. Please wait for an SMS confirmation."
+                : "Your booking is under review. Please wait for an SMS confirmation."}
             </p>
           </div>
         </div>

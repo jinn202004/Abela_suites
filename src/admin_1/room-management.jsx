@@ -30,20 +30,17 @@ function mapApiRoomToAdmin(api) {
   const priceStr = Number.isFinite(priceNum)
     ? `₱${priceNum.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
     : "—";
-  const title = String(api.title ?? "").trim();
-  const pkg = String(api.package ?? "").trim();
-  const packageLabel = [title, pkg].filter(Boolean).join(" — ") || "—";
+  const pkg =
+    String(api.package ?? "").trim() || String(api.title ?? "").trim();
   return {
     apiId: String(api.id ?? ""),
     roomNum: String(api.roomNumber ?? "").trim(),
-    title,
     packageField: pkg,
-    package: packageLabel,
+    package: pkg || "—",
     type: "Room",
     limit: `${guests} guest${guests > 1 ? "s" : ""}`,
     price: priceStr,
     features: Array.isArray(api.features) ? api.features : [],
-    housekeeping: [],
     description: String(api.description ?? "").trim(),
     image: String(api.image ?? "").trim() || "",
   };
@@ -62,11 +59,9 @@ function stripPriceInput(raw) {
 }
 
 const BLANK_FORM = {
-  roomTitle: "",
   roomNum: "", package: "", limit: "", price: "", description: "",
   featBreakfast: false, featWifi: false, featTv: false, featBath: false,
   featOther: "",
-  hkJanah: false, hkJujenn: false, hkJoanah: false,
   image: "",
 };
 
@@ -183,10 +178,8 @@ export default function RoomManagement() {
 
   const filteredRooms = rooms.filter(r => {
     const q = roomsSearch.toLowerCase();
-    const title = (r.title || "").toLowerCase();
     return r.roomNum.toLowerCase().includes(q)
       || r.package.toLowerCase().includes(q)
-      || title.includes(q)
       || r.type.toLowerCase().includes(q)
       || r.limit.toLowerCase().includes(q);
   });
@@ -210,7 +203,6 @@ export default function RoomManagement() {
     const r = rooms[idx];
     setEditIdx(idx);
     setForm({
-      roomTitle:    r.title || "",
       roomNum:      r.roomNum,
       package:      r.packageField != null ? r.packageField : "",
       limit:        r.limit,
@@ -223,9 +215,6 @@ export default function RoomManagement() {
       featOther:    (r.features || []).filter(f =>
         !["Free Breakfast","WiFi","TV","Bathroom Amenities"].includes(f)
       ).join(", "),
-      hkJanah:  (r.housekeeping || []).includes("Janah Cultura"),
-      hkJujenn: (r.housekeeping || []).includes("Jujenn Nabo"),
-      hkJoanah: (r.housekeeping || []).includes("Joanah Cultura"),
       image:    r.image || "",
     });
     setFormErr("");
@@ -263,9 +252,9 @@ export default function RoomManagement() {
   }, []);
 
   async function saveRoom() {
-    const { roomTitle, roomNum, package: pkg, limit, price } = form;
-    if (!roomTitle.trim() || !roomNum.trim() || !pkg.trim() || !limit.trim() || String(price).trim() === "") {
-      setFormErr("Room title, number, package, limit and price are required.");
+    const { roomNum, package: pkg, limit, price } = form;
+    if (!roomNum.trim() || !pkg.trim() || !limit.trim() || String(price).trim() === "") {
+      setFormErr("Room number, package, limit and price are required.");
       return;
     }
     const guests = parseGuestsFromLimit(limit);
@@ -287,7 +276,6 @@ export default function RoomManagement() {
     if (form.featOther.trim()) features.push(form.featOther.trim());
 
     const payload = {
-      title: roomTitle.trim(),
       roomNumber: roomNum.trim(),
       package: pkg.trim(),
       price: priceNum,
@@ -581,29 +569,20 @@ export default function RoomManagement() {
                          onChange={e => handleFormChange("roomNum", e.target.value)}/>
                 </div>
                 <div className="rm-form-group">
-                  <label>Room title</label>
-                  <input type="text" className="rm-input" placeholder="e.g. Deluxe King"
-                         value={form.roomTitle}
-                         onChange={e => handleFormChange("roomTitle", e.target.value)}/>
+                  <label>Package</label>
+                  <input type="text" className="rm-input" placeholder="e.g. Single Suites, Overnight"
+                         value={form.package}
+                         onChange={e => handleFormChange("package", e.target.value)}/>
                 </div>
               </div>
 
               <div className="rm-form-row">
-                <div className="rm-form-group">
-                  <label>Package</label>
-                  <input type="text" className="rm-input" placeholder="e.g. Overnight"
-                         value={form.package}
-                         onChange={e => handleFormChange("package", e.target.value)}/>
-                </div>
                 <div className="rm-form-group">
                   <label>Limit (guests)</label>
                   <input type="text" className="rm-input" placeholder="e.g. 2 or 2 guests"
                          value={form.limit}
                          onChange={e => handleFormChange("limit", e.target.value)}/>
                 </div>
-              </div>
-
-              <div className="rm-form-row">
                 <div className="rm-form-group">
                   <label>Price</label>
                   <input type="text" className="rm-input" placeholder="3500 or ₱3,500"
@@ -613,7 +592,7 @@ export default function RoomManagement() {
               </div>
 
               <div className="rm-form-row">
-                <div className="rm-form-group">
+                <div className="rm-form-group rm-form-group--full">
                   <label>Features</label>
                   <div className="rm-checkbox-group">
                     {[
@@ -635,22 +614,6 @@ export default function RoomManagement() {
                              value={form.featOther}
                              onChange={e => handleFormChange("featOther", e.target.value)}/>
                     </div>
-                  </div>
-                </div>
-                <div className="rm-form-group">
-                  <label>Housekeeping</label>
-                  <div className="rm-checkbox-group">
-                    {[
-                      { id: "hkJanah",  label: "Janah Cultura"  },
-                      { id: "hkJujenn", label: "Jujenn Nabo"    },
-                      { id: "hkJoanah", label: "Joanah Cultura" },
-                    ].map(h => (
-                      <label key={h.id} className="rm-checkbox-item">
-                        <input type="checkbox" checked={form[h.id]}
-                               onChange={e => handleFormChange(h.id, e.target.checked)}/>
-                        {h.label}
-                      </label>
-                    ))}
                   </div>
                 </div>
               </div>

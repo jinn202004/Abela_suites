@@ -76,8 +76,9 @@ const IconSearch = () => (
 
 // ── Toast ───────────────────────────────────────────────
 function Toast({ message, visible }) {
+  if (!visible) return null;
   return (
-    <div className={`gen-toast${visible ? " active" : ""}`}>
+    <div className="rm-toast active">
       <svg viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2" width="22" height="22">
         <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>
       </svg>
@@ -90,19 +91,26 @@ function Toast({ message, visible }) {
 function ConfirmDialog({ open, title, onCancel, onConfirm }) {
   if (!open) return null;
   return (
-    <div className="gen-confirm-backdrop active">
-      <div className="gen-confirm-dialog">
-        <div className="gen-confirm-icon">
-          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8">
-            <circle cx="12" cy="12" r="10"/>
+    <div
+      className="rm-confirm-backdrop active"
+      onClick={(e) => e.target === e.currentTarget && onCancel()}
+    >
+      <div className="rm-confirm-dialog">
+        <div className="rm-confirm-icon">
+          <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8">
+            <circle cx="12" cy="12" r="10" />
           </svg>
-          <span className="gen-confirm-exclaim">!</span>
+          <span className="rm-confirm-exclaim">!</span>
         </div>
-        <h3 className="gen-confirm-title">{title}</h3>
-        <p className="gen-confirm-sub">This action cannot be undone.</p>
-        <div className="gen-confirm-btns">
-          <button className="gen-confirm-cancel" onClick={onCancel}>Cancel</button>
-          <button className="gen-confirm-delete" onClick={onConfirm}>Delete</button>
+        <h3 className="rm-confirm-title">{title}</h3>
+        <p className="rm-confirm-sub">This action cannot be undone.</p>
+        <div className="rm-confirm-btns">
+          <button type="button" className="rm-btn-cancel-confirm" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="rm-btn-delete-confirm" onClick={onConfirm}>
+            Delete
+          </button>
         </div>
       </div>
     </div>
@@ -138,41 +146,60 @@ function DiscountModal({ open, editData, onClose, onSave }) {
 
   return (
     <div
-      className="disc-modal-backdrop active"
-      onClick={(e) => e.target.classList.contains("disc-modal-backdrop") && onClose()}
+      className="rm-modal-backdrop active"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="disc-modal">
-        <div className="disc-modal-title">{editData ? "Edit Discount" : "Add Discount"}</div>
-        <div className="disc-modal-field">
-          <label className="disc-modal-label">Discount Name</label>
-          <input
-            className="disc-modal-input"
-            placeholder="e.g. Senior Citizen"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            autoFocus
-          />
+      <div className="rm-modal admin-general-page__disc-modal">
+        <div className="rm-modal-header">
+          <h2 className="rm-modal-title">{editData ? "Edit Discount" : "Add Discount"}</h2>
+          <button type="button" className="rm-modal-close" onClick={onClose}>
+            &#x2715;
+          </button>
         </div>
-        <div className="disc-modal-field">
-          <label className="disc-modal-label">Discount Percentage</label>
-          <div className="disc-pct-wrap">
+        <div className="rm-modal-body">
+          <div className="rm-form-group rm-form-group--full">
+            <label className="admin-general-page__disc-label" htmlFor="disc-name-input">
+              Discount Name
+            </label>
             <input
-              className="disc-modal-input"
-              type="number"
-              placeholder="e.g. 20"
-              min="0" max="100" step="0.01"
-              value={pct}
-              onChange={(e) => { setPct(e.target.value); setErr(""); }}
+              id="disc-name-input"
+              className="rm-input"
+              placeholder="e.g. Senior Citizen"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              autoFocus
             />
-            <span className="disc-pct-symbol">%</span>
           </div>
-          {err && <div className="disc-modal-err" style={{ display: "block" }}>{err}</div>}
-        </div>
-        <div className="disc-modal-btns">
-          <button className="disc-modal-cancel" onClick={onClose}>Cancel</button>
-          <button className="disc-modal-save" onClick={handleSave}>Save</button>
+          <div className="rm-form-group rm-form-group--full">
+            <label className="admin-general-page__disc-label">Discount Percentage</label>
+            <div className="admin-general-page__disc-pct-wrap">
+              <input
+                className="rm-input"
+                type="number"
+                placeholder="e.g. 20"
+                min="0"
+                max="100"
+                step="0.01"
+                value={pct}
+                onChange={(e) => {
+                  setPct(e.target.value);
+                  setErr("");
+                }}
+                onKeyDown={(e) => e.key === "Enter" && handleSave()}
+              />
+              <span className="admin-general-page__disc-pct-symbol">%</span>
+            </div>
+            {err && <span className="rm-err">{err}</span>}
+          </div>
+          <div className="rm-modal-actions">
+            <button type="button" className="rm-btn-clear" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="button" className="rm-btn-save" onClick={handleSave}>
+              Save
+            </button>
+          </div>
         </div>
       </div>
     </div>

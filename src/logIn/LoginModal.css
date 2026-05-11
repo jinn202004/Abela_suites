@@ -114,6 +114,15 @@
   padding-right: 2.75rem;
 }
 
+.login-modal__password-wrap input[type="password"]::-ms-reveal,
+.login-modal__password-wrap input[type="password"]::-ms-clear {
+  display: none;
+}
+
+.login-modal__password-wrap input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
 .login-modal__toggle-pw {
   position: absolute;
   right: 0.35rem;

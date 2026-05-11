@@ -1,267 +1,71 @@
-/* ===================================================
-   resto.css — Abela Suites Restaurant Menu
-   =================================================== */
+@import "./staff.css";
+@import "./room-management.css";
 
-/* ── CSS VARIABLES ── */
-  .sidebar.admin-rail-shell,
-  .sidebar.admin-rail-shell + .main-wrapper {
-    --gold:       #b8922a;
-    --gold-dark:  #9a7520;
-    --gold-light: #f5f0e8;
-    --sidebar-w:  260px;
-    --topbar-h:   62px;
-    --text-dark:  #2d2d2d;
-    --text-mid:   #6b5a3e;
-    --text-light: #9a8060;
-    --border:     #d4b97a;
-    --bg-page:    #f5f6fa;
-    --white:      #ffffff;
-    --red:        #e74c3c;
-    --green:      #2ecc71;
+/* Success snackbar — rendered with createPortal(..., document.body) in resto.jsx so it never
+   inherits #root / route flex sizing (which made a shared .rm-toast look like a full-screen panel). */
+@keyframes restoMenuToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
   }
-  
-  /* ── RESET ── */
-  *, *::before, *::after {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
-  
-  html, body { overflow-x: hidden; }
+}
 
-  body {
-    font-family: 'Montserrat', sans-serif;
-    background: var(--bg-page);
-    min-height: 100vh;
-  }
-  
-  /* ── PAGE WRAPPER ── */
-  .rm-page {
-    display: flex;
-    min-height: 100vh;
-    width: 100%;
-    max-width: 100%;
-    overflow-x: hidden;
-    background: var(--bg-page);
-    font-family: 'Montserrat', sans-serif;
-  }
-  
-  /* ══════════════════════════════════════════
-     SIDEBAR
-  ══════════════════════════════════════════ */
-  .sidebar {
-    width: var(--sidebar-w);
-    min-height: 100vh;
-    background: var(--gold);
-    position: fixed;
-    left: 0;
-    top: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    overflow-y: auto;
-    z-index: 400;
-  }
-  
-  .sidebar::-webkit-scrollbar { width: 3px; }
-  .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
-  
-  .sidebar-logo {
-    padding: 15px;
-    border-bottom: 1px solid rgba(255,255,255,0.3);
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  
-  .sidebar-logo-img {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid white;
-  }
-  
-  .sidebar-nav { width: 100%; }
-  
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    padding: 16px 22px;
-    text-decoration: none;
-    color: white;
-    font-family: 'Montserrat', sans-serif;
-    font-weight: 600;
-    font-size: 13px;
-    transition: background 0.18s;
-  }
-  
-  .nav-item:hover  { background: rgba(0,0,0,0.10); }
-  .nav-item.active { background: rgba(0,0,0,0.20); }
-  
-  .nav-icon {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-  }
-  
-  /* ══════════════════════════════════════════
-     MAIN WRAPPER
-  ══════════════════════════════════════════ */
-  .main-wrapper {
-    margin-left: var(--sidebar-w);
-    width: calc(100% - var(--sidebar-w));
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    min-width: 0;
-  }
-  
-  /* ── TOPBAR ── */
-  .topbar {
-    position: sticky;
-    top: 0;
-    min-height: var(--topbar-h);
-    height: auto;
-    background: var(--white);
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    row-gap: 8px;
-    padding: 10px 16px;
-    z-index: 300;
-    box-shadow: 0 1px 8px rgba(0,0,0,0.07);
-  }
-  
-  .topbar-breadcrumb {
-    display: flex; align-items: center; gap: 8px;
-    min-width: 0;
-    flex: 1 1 auto;
-  }
-  
-  .breadcrumb-arrow {
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--gold);
-    flex-shrink: 0;
-  }
-  
-  .breadcrumb-title {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--gold);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    min-width: 0;
-  }
-  
-  .topbar-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-  
-  .icon-btn {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    cursor: pointer;
-    padding: 6px;
-    border-radius: 50%;
-    transition: background 0.2s;
-    user-select: none;
-  }
-  
-  .icon-btn:hover { background: rgba(184,146,42,0.10); }
+.resto-menu-toast {
+  position: fixed;
+  bottom: 28px;
+  left: 50%;
+  right: auto;
+  top: auto;
+  transform: translateX(-50%);
+  width: max-content;
+  max-width: min(420px, calc(100vw - 24px));
+  min-width: 0;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  margin: 0;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+  border: 1px solid #d4edda;
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-dark, #2c2824);
+  z-index: 10050;
+}
 
-  .topbar-icon { width: 28px; height: 28px; color: var(--text-mid); flex-shrink: 0; }
-  
-  .notif-dot {
-    position: absolute;
-    top: 5px; right: 5px;
-    width: 9px; height: 9px;
-    background: var(--red);
-    border-radius: 50%;
-    border: 2px solid var(--white);
-  }
-  
-  .user-arrow {
-    font-size: 14px;
-    color: var(--text-mid);
-  }
-  
-  /* ── DROPDOWNS ── */
-  .dropdown {
-    display: none;
-    position: absolute;
-    top: calc(100% + 10px);
-    right: 0;
-    background: var(--white);
-    border-radius: 10px;
-    box-shadow: 0 8px 28px rgba(0,0,0,0.16);
-    border: 1px solid #e8dcc8;
-    z-index: 999;
-    min-width: 220px;
-    overflow: hidden;
-    animation: ddIn 0.18s ease both;
-  }
-  
-  .dropdown.open { display: block; }
-  
-  @keyframes ddIn {
-    from { opacity: 0; transform: translateY(6px); }
-    to   { opacity: 1; transform: translateY(0); }
-  }
-  
-  .notif-dropdown { min-width: 270px; max-height: 280px; overflow-y: auto; }
-  
-  .notif-item {
-    padding: 12px 16px;
-    border-bottom: 1px solid #f0e8d8;
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-  
-  .notif-item:last-child { border-bottom: none; }
-  .notif-item:hover { background: #fdf8f0; }
-  .notif-msg { font-size: 13px; color: var(--text-dark); margin-bottom: 3px; }
-  .notif-time { font-size: 11px; color: var(--text-light); }
-  
-  .user-dropdown { min-width: 200px; }
-  
-  .user-dropdown-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 14px 18px;
-    font-size: 13.5px;
-    color: var(--text-dark);
-    cursor: pointer;
-    border-bottom: 1px solid #f0e8d8;
-    transition: background 0.15s;
-  }
-  
-  .user-dropdown-item:last-child { border-bottom: none; }
-  .user-dropdown-item:hover { background: #fdf8f0; }
-  
-  /* ── CONTENT ── */
-  .content {
-    flex: 1;
-    padding: 28px 32px;
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-  
-  /* ══════════════════════════════════════════
-     RESTAURANT MENU — TOP ROW
-  ══════════════════════════════════════════ */
+.resto-menu-toast.active {
+  animation: restoMenuToastIn 0.25s ease both;
+}
+
+/* Restaurant admin — same gold rail / topbar as other admin pages (staff.css → admin-dashboard.css).
+   room-management.css: delete confirm + toast + shared .rm-modal-* base (overridden below where needed). */
+
+.app-root.resto-admin-page {
+  background: #f5f6fa;
+}
+
+.app-root.resto-admin-page > .main-wrapper > .content {
+  flex: 1;
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.app-root.resto-admin-page {
+  --gold-light: #f0f2f5;
+  --white: #ffffff;
+  --red: #e74c3c;
+  --green: #2ecc71;
+}
+
   .rm-top-row {
     display: flex;
     align-items: center;
@@ -373,14 +177,16 @@
   
   .rm-add-btn:hover { background: var(--gold); }
   
-  /* ── CATEGORY TABS ── */
-  .rm-tabs {
+  /* ── CATEGORY TABS (scoped names — avoid .rm-tabs/.rm-tab; Room Management uses those globally) ── */
+  .resto-admin-page .resto-cat-tabs {
     display: flex;
-    gap: 10px;
     flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
   }
-  
-  .rm-tab {
+
+  .resto-admin-page .resto-cat-tab {
+    margin: 0;
     padding: 9px 20px;
     border-radius: 8px;
     border: 1.5px solid #ccc;
@@ -391,18 +197,57 @@
     color: var(--text-dark);
     cursor: pointer;
     transition: all 0.18s;
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 0 0 auto;
+    min-height: 40px;
   }
-  
-  .rm-tab:hover  { border-color: var(--gold); color: var(--gold); }
-  .rm-tab.active { background: var(--gold-dark); color: var(--white); border-color: var(--gold-dark); }
+
+  .resto-admin-page .resto-cat-tab:hover {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+
+  .resto-admin-page .resto-cat-tab--active {
+    background: var(--gold-dark);
+    color: var(--white);
+    border-color: var(--gold-dark);
+  }
+
+  .resto-admin-page .resto-cat-tab--active:hover {
+    color: var(--white);
+    border-color: var(--gold-dark);
+  }
+
+  .resto-admin-page .rm-btn-save:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
   
   /* ══════════════════════════════════════════
      DISH GRID + CARDS
   ══════════════════════════════════════════ */
   .rm-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 280px));
     gap: 20px;
+    justify-content: start;
+    align-items: stretch;
+  }
+
+  .resto-admin-page .rm-menu-loading-shim {
+    grid-column: 1 / -1;
+    min-height: 140px;
+    border-radius: 10px;
+    background: linear-gradient(90deg, #ece6dc 0%, #f4f0e8 45%, #ece6dc 85%);
+    background-size: 200% 100%;
+    animation: resto-skel-shimmer 1.1s ease-in-out infinite;
+  }
+
+  .rm-grid--refreshing {
+    opacity: 0.72;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
   }
   
   .rm-empty {
@@ -413,8 +258,9 @@
     font-size: 14px;
   }
   
-  /* Each card is a column flex — image on top, body in middle, footer pinned to bottom */
+  /* Each card: fixed width + min height so every tile matches; footer pinned to bottom. */
   .rm-dish-card {
+    box-sizing: border-box;
     background: var(--white);
     border-radius: 10px;
     overflow: hidden;
@@ -422,6 +268,12 @@
     display: flex;
     flex-direction: column;
     transition: box-shadow 0.2s, transform 0.2s;
+    width: 280px;
+    max-width: 280px;
+    min-height: 402px;
+    height: 100%;
+    justify-self: start;
+    align-self: stretch;
   }
   
   .rm-dish-card:hover {
@@ -455,11 +307,19 @@
     justify-content: center;
     flex-shrink: 0;
   }
+
+  /* Placeholder inside .rm-dish-img-wrap — fills the same 180px image band as the photo */
+  .rm-dish-img-placeholder--in-card {
+    height: 100%;
+    min-height: 180px;
+    border-radius: 0;
+  }
   
   /* ── CARD BODY ── */
   .rm-dish-body {
     padding: 14px 16px 10px;
-    flex: 1;                  /* grows to fill remaining space */
+    flex: 1 1 auto;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 4px;
@@ -470,19 +330,56 @@
     font-weight: 700;
     color: var(--text-dark);
     line-height: 1.3;
+    margin: 0;
+    min-height: calc(1.3em * 2);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
   
   .rm-dish-price {
     font-size: 13.5px;
     font-weight: 700;
     color: var(--gold);
+    margin: 0;
+    min-height: 1.35em;
+    line-height: 1.35;
+    flex-shrink: 0;
   }
+
+  .rm-dish-cat {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-top: 2px;
+  }
+
+  .rm-dish-avail {
+    font-size: 11px;
+    font-weight: 700;
+    margin-top: 4px;
+  }
+  .rm-dish-avail--ok { color: #1e8449; }
+  .rm-dish-avail--off { color: #c0392b; }
   
   .rm-dish-desc {
     font-size: 12px;
     color: #888;
     line-height: 1.5;
+    margin: 0;
     margin-top: 2px;
+    /* Fixed vertical slot: long copy clips; short copy still uses same footprint. */
+    height: calc(1.5em * 4);
+    min-height: calc(1.5em * 4);
+    max-height: calc(1.5em * 4);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 4;
+    overflow: hidden;
+    flex-shrink: 0;
   }
   
   /* ── CARD FOOTER ── */
@@ -491,6 +388,10 @@
     gap: 8px;
     padding: 10px 16px 14px;
     flex-shrink: 0;
+    margin-top: auto;
+    min-height: 52px;
+    box-sizing: border-box;
+    align-items: center;
   }
   
   .rm-btn-edit,
@@ -510,6 +411,67 @@
   .rm-btn-delete { background: var(--red);       color: var(--white); }
   .rm-btn-edit:hover,
   .rm-btn-delete:hover { opacity: 0.82; }
+
+  /* ── Dish card skeleton (matches .rm-dish-card footprint) ── */
+  .rm-dish-card--skeleton {
+    pointer-events: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  }
+  .rm-dish-card--skeleton:hover {
+    transform: none;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  }
+  .rm-dish-skel-img {
+    height: 180px;
+    flex-shrink: 0;
+    background: linear-gradient(90deg, #ede8e0 0%, #f5f1ea 40%, #ede8e0 80%);
+    background-size: 200% 100%;
+    animation: resto-skel-shimmer 1.1s ease-in-out infinite;
+  }
+  .rm-dish-skel-line {
+    border-radius: 6px;
+    height: 12px;
+    background: linear-gradient(90deg, #e8e2d8 0%, #f4efe6 45%, #e8e2d8 90%);
+    background-size: 200% 100%;
+    animation: resto-skel-shimmer 1.1s ease-in-out infinite;
+  }
+  .rm-dish-skel-line--lg {
+    width: 72%;
+    height: 14px;
+    margin-bottom: 2px;
+  }
+  .rm-dish-skel-line--sm {
+    width: 38%;
+    height: 12px;
+    margin-bottom: 6px;
+  }
+  .rm-dish-skel-block {
+    height: calc(1.5em * 4);
+    border-radius: 6px;
+    background: linear-gradient(90deg, #ece6dc 0%, #f4f0e8 45%, #ece6dc 85%);
+    background-size: 200% 100%;
+    animation: resto-skel-shimmer 1.1s ease-in-out infinite;
+    flex-shrink: 0;
+  }
+  .rm-dish-footer--skeleton {
+    gap: 8px;
+  }
+  .rm-dish-skel-btn {
+    flex: 1;
+    height: 36px;
+    border-radius: 7px;
+    background: #e5dfd4;
+    animation: resto-skel-shimmer 1.1s ease-in-out infinite;
+    background-size: 200% 100%;
+  }
+  @keyframes resto-skel-shimmer {
+    0% {
+      background-position: 100% 0;
+    }
+    100% {
+      background-position: -100% 0;
+    }
+  }
   
   /* ══════════════════════════════════════════
      MODAL
@@ -740,7 +702,7 @@
     box-shadow: 0 6px 20px rgba(0,0,0,0.12);
     z-index: 100;
     overflow: hidden;
-    animation: ddIn 0.15s ease both;
+    animation: ddFadeIn 0.15s ease both;
   }
   
   .rm-select-option {
@@ -755,148 +717,252 @@
   .rm-select-option:hover    { background: var(--gold-light); }
   .rm-select-option.selected { color: var(--gold); font-weight: 700; }
   
-  /* ══════════════════════════════════════════
-     DELETE CONFIRM DIALOG
-  ══════════════════════════════════════════ */
-  .rm-confirm-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.45);
-    z-index: 9999;
+  /* Delete confirm + toast: room-management.css (imported above). */
+  
+  /* ── API / category panel / menu table ── */
+  .rm-api-banner {
+    background: #fff8e6;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+    color: var(--text-dark);
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
   }
-  
-  .rm-confirm-dialog {
+  .rm-retry-btn {
+    padding: 6px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--gold);
     background: var(--white);
-    border-radius: 14px;
-    padding: 40px 48px 32px;
-    text-align: center;
-    max-width: 360px;
-    width: 90%;
-    box-shadow: 0 16px 50px rgba(0,0,0,0.28);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    animation: modalIn 0.22s ease both;
+    color: var(--gold-dark);
+    font-weight: 600;
+    cursor: pointer;
   }
-  
-  .rm-confirm-icon {
-    position: relative;
+  .rm-retry-btn:hover { background: var(--gold-light); }
+  .rm-btn-secondary {
+    background: var(--white) !important;
+    color: var(--gold-dark) !important;
+    border: 1.5px solid var(--border) !important;
+  }
+  .rm-cat-panel {
+    background: var(--white);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+  .rm-cat-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+  .rm-cat-panel-title { font-size: 16px; color: var(--text-dark); }
+  .rm-btn-small {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    margin-bottom: 4px;
-  }
-  
-  .rm-confirm-exclaim {
-    position: absolute;
-    font-size: 36px;
-    font-weight: 800;
-    color: var(--red);
-    line-height: 1;
-  }
-  
-  .rm-confirm-title {
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--gold);
-  }
-  
-  .rm-confirm-sub {
-    font-size: 13px;
-    color: var(--text-mid);
-    margin-bottom: 8px;
-  }
-  
-  .rm-confirm-btns {
-    display: flex;
-    gap: 12px;
-    width: 100%;
-  }
-  
-  .rm-confirm-cancel {
-    flex: 1;
-    padding: 11px 0;
-    background: transparent;
-    color: var(--text-dark);
-    border: 1.5px solid #d4c4a8;
-    border-radius: 7px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    cursor: pointer;
-    transition: border-color 0.2s;
-  }
-  
-  .rm-confirm-cancel:hover { border-color: var(--gold); }
-  
-  .rm-confirm-delete {
-    flex: 1;
-    padding: 11px 0;
-    background: var(--red);
-    color: var(--white);
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
     border: none;
-    border-radius: 7px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
+    background: var(--gold);
+    color: var(--white);
+    font-weight: 600;
+    font-size: 12px;
     cursor: pointer;
-    transition: opacity 0.2s;
   }
-  
-  .rm-confirm-delete:hover { opacity: 0.85; }
-  
-  /* ══════════════════════════════════════════
-     TOAST
-  ══════════════════════════════════════════ */
-  .rm-toast {
-    position: fixed;
-    bottom: 28px;
-    right: 28px;
+  .rm-cat-empty { font-size: 13px; color: var(--text-mid); }
+  .rm-cat-list { list-style: none; }
+  .rm-cat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 13px;
+  }
+  .rm-cat-actions { display: flex; gap: 8px; }
+  .rm-btn-tiny {
+    padding: 4px 10px !important;
+    font-size: 11px !important;
+  }
+  .rm-btn-muted {
+    background: #f0f0f0 !important;
+    color: var(--text-dark) !important;
+    border: 1px solid #ddd !important;
+  }
+  .rm-loading { padding: 40px; text-align: center; color: var(--text-mid); }
+  .rm-table-wrap {
     background: var(--white);
-    border: 1.5px solid var(--green);
+    border: 1px solid var(--border);
     border-radius: 10px;
-    padding: 12px 20px;
+    overflow: auto;
+  }
+  .rm-menu-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .rm-menu-table th {
+    text-align: left;
+    padding: 12px 14px;
+    background: var(--gold-light);
+    color: var(--text-dark);
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .rm-menu-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid #eee;
+    vertical-align: middle;
+    color: var(--text-dark);
+  }
+  .rm-th-thumb { width: 72px; }
+  .rm-th-num { text-align: right; }
+  .rm-th-actions { width: 220px; text-align: right; }
+  .rm-td-num { text-align: right; font-weight: 600; }
+  .rm-td-actions { text-align: right; white-space: nowrap; }
+  .rm-td-actions button { margin-left: 6px; }
+  .rm-td-empty { text-align: center; color: var(--text-mid); padding: 28px !important; }
+  .rm-table-thumb {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 1px solid #e8dcc8;
+  }
+  .rm-table-thumb-placeholder {
+    width: 56px;
+    height: 56px;
+    border-radius: 8px;
+    background: var(--gold-light);
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 13.5px;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .rm-table-thumb-placeholder svg { width: 28px; height: 28px; }
+  .rm-cell-name { font-weight: 600; }
+  .rm-cell-desc {
+    font-size: 11px;
+    color: var(--text-light);
+    margin-top: 4px;
+    max-width: 320px;
+    line-height: 1.35;
+  }
+  .rm-avail-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
     font-weight: 600;
-    color: var(--text-dark);
-    box-shadow: 0 4px 18px rgba(0,0,0,0.12);
-    z-index: 99999;
-    opacity: 0;
-    transform: translateY(12px);
-    pointer-events: none;
-    transition: opacity 0.25s, transform 0.25s;
+    text-transform: capitalize;
   }
-  
-  .rm-toast.active {
-    opacity: 1;
-    transform: translateY(0);
-    pointer-events: auto;
+  .rm-avail-available { background: #e8f8ee; color: #1e8449; }
+  .rm-avail-unavailable { background: #fdecea; color: #c0392b; }
+  .rm-modal-sm { max-width: 420px; }
+
+  /* Pagination (aligned with frontdesk / cashier patterns: page, limit, totals) */
+  .rm-pagination-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    margin-top: 8px;
+    padding: 12px 0 4px;
+    border-top: 1px solid #e8e4dc;
+    font-size: 13px;
+    color: var(--text-mid, #5c574f);
   }
-  
+  .rm-pagination-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .rm-pagination-count { font-weight: 600; color: var(--text-dark, #2c2824); }
+  .rm-pagination-limit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+  .rm-pagination-select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #d4cfc4;
+    background: #fff;
+    font-size: 13px;
+    color: var(--text-dark, #2c2824);
+  }
+  .rm-pagination-btns {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .rm-page-btn-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .rm-page-ellipsis {
+    padding: 0 4px;
+    color: #999;
+    user-select: none;
+  }
+  .rm-page-btn {
+    min-width: 36px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #d4cfc4;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dark, #2c2824);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .rm-page-btn:hover:not(:disabled) {
+    border-color: var(--gold, #b8922a);
+    color: var(--gold, #b8922a);
+  }
+  .rm-page-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .rm-page-btn--active {
+    border-color: var(--gold, #b8922a);
+    background: #faf6ee;
+    color: #8a6d1f;
+  }
+
   /* ══════════════════════════════════════════
      RESPONSIVE
   ══════════════════════════════════════════ */
   @media (max-width: 768px) {
-    .sidebar { width: 64px; }
-    .nav-item span:last-child { display: none; }
-    .nav-item { justify-content: center; padding: 14px 10px; }
-    .sidebar-logo-img { width: 44px; height: 44px; }
-    .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
-    .content { padding: 14px 12px; }
+    .app-root.resto-admin-page > .main-wrapper > .content {
+      padding: 14px 12px;
+      gap: 16px;
+    }
     .rm-search-wrap { flex: 1 1 100%; min-width: 0; max-width: none; }
     .rm-add-btn { width: 100%; justify-content: center; }
-    .rm-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; }
+    .rm-grid {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+    .rm-dish-card {
+      width: 100%;
+      max-width: none;
+      min-height: 402px;
+      justify-self: stretch;
+    }
     .rm-form-row { flex-direction: column; }
-    .breadcrumb-title { font-size: 15px; }
-    .notif-dropdown { max-width: min(270px, calc(100vw - 20px)); }
-  }
-
-  @media (max-width: 480px) {
-    .breadcrumb-title { font-size: 14px; }
   }

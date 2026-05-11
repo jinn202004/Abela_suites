@@ -1,6 +1,8 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
@@ -11,30 +13,95 @@ import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { useCashierSidebarLayout } from "./useCashierSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import CashierSidebarToggle from "./CashierSidebarToggle";
+import { fetchMenuPageBackend, fetchCategoriesBackend, fetchMenuItemByIdBackend } from "../api/menuApi";
+import {
+  createRestaurantOrderBackend,
+  patchRestaurantOrderPaymentBackend,
+  patchRestaurantOrderStatusBackend,
+} from "../api/restaurantOrdersApi";
+import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import "./pos.css";
 import "./cashier-sidebar-shared.css";
-// ── Dish Data ──────────────────────────────────────────────────────────
-const allDishes = [
-  { id:1,  name:"Tinolang Isda",      price:350, category:"Main Course", img:"https://i.ytimg.com/vi/vS_Z-pCJCEA/maxresdefault.jpg",        desc:"A comforting Filipino fish soup with ginger, green papaya, and malunggay in a light savory broth." },
-  { id:2,  name:"Tinolang Manok",     price:350, category:"Main Course", img:"https://pilipinasrecipes.com/wp-content/uploads/2018/05/Tinolang-Manok-Recipe.jpg",           desc:"A comforting Filipino chicken soup with ginger, green papaya, and malunggay in a light savory broth." },
-  { id:3,  name:"Sinigang na Bangus", price:250, category:"Main Course", img:"https://yummykitchentv.com/wp-content/uploads/2023/06/sinigang-1024x576.jpg",        desc:"A sour and savory Filipino milkfish soup in a tangy tamarind broth." },
-  { id:4,  name:"Sinigang na Baboy",  price:350, category:"Main Course", img:"https://speedyrecipe.com/wp-content/uploads/2022/09/how-to-cook-sinigang-na-baboy.jpg",      desc:"A hearty Filipino pork soup in a sour and savory tamarind broth with fresh vegetables." },
-  { id:5,  name:"Kare-Kare",          price:380, category:"Main Course", img:"https://kusinasecrets.com/wp-content/uploads/2024/10/u3317447599_httpss.mj_.run55FtooqGilE_A_bowl_of_Filipino_Kare__7c52f987-0437-4353-aa87-807beddfe0e4_1.webp",              desc:"Rich oxtail and tripe stew in a creamy peanut sauce, served with bagoong." },
-  { id:6,  name:"Lechon Kawali",      price:320, category:"Main Course", img:"https://www.seriouseats.com/thmb/4wkT0wFghCvD6DK8HQRbtt6ubko=/1500x0/filters:no_upscale():max_bytes(150000):strip_icc()/__opt__aboutcom__coeus__resources__content_migration__serious_eats__seriouseats.com__images__2015__01__20150102-lechon-kawali-first-finished-joshua-bousel-ad06cbac80af4886a6183f9041a61d9e.jpg",          desc:"Crispy deep-fried pork belly served with liver sauce or vinegar dip." },
-  { id:7,  name:"Steamed Rice",       price:50,  category:"Side Dish",   img:"https://maeservesyoufood.com/wp-content/uploads/2023/04/sinangag-rice.jpeg",                   desc:"Perfectly cooked plain white steamed rice." },
-  { id:8,  name:"Ensaladang Talong",  price:80,  category:"Side Dish",   img:"https://i.pinimg.com/736x/98/79/56/9879564e17cd0c7d396cdc0b675d34e7.jpg",     desc:"Grilled eggplant salad with tomatoes, onions, and salted eggs." },
-  { id:9,  name:"Pickled Papaya",     price:60,  category:"Side Dish",   img:"https://tse1.mm.bing.net/th/id/OIP.MZAgZdTK07SM2HtR66DNngAAAA?pid=Api&P=0&h=180",         desc:"Sweet and tangy achara made from shredded green papaya." },
-  { id:10, name:"Buko Juice",         price:80,  category:"Beverages",   img:"https://www.willflyforfood.net/wp-content/uploads/2021/12/filipino-fruits-buko.jpg.webp",                   desc:"Fresh young coconut juice, naturally sweet and refreshing." },
-  { id:11, name:"Sago't Gulaman",     price:60,  category:"Beverages",   img:"https://www.pinoyrecipe.net/wp-content/uploads/2023/12/Creamy-Buko-Sago-Gulaman-Salad-1024x683.jpg",                desc:"A classic Filipino drink with sago pearls, gulaman jelly, and brown sugar syrup." },
-  { id:12, name:"Pineapple Juice",    price:70,  category:"Beverages",   img:"https://thewoodenskillet.com/wp-content/uploads/2022/07/smoked-pineapple-recipe-2-1067x1600.jpg",              desc:"Freshly squeezed pineapple juice, chilled and served cold." },
-  { id:13, name:"Bulalo",             price:420, category:"Soup",        img:"http://4.bp.blogspot.com/-CeXdekRHDKk/TkAPhgbYCdI/AAAAAAAAAOE/IqRF9DFV08c/s1600/bulalo+recipe.jpg",                 desc:"Rich and hearty beef bone marrow soup slow-cooked with vegetables." },
-  { id:14, name:"Nilaga",             price:300, category:"Soup",        img:"https://www.kawalingpinoy.com/wp-content/uploads/2013/01/sinigang-baboy-7-1152x1536.jpg",                 desc:"Classic Filipino boiled beef or pork soup with potatoes and cabbage." },
-  { id:15, name:"Fresh Mango",        price:120, category:"Fruits",      img:"https://img.freepik.com/premium-photo/sliced-mango-plate_156352-921.jpg",                  desc:"Sweet and ripe Philippine carabao mangoes, served chilled." },
-  { id:16, name:"Watermelon Slice",   price:90,  category:"Fruits",      img:"https://barefeetinthekitchen.com/wp-content/uploads/2021/06/Watermelon-3-1-of-1.jpg",      desc:"Cold and refreshing watermelon slices, perfect for the Philippine heat." },
-];
+import { useCashierUnifiedBell } from "./useCashierUnifiedBell";
+import { getPosWalkInGuestEmail } from "./posWalkInGuest";
 
-const CATEGORIES    = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
-const ITEMS_PER_PAGE = 6;
+/** Preferred tab order (matches admin seed categories); extras are appended alphabetically. */
+const DEFAULT_CATEGORY_ORDER = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
+const MENU_AUTO_REFRESH_MS = 10000;
+
+/** Same windowed page numbers as Restaurant Menu (`resto.jsx`). */
+function visibleMenuPageNumbers(currentPage, totalPages) {
+  const t = Math.max(1, Math.min(5000, Number(totalPages) || 1));
+  const c = Math.min(Math.max(1, Number(currentPage) || 1), t);
+  if (t <= 9) return Array.from({ length: t }, (_, i) => i + 1);
+  const set = new Set([1, t, c, c - 1, c + 1]);
+  return [...set].filter((p) => p >= 1 && p <= t).sort((a, b) => a - b);
+}
+
+/** Category id from API row (`id` or legacy `_id`) — same as Restaurant Menu. */
+function categoryRowId(row) {
+  const v = row?.id ?? row?._id;
+  if (v == null || String(v).trim() === "") return undefined;
+  return String(v).trim();
+}
+
+/** Tab order: seed order first, then remaining API names — mirrors `resto.jsx` `orderCategoryNames`. */
+function orderCategoryNamesFromApi(rows = []) {
+  const names = Array.isArray(rows) ? rows.map((c) => String(c?.name || "").trim()).filter(Boolean) : [];
+  const seen = new Set();
+  const ordered = [];
+  for (const n of DEFAULT_CATEGORY_ORDER) {
+    if (names.includes(n) && !seen.has(n)) {
+      seen.add(n);
+      ordered.push(n);
+    }
+  }
+  for (const n of names.sort((a, b) => a.localeCompare(b))) {
+    if (!seen.has(n)) {
+      seen.add(n);
+      ordered.push(n);
+    }
+  }
+  return ordered.length > 0 ? ordered : [...DEFAULT_CATEGORY_ORDER];
+}
+
+/** Map GET /api/menu row → POS card shape (same category resolution idea as Restaurant Menu). */
+function menuItemToPosDish(m, categoriesRows = []) {
+  const rawId = m.id ?? m._id;
+  const id = rawId != null ? String(rawId) : "";
+  const price = Number(m.price);
+  const categoryNameFromPayload =
+    typeof m.category === "string"
+      ? m.category.trim()
+      : m.category && typeof m.category === "object" && m.category.name
+        ? String(m.category.name).trim()
+        : "";
+  const categoryRefId = String(m.categoryRef ?? m.categoryId ?? "").trim();
+  const categoryNameFromRef =
+    categoryRefId && Array.isArray(categoriesRows)
+      ? String(
+          categoriesRows.find((c) => String(categoryRowId(c) ?? "") === categoryRefId)?.name || "",
+        ).trim()
+      : "";
+  let categoryName =
+    categoryNameFromPayload ||
+    categoryNameFromRef ||
+    (categoriesRows[0]?.name ? String(categoriesRows[0].name).trim() : "") ||
+    DEFAULT_CATEGORY_ORDER[0];
+  if (!categoryName || categoryName.toLowerCase() === "uncategorized") {
+    categoryName = DEFAULT_CATEGORY_ORDER[0];
+  }
+  const name = String(m.itemName ?? m.name ?? "").trim();
+  return {
+    id,
+    name,
+    price: Number.isFinite(price) ? price : 0,
+    category: categoryName,
+    img: m.imageUrl || "",
+    desc: m.description || "",
+    availability: m.availability,
+  };
+}
 
 const GCASH_INFO = {
   accountName: "L** J** P.",
@@ -66,12 +133,6 @@ const SettingsIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
     <circle cx="12" cy="12" r="3"/>
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-  </svg>
-);
-const BillingNavIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="2" y="5" width="20" height="14" rx="2" />
-    <line x1="2" y1="10" x2="22" y2="10" />
   </svg>
 );
 const LogoutIcon = () => (
@@ -113,6 +174,74 @@ function generateInvoiceNumber() {
 }
 const fmt = n => "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2 });
 
+function downloadPosReceiptPdf({ orderedItems, discountRate, discountLabel, paymentMethod, cashierName }) {
+  const rows = Array.isArray(orderedItems) ? orderedItems : [];
+  const subtotal = rows.reduce((s, i) => s + Number(i?.dish?.price || 0) * Number(i?.qty || 0), 0);
+  const safeDiscount = Number(discountRate) || 0;
+  const discountAmt = subtotal * safeDiscount;
+  const total = subtotal - discountAmt;
+  const fmtPdf = (n) =>
+    `PHP ${Number(n || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const margin = 14;
+  let y = 14;
+  const now = new Date();
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("ABELA SUITES - RECEIPT", margin, y);
+  y += 7;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Date: ${now.toLocaleDateString("en-PH")} ${now.toLocaleTimeString("en-PH")}`, margin, y);
+  y += 5;
+  doc.text(`Cashier: ${cashierName || "Cashier"}`, margin, y);
+  y += 5;
+  doc.text(`Payment Method: ${paymentMethod || "Cash"}`, margin, y);
+  y += 8;
+
+  const body =
+    rows.length > 0
+      ? rows.map((line) => {
+          const name = String(line?.dish?.name || "Item");
+          const qty = Number(line?.qty || 0);
+          const unitPrice = Number(line?.dish?.price || 0);
+          const lineTotal = unitPrice * qty;
+          return [
+            `${name} x${qty}`,
+            fmtPdf(unitPrice),
+            fmtPdf(lineTotal),
+          ];
+        })
+      : [["No items", "", ""]];
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Item", "Unit Price", "Subtotal"]],
+    body,
+    styles: { fontSize: 10, cellPadding: 2 },
+    headStyles: { fillColor: [184, 146, 42], textColor: 255 },
+    margin: { left: margin, right: margin },
+    theme: "striped",
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 8;
+  doc.setFontSize(11);
+  doc.text(`Subtotal: ${fmtPdf(subtotal)}`, margin, y);
+  y += 6;
+  doc.text(`Discount (${discountLabel || "No Discount"}): ${fmtPdf(discountAmt)}`, margin, y);
+  y += 6;
+  doc.setFont("helvetica", "bold");
+  doc.text(`Total: ${fmtPdf(total)}`, margin, y);
+
+  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+  doc.save(`Abela_POS_Receipt_${stamp}.pdf`);
+}
+
 // ── GCash Modal ────────────────────────────────────────────────────────
 function GcashModal({ onClose }) {
   return (
@@ -130,6 +259,27 @@ function GcashModal({ onClose }) {
         <p className="gcash-name">{GCASH_INFO.accountName}</p>
         <p className="gcash-detail">Mobile No.: {GCASH_INFO.mobileNo}</p>
         <p className="gcash-detail">User ID: {GCASH_INFO.userId}</p>
+      </div>
+    </div>
+  );
+}
+
+function PosPromptModal({ message, onClose }) {
+  return (
+    <div className="abela-overlay" onClick={onClose}>
+      <div className="abela-modal pos-notice-modal" onClick={(e) => e.stopPropagation()}>
+        <button className="abela-modal-close" onClick={onClose} aria-label="Close message">
+          &#x2715;
+        </button>
+        <div className="pos-notice-header">
+          <h2 className="pos-notice-title">Notice</h2>
+        </div>
+        <p className="pos-notice-message">{message}</p>
+        <div className="pos-notice-actions">
+          <button type="button" className="pos-notice-ok-btn" onClick={onClose}>
+            OK
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -188,7 +338,7 @@ function OrderBillModal({ orderedItems, discountRate, discountLabel, paymentMeth
           </thead>
           <tbody>
             {orderedItems.map((it, i) => (
-              <tr key={it.dish.id}>
+              <tr key={`${it.dish.id}-${i}`}>
                 <td>{i+1}</td>
                 <td><strong>{it.dish.name}</strong></td>
                 <td className="right">{it.qty}</td>
@@ -248,16 +398,6 @@ function CashierPosAside({
       </div>
       <nav className="sidebar-nav">
         <NavLink
-          to="/cashier-billing"
-          onClick={() => { if (isMobileShell) closeMobileSidebar(); }}
-          className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-        >
-          <span className="nav-icon">
-            <BillingNavIcon />
-          </span>
-          <span>Guest billing</span>
-        </NavLink>
-        <NavLink
           to="/cashier"
           end
           onClick={() => { if (isMobileShell) closeMobileSidebar(); }}
@@ -297,18 +437,35 @@ function CashierPosAside({
 
 // ── Main POS Component ─────────────────────────────────────────────────
 export default function POS() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { topbarProfile } = useTopbarUserProfile("cashier");
-  const [category,     setCategory]     = useState("Main Course");
-  const [currentPage,  setCurrentPage]  = useState(1);
-  const [searchQuery,  setSearchQuery]  = useState("");
-  const [searchInput,  setSearchInput]  = useState("");
+  const [menuDishes, setMenuDishes] = useState([]);
+  const [menuCategories, setMenuCategories] = useState([]);
+  const categoryTabNames = useMemo(() => orderCategoryNamesFromApi(menuCategories), [menuCategories]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState("");
+  const [category, setCategory] = useState("Main Course");
+  const [currentPage, setCurrentPage] = useState(1);
+  /** Matches ADMIN_1 Restaurant Menu pagination options (page size). */
+  const [menuLimit, setMenuLimit] = useState(10);
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalMenuItems, setTotalMenuItems] = useState(0);
   const [orderedItems, setOrderedItems] = useState([]);
   const [discountRate, setDiscountRate] = useState(0);
   const [paymentMethod,setPaymentMethod]= useState("Cash");
   const [amountGiven,  setAmountGiven]  = useState("");
   const [showGcash,    setShowGcash]    = useState(false);
   const [showBill,     setShowBill]     = useState(false);
+  /** After checkout, cart is cleared but the bill modal still needs the saved lines. */
+  const [receiptSnapshot, setReceiptSnapshot] = useState(null);
+  /** Keep last successful receipt so Print Receipt can reopen it later. */
+  const [lastReceiptSnapshot, setLastReceiptSnapshot] = useState(null);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [promptMessage, setPromptMessage] = useState("");
   const [notifOpen,    setNotifOpen]    = useState(false);
   const [userOpen,     setUserOpen]     = useState(false);
   const {
@@ -324,7 +481,142 @@ export default function POS() {
     logoImgStyle,
   } = useCashierSidebarLayout();
   const notifRef = useRef(null);
-  const userRef  = useRef(null);
+  const userRef = useRef(null);
+  const menuPageFetchGenRef = useRef(0);
+
+  /** Loads category tabs from API (and optional focus dish). Dish rows load via paginated GET /api/menu when category changes — same pattern as Restaurant Menu. */
+  const loadPosMenu = useCallback(async (focusMenuItemId = "", opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) {
+      setMenuLoading(true);
+      setMenuError("");
+    }
+    try {
+      const cats = await fetchCategoriesBackend().catch(() => []);
+      const rows = Array.isArray(cats) ? cats : [];
+      setMenuCategories(rows);
+
+      if (focusMenuItemId) {
+        try {
+          const item = await fetchMenuItemByIdBackend(String(focusMenuItemId));
+          const mapped = menuItemToPosDish(item, rows);
+          setCategory(mapped.category);
+          setCurrentPage(1);
+          setSearchInput("");
+          setDebouncedSearch("");
+        } catch {
+          /* focus item missing — keep current category */
+        }
+      }
+    } catch (e) {
+      if (!silent) {
+        setMenuCategories([]);
+        setMenuError(
+          e?.code === "NO_TOKEN"
+            ? "Sign in as cashier to load the restaurant menu."
+            : e?.message || "Could not load menu.",
+        );
+      }
+    } finally {
+      if (!silent) setMenuLoading(false);
+    }
+  }, []);
+
+  const { bellNotifications, hasUnreadBell, handleNotifItemClick, reloadRestaurantOrders } = useCashierUnifiedBell({
+    displayName: topbarProfile?.name || TOPBAR.cashier.profile.name,
+    onMenuNotificationRead: (n) => void loadPosMenu(n?.menuItemId || ""),
+    onOrderNotificationClick: (n) =>
+      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } }),
+  });
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    if (menuLoading) return undefined;
+
+    const catRow = menuCategories.find((c) => String(c?.name ?? "").trim() === String(category ?? "").trim());
+    const categoryId = categoryRowId(catRow);
+
+    let cancelled = false;
+    const ac = new AbortController();
+    const gen = ++menuPageFetchGenRef.current;
+
+    setMenuError("");
+
+    void (async () => {
+      try {
+        const result = await fetchMenuPageBackend(
+          currentPage,
+          menuLimit,
+          {
+            categoryId,
+            availability: "available",
+            search: debouncedSearch || undefined,
+          },
+          { signal: ac.signal },
+        );
+        if (cancelled || gen !== menuPageFetchGenRef.current) return;
+        const rows = Array.isArray(result?.data) ? result.data : [];
+        if (rows.length === 0 && (Number(result?.totalItems) || 0) > 0 && currentPage > 1) {
+          setCurrentPage((p) => Math.max(1, p - 1));
+          return;
+        }
+        const tp = Number(result?.totalPages);
+        const ti = Number(result?.totalItems);
+        setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
+        setTotalMenuItems(Number.isFinite(ti) && ti >= 0 ? ti : rows.length);
+        setMenuDishes(rows.map((m) => menuItemToPosDish(m, menuCategories)));
+      } catch (e) {
+        if (cancelled || gen !== menuPageFetchGenRef.current || e?.name === "AbortError") return;
+        setMenuDishes([]);
+        setTotalMenuItems(0);
+        setTotalPages(1);
+        setMenuError(e?.message || "Could not load dishes for this category.");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [menuLoading, menuCategories, category, currentPage, menuLimit, debouncedSearch]);
+
+  useEffect(() => {
+    void loadPosMenu();
+  }, [loadPosMenu]);
+
+  useEffect(() => {
+    const onTok = () => void loadPosMenu();
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+    return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+  }, [loadPosMenu]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => void loadPosMenu("", { silent: true }), MENU_AUTO_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [loadPosMenu]);
+
+  useEffect(() => {
+    const focusMenuItemId = location.state?.focusMenuItemId;
+    if (!focusMenuItemId) return;
+    void loadPosMenu(String(focusMenuItemId));
+    navigate("/cashier", { replace: true, state: {} });
+  }, [location.state, loadPosMenu, navigate]);
+
+  useEffect(() => {
+    if (categoryTabNames.length === 0) return;
+    if (!categoryTabNames.includes(category)) {
+      setCategory(categoryTabNames[0]);
+      setCurrentPage(1);
+    }
+  }, [categoryTabNames, category]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [menuLimit]);
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -336,43 +628,43 @@ export default function POS() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  // ── Filtered dishes ──
-  const filtered = allDishes.filter(d =>
-    d.category === category &&
-    (searchQuery === "" || d.name.toLowerCase().includes(searchQuery))
-  );
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const page       = Math.min(currentPage, totalPages);
-  const paged      = filtered.slice((page-1)*ITEMS_PER_PAGE, page*ITEMS_PER_PAGE);
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
 
   function handleSearch() {
-    setSearchQuery(searchInput.trim().toLowerCase());
+    setDebouncedSearch(searchInput.trim());
     setCurrentPage(1);
   }
 
   function handleCategoryChange(cat) {
     setCategory(cat);
     setCurrentPage(1);
-    setSearchQuery("");
     setSearchInput("");
+    setDebouncedSearch("");
   }
 
   // ── Cart logic ──
   function addToOrder(dish) {
-    setOrderedItems(prev => {
-      const existing = prev.find(i => i.dish.id === dish.id);
-      if (existing) return prev.map(i => i.dish.id === dish.id ? { ...i, qty: i.qty+1 } : i);
+    if (!dish.id) return;
+    setOrderedItems((prev) => {
+      const existing = prev.find((i) => String(i.dish.id) === String(dish.id));
+      if (existing) {
+        return prev.map((i) =>
+          String(i.dish.id) === String(dish.id) ? { ...i, qty: i.qty + 1 } : i,
+        );
+      }
       return [...prev, { dish, qty: 1 }];
     });
   }
   function changeQty(dishId, delta) {
-    setOrderedItems(prev => {
-      const updated = prev.map(i => i.dish.id === dishId ? { ...i, qty: i.qty + delta } : i);
-      return updated.filter(i => i.qty > 0);
+    setOrderedItems((prev) => {
+      const updated = prev.map((i) =>
+        String(i.dish.id) === String(dishId) ? { ...i, qty: i.qty + delta } : i,
+      );
+      return updated.filter((i) => i.qty > 0);
     });
   }
   function removeItem(dishId) {
-    setOrderedItems(prev => prev.filter(i => i.dish.id !== dishId));
+    setOrderedItems((prev) => prev.filter((i) => String(i.dish.id) !== String(dishId)));
   }
 
   // ── Summary ──
@@ -398,15 +690,95 @@ export default function POS() {
     }
   }
 
-  function handleSendToBill() {
-    if (orderedItems.length === 0) { alert("Please select at least one dish before sending to bill."); return; }
-    setShowBill(true);
+  const openPrompt = useCallback((msg) => {
+    setPromptMessage(String(msg || "Please review your input."));
+  }, []);
+
+  async function handleSendToBill() {
+    if (orderedItems.length === 0) {
+      openPrompt("Please select at least one dish before sending to bill.");
+      return;
+    }
+    if (paymentMethod === "Cash" && given + 1e-6 < total) {
+      openPrompt("Amount given is less than the total. Enter enough cash to complete the sale.");
+      return;
+    }
+    const badLine = orderedItems.find((i) => !i.dish?.id);
+    if (badLine) {
+      openPrompt("Cart has an item without a menu id. Reload the menu and try again.");
+      return;
+    }
+
+    const roundedTotal = Math.round(total * 100) / 100;
+    const guestEmail = getPosWalkInGuestEmail();
+    const items = orderedItems.map((i) => ({
+      menuItemId: String(i.dish.id),
+      quantity: i.qty,
+    }));
+
+    setCheckoutBusy(true);
+    try {
+      const created = await createRestaurantOrderBackend({
+        guestEmail,
+        items,
+        totalAmount: roundedTotal,
+      });
+      const orderId = created?.id;
+      if (!orderId) throw new Error("Order was created but no id was returned.");
+
+      const pm = paymentMethod === "GCash" ? "gcash" : "cash";
+      await patchRestaurantOrderPaymentBackend(orderId, {
+        amountPaid: roundedTotal,
+        paymentMethod: pm,
+      });
+      await patchRestaurantOrderStatusBackend(orderId, "completed");
+
+      await reloadRestaurantOrders();
+
+      const snapshot = {
+        orderedItems: orderedItems.map((i) => ({
+          dish: { ...i.dish },
+          qty: i.qty,
+        })),
+        discountRate,
+        discountLabel,
+        paymentMethod,
+      };
+      setReceiptSnapshot(snapshot);
+      setLastReceiptSnapshot(snapshot);
+      setOrderedItems([]);
+      setDiscountRate(0);
+      setPaymentMethod("Cash");
+      setAmountGiven("");
+      setShowBill(true);
+    } catch (e) {
+      openPrompt(e?.message || "Could not save this order. Check that a guest user exists for walk-in sales.");
+    } finally {
+      setCheckoutBusy(false);
+    }
   }
+
   function handlePrintReceipt() {
-    if (orderedItems.length === 0) { alert("No items to print. Please add dishes first."); return; }
-    setShowBill(true);
+    const printable = orderedItems.length > 0
+      ? { orderedItems, discountRate, discountLabel, paymentMethod }
+      : lastReceiptSnapshot;
+    if (!printable || !Array.isArray(printable.orderedItems) || printable.orderedItems.length === 0) {
+      openPrompt("No receipt available yet. Complete an order first.");
+      return;
+    }
+    downloadPosReceiptPdf({
+      ...printable,
+      cashierName: TOPBAR.cashier.profile.name,
+    });
   }
-  const isSelected = (dish) => orderedItems.some(i => i.dish.id === dish.id);
+  const isSelected = (dish) => orderedItems.some((i) => String(i.dish.id) === String(dish.id));
+
+  const billSource = receiptSnapshot || {
+    orderedItems,
+    discountRate,
+    discountLabel,
+    paymentMethod,
+  };
 
   const asideProps = {
     shellClassName,
@@ -462,9 +834,10 @@ export default function POS() {
                 setNotifOpen((v) => !v);
                 setUserOpen(false);
               }}
-              notifications={TOPBAR.cashier.notifications}
+              onItemClick={handleNotifItemClick}
+              notifications={bellNotifications}
               bellIconClassName="topbar-icon"
-              dot="muted"
+              dot={hasUnreadBell ? "active" : "muted"}
             />
 
             {/* User */}
@@ -498,6 +871,16 @@ export default function POS() {
 
             {/* ── LEFT: Menu Panel ── */}
             <div className="menu-panel">
+              {menuError ? (
+                <p className="pos-menu-banner pos-menu-banner--err" role="status">
+                  {menuError}
+                </p>
+              ) : null}
+              {menuLoading ? (
+                <p className="pos-menu-banner" role="status">
+                  Loading menu…
+                </p>
+              ) : null}
               {/* Search */}
               <div className="search-bar-wrap">
                 <div className="search-input-wrap">
@@ -514,11 +897,12 @@ export default function POS() {
                 <button className="search-btn" onClick={handleSearch}>Search</button>
               </div>
 
-              {/* Category Tabs */}
+              {/* Category Tabs — labels from MongoDB via /api/menu */}
               <div className="category-tabs">
-                {CATEGORIES.map(cat => (
+                {categoryTabNames.map((cat) => (
                   <button
                     key={cat}
+                    type="button"
                     className={`cat-tab${category === cat ? " active" : ""}`}
                     onClick={() => handleCategoryChange(cat)}
                   >
@@ -529,51 +913,92 @@ export default function POS() {
 
               {/* Dish Grid */}
               <div className="dish-grid">
-                {paged.length === 0 ? (
+                {menuDishes.length === 0 ? (
                   <p className="no-results">No dishes found.</p>
-                ) : paged.map(dish => (
-                  <div
-                    key={dish.id}
-                    className={`dish-card${isSelected(dish) ? " selected" : ""}`}
-                    onClick={() => addToOrder(dish)}
-                  >
-                    <img
-                      className="dish-img"
-                      src={dish.img}
-                      alt={dish.name}
-                      onError={e => { e.target.src = "image/placeholder.jpg"; }}
-                    />
-                    <div className="dish-info">
-                      <div className="dish-name">{dish.name}</div>
-                      <div className="dish-price">₱{dish.price}</div>
-                      <div className="dish-desc">{dish.desc}</div>
+                ) : (
+                  menuDishes.map((dish) => (
+                    <div
+                      key={dish.id}
+                      className={`dish-card${isSelected(dish) ? " selected" : ""}`}
+                      onClick={() => addToOrder(dish)}
+                    >
+                      <img
+                        className="dish-img"
+                        src={dish.img}
+                        alt={dish.name}
+                        onError={e => { e.target.src = "image/placeholder.jpg"; }}
+                      />
+                      <div className="dish-info">
+                        <div className="dish-name">{dish.name}</div>
+                        <div className="dish-price">
+                          ₱
+                          {Number.isInteger(dish.price)
+                            ? dish.price
+                            : dish.price.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        <div className="dish-desc">{dish.desc}</div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
 
-              {/* Pagination */}
-              <div className="pagination">
-                <button
-                  className="page-btn"
-                  disabled={page === 1}
-                  onClick={() => setCurrentPage(p => Math.max(1, p-1))}
-                >Previous</button>
-                <div className="page-numbers">
-                  {Array.from({ length: totalPages }, (_, i) => i+1).map(p => (
+              {/* Pagination — same structure as Restaurant Menu (`rm-pagination-*`) */}
+              {!menuLoading && !menuError ? (
+                <div className="rm-pagination-row pos-menu-pagination">
+                  <div className="rm-pagination-meta">
+                    <span className="rm-pagination-count">
+                      {totalMenuItems} dish{totalMenuItems === 1 ? "" : "es"} · Page {safePage} of {totalPages}
+                    </span>
+                    <label className="rm-pagination-limit">
+                      <span>Per page</span>
+                      <select
+                        className="rm-pagination-select"
+                        value={menuLimit}
+                        onChange={(e) => setMenuLimit(Number(e.target.value))}
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="rm-pagination-btns">
                     <button
-                      key={p}
-                      className={`page-num${p === page ? " active" : ""}`}
-                      onClick={() => setCurrentPage(p)}
-                    >{p}</button>
-                  ))}
+                      type="button"
+                      className="rm-page-btn"
+                      disabled={safePage <= 1}
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </button>
+                    {visibleMenuPageNumbers(safePage, totalPages).map((pNum, idx, arr) => {
+                      const prevNum = arr[idx - 1];
+                      const showEllipsis = prevNum && pNum - prevNum > 1;
+                      return (
+                        <span key={pNum} className="rm-page-btn-wrap">
+                          {showEllipsis ? <span className="rm-page-ellipsis">…</span> : null}
+                          <button
+                            type="button"
+                            className={`rm-page-btn${pNum === safePage ? " rm-page-btn--active" : ""}`}
+                            onClick={() => setCurrentPage(pNum)}
+                          >
+                            {pNum}
+                          </button>
+                        </span>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      className="rm-page-btn"
+                      disabled={safePage >= totalPages}
+                      onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
-                <button
-                  className="page-btn"
-                  disabled={page === totalPages}
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p+1))}
-                >Next</button>
-              </div>
+              ) : null}
             </div>
 
             {/* ── RIGHT: Order Panel ── */}
@@ -593,7 +1018,7 @@ export default function POS() {
                   {orderedItems.length === 0 ? (
                     <p className="no-dishes-msg">No dishes selected</p>
                   ) : orderedItems.map(item => (
-                    <div key={item.dish.id} className="ordered-item">
+                    <div key={String(item.dish.id)} className="ordered-item">
                       <span className="ordered-item-name">{item.dish.name}</span>
                       <div className="ordered-item-controls">
                         <button className="qty-btn" onClick={() => changeQty(item.dish.id, -1)}>-</button>
@@ -682,8 +1107,13 @@ export default function POS() {
                 )}
               </div>
 
-              <button className="send-to-bill-btn" onClick={handleSendToBill}>
-                <SendIcon /> Send to Bill
+              <button
+                type="button"
+                className="send-to-bill-btn"
+                disabled={checkoutBusy || orderedItems.length === 0}
+                onClick={() => void handleSendToBill()}
+              >
+                <SendIcon /> {checkoutBusy ? "Saving…" : "Send to Bill"}
               </button>
               <button className="print-receipt-btn" onClick={handlePrintReceipt}>
                 <PrintIcon /> Print Receipt
@@ -696,16 +1126,21 @@ export default function POS() {
 
       {/* ── MODALS ── */}
       {showGcash && <GcashModal onClose={() => setShowGcash(false)} />}
-      {showBill  && (
+      {showBill && (
         <OrderBillModal
-          orderedItems={orderedItems}
-          discountRate={discountRate}
-          discountLabel={discountLabel}
-          paymentMethod={paymentMethod}
+          orderedItems={billSource.orderedItems}
+          discountRate={billSource.discountRate}
+          discountLabel={billSource.discountLabel}
+          paymentMethod={billSource.paymentMethod}
           cashierName={TOPBAR.cashier.profile.name}
-          onClose={() => setShowBill(false)}
+          onClose={() => {
+            setShowBill(false);
+            if (receiptSnapshot) setLastReceiptSnapshot(receiptSnapshot);
+            setReceiptSnapshot(null);
+          }}
         />
       )}
+      {promptMessage ? <PosPromptModal message={promptMessage} onClose={() => setPromptMessage("")} /> : null}
 
       <LogoutConfirmModal
         open={logoutModalOpen}

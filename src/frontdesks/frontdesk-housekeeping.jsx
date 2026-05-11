@@ -166,7 +166,7 @@ export default function HousekeepingRooms() {
         .map((r) => ({
           key: String(r.id),
           number: String(r.roomNumber ?? "").trim() || "—",
-          type: String(r.title || r.package || "—").trim() || "—",
+          type: String(r.package || r.title || "—").trim() || "—",
           rawStatus: String(r.status || "available").toLowerCase(),
           displayStatus: displayStatusLabel(r.status),
           sort: sortKey(r.roomNumber),

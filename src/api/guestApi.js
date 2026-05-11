@@ -138,7 +138,7 @@ export function dispatchGuestBookingsRefreshPing() {
 
 /**
  * Express API: `GET /api/rooms` — public catalog (`be/abela-be/README.md`).
- * @returns {Promise<Array<{ id: string, title: string, roomNumber: string, package?: string, image?: string, price: number, guests: number, description?: string, features?: string[] }>>}
+ * @returns {Promise<Array<{ id: string, roomNumber: string, package: string, image?: string, price: number, guests: number, description?: string, features?: string[] }>>}
  */
 export async function fetchRoomsCatalog() {
   const res = await fetch(backendUrl('/api/rooms'), { headers: { Accept: 'application/json' } })
@@ -149,6 +149,60 @@ export async function fetchRoomsCatalog() {
   }
   const data = await res.json()
   return Array.isArray(data.rooms) ? data.rooms : []
+}
+
+/**
+ * GET /api/rooms/availability?checkIn=&checkOut= — public; overlapping room bookings + ops-occupied ids.
+ * @returns {Promise<{ checkIn: string, checkOut: string, bookedRanges: { roomId: string, checkIn: string, checkOut: string }[], operationallyUnavailableRoomIds: string[] }>}
+ */
+export async function fetchRoomAvailabilityWindow(checkIn, checkOut) {
+  const params = new URLSearchParams({
+    checkIn: String(checkIn || '').trim(),
+    checkOut: String(checkOut || '').trim(),
+  })
+  const res = await fetch(backendUrl(`/api/rooms/availability?${params.toString()}`), {
+    headers: { Accept: 'application/json' },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return {
+    checkIn: typeof data.checkIn === 'string' ? data.checkIn : String(checkIn),
+    checkOut: typeof data.checkOut === 'string' ? data.checkOut : String(checkOut),
+    bookedRanges: Array.isArray(data.bookedRanges) ? data.bookedRanges : [],
+    operationallyUnavailableRoomIds: Array.isArray(data.operationallyUnavailableRoomIds)
+      ? data.operationallyUnavailableRoomIds.map((x) => String(x))
+      : [],
+  }
+}
+
+/**
+ * GET /api/rooms/:roomId/guest-occupancy?from=&to= — public; approved/confirmed/occupied stays for one room (no PII).
+ * @returns {Promise<{ roomId: string, bookedRanges: { checkIn: string, checkOut: string }[] }>}
+ */
+export async function fetchRoomGuestOccupancy(roomId, from, to) {
+  const id = String(roomId || '').trim()
+  const params = new URLSearchParams()
+  if (from) params.set('from', String(from).trim())
+  if (to) params.set('to', String(to).trim())
+  const q = params.toString()
+  const res = await fetch(
+    backendUrl(`/api/rooms/${encodeURIComponent(id)}/guest-occupancy${q ? `?${q}` : ''}`),
+    { headers: { Accept: 'application/json' } },
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return {
+    roomId: typeof data.roomId === 'string' ? data.roomId : id,
+    bookedRanges: Array.isArray(data.bookedRanges) ? data.bookedRanges : [],
+  }
 }
 
 function authJsonHeaders() {
@@ -182,7 +236,7 @@ export async function fetchEventVenuesBackend() {
 
 /**
  * POST /api/rooms — Bearer + admin (`be/abela-be/README.md`).
- * @param {{ title: string, roomNumber: string, price: number, guests: number, package?: string, image?: string, description?: string, features?: string[] }} body
+ * @param {{ roomNumber: string, package: string, price: number, guests: number, image?: string, description?: string, features?: string[] }} body
  */
 export async function createRoomBackend(body) {
   const res = await fetch(backendUrl('/api/rooms'), {
@@ -271,6 +325,20 @@ export async function fetchBookingsBackend() {
   return Array.isArray(data.bookings) ? data.bookings : []
 }
 
+/** GET /api/bookings/:id — Bearer; guest sees own row, staff sees any (`booking.service` getById). */
+export async function fetchBookingByIdBackend(id) {
+  const res = await fetch(backendUrl(`/api/bookings/${encodeURIComponent(id)}`), {
+    headers: authJsonHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return data.booking ?? null
+}
+
 /**
  * POST /api/bookings — requires JWT; `userId` set server-side from token.
  * @param {Record<string, unknown>} body — must include `type` `room` | `event` and required fields per type
@@ -352,6 +420,9 @@ export function bookingSaveAlertMessage(err) {
     return 'This account is not allowed to create that booking. Sign in with a guest account or contact the hotel.'
   }
   if (status >= 500) {
+    if (msg && msg.trim() && msg !== 'Internal server error') {
+      return msg
+    }
     return 'The server had an error saving your booking. Check the backend terminal and MongoDB connection, then try again.'
   }
   if (msg && !/^HTTP \d+$/.test(msg.trim())) {
@@ -744,6 +815,33 @@ export async function fetchFrontdeskDashboardSummaryBackend() {
     checkOutsToday: typeof data.checkOutsToday === 'number' ? data.checkOutsToday : 0,
     totalRevenue: typeof data.totalRevenue === 'number' ? data.totalRevenue : 0,
     outstandingBalances: typeof data.outstandingBalances === 'number' ? data.outstandingBalances : 0,
+  }
+}
+
+/**
+ * GET /api/frontdesk/dashboard-bundle — Bearer + frontdesk/admin; one optimized payload for the admin dashboard.
+ * @returns {Promise<{ summary: { reservationsToday: number, checkOutsToday: number, totalRevenue: number, outstandingBalances: number } | null, availableRoomsCount: number, bookingsLite: object[] }>}
+ */
+export async function fetchFrontdeskDashboardBundleBackend() {
+  const res = await fetch(backendUrl('/api/frontdesk/dashboard-bundle'), { headers: authJsonHeaders() })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  const s = data.summary && typeof data.summary === 'object' ? data.summary : null
+  return {
+    summary: s
+      ? {
+          reservationsToday: typeof s.reservationsToday === 'number' ? s.reservationsToday : 0,
+          checkOutsToday: typeof s.checkOutsToday === 'number' ? s.checkOutsToday : 0,
+          totalRevenue: typeof s.totalRevenue === 'number' ? s.totalRevenue : 0,
+          outstandingBalances: typeof s.outstandingBalances === 'number' ? s.outstandingBalances : 0,
+        }
+      : null,
+    availableRoomsCount: typeof data.availableRoomsCount === 'number' ? data.availableRoomsCount : 0,
+    bookingsLite: Array.isArray(data.bookingsLite) ? data.bookingsLite : [],
   }
 }
 

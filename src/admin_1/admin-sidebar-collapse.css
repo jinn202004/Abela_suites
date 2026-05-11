@@ -37,6 +37,7 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   padding: 16px 22px;
   font-weight: 600;
   font-size: 13px;
+  color: #fff;
 }
 
 .sidebar.admin-rail-shell .nav-icon {
@@ -186,4 +187,23 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
+}
+
+/* Rail uses <button> instead of <a> so navigation never runs synchronously inside a link click. */
+.sidebar.admin-rail-shell button.sidebar-logo,
+.sidebar.admin-rail-shell button.nav-item {
+  appearance: none;
+  -webkit-appearance: none;
+  border: none;
+  background: transparent;
+  margin: 0;
+  font: inherit;
+  color: #fff;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.sidebar.admin-rail-shell button.nav-item {
+  width: 100%;
+  text-align: left;
 }

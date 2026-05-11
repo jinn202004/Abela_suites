@@ -69,13 +69,17 @@ function PrintModal({ open, report, onClose }) {
 
   return (
     <div
-      className="print-backdrop"
-      onClick={(e) => e.target.classList.contains("print-backdrop") && onClose()}
+      className="rm-modal-backdrop"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="print-modal">
-        <div className="print-modal-close-row">
-          <button className="print-modal-close" onClick={onClose}>✕</button>
+      <div className="rm-modal exp-print-modal">
+        <div className="rm-modal-header">
+          <h2 className="rm-modal-title">Print preview</h2>
+          <button type="button" className="rm-modal-close" onClick={onClose}>
+            &#x2715;
+          </button>
         </div>
+        <div className="rm-modal-body print-modal-body-scroll">
         <div className="print-content">
           <div className="print-hotel-header">
             <img
@@ -105,6 +109,7 @@ function PrintModal({ open, report, onClose }) {
               </tbody>
             </table>
           </div>
+        </div>
         </div>
       </div>
     </div>

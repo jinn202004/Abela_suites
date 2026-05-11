@@ -7,7 +7,7 @@ export const HOME_PATH_BY_ROLE = {
   /** Front desk shell: `FrontDeskLayout` at `/frontdesk` */
   frontdesk: '/frontdesk',
   housekeeping: '/housekeeping',
-  cashier: '/cashier-billing',
+  cashier: '/cashier',
 }
 
 /**

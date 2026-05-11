@@ -321,6 +321,22 @@
     gap: 12px;
     min-width: 0;
   }
+
+  .pos-menu-banner {
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: var(--pos-btn-radius);
+    font-size: 13px;
+    font-family: 'Roboto', sans-serif;
+    background: #f5f0e8;
+    color: var(--text-dark);
+    border: 1px solid var(--border);
+  }
+  .pos-menu-banner--err {
+    background: #fdecea;
+    border-color: #f5c6cb;
+    color: #721c24;
+  }
   
   .search-bar-wrap { display: flex; gap: 10px; align-items: center; }
   
@@ -423,26 +439,87 @@
     overflow-wrap: break-word;
   }
   
-  /* Pagination */
-  .pagination { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 2px 0; }
-  
-  .page-btn {
-    padding: 6px 14px; border: 1.5px solid #ddd; border-radius: var(--pos-btn-radius);
-    background: #fff; font-size: 12px; color: var(--text-dark); cursor: pointer; transition: all 0.18s;
+  /* Pagination — same shape as ADMIN_1 Restaurant Menu (`rm-pagination-*`) */
+  .cashier-pos-page .pos-menu-pagination.rm-pagination-row {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px 20px;
+    margin-top: 6px;
+    padding: 12px 0 4px;
+    border-top: 1px solid #e8e4dc;
+    font-size: 13px;
+    color: var(--text-mid, #5c574f);
   }
-  .page-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
-  .page-btn:disabled { opacity: 0.4; cursor: default; }
-  
-  .page-numbers { display: flex; gap: 5px; }
-  
-  .page-num {
-    width: 30px; height: 30px; border-radius: var(--pos-btn-radius);
-    border: 1.5px solid #ddd; background: #fff;
-    font-size: 13px; color: var(--text-dark); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; transition: all 0.18s;
+  .cashier-pos-page .rm-pagination-meta {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
   }
-  .page-num:hover  { border-color: var(--gold); color: var(--gold); }
-  .page-num.active { background: var(--gold); border-color: var(--gold); color: #fff; }
+  .cashier-pos-page .rm-pagination-count {
+    font-weight: 600;
+    color: var(--text-dark, #2c2824);
+  }
+  .cashier-pos-page .rm-pagination-limit {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+  }
+  .cashier-pos-page .rm-pagination-select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #d4cfc4;
+    background: #fff;
+    font-size: 13px;
+    color: var(--text-dark, #2c2824);
+    font-family: inherit;
+  }
+  .cashier-pos-page .rm-pagination-btns {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .cashier-pos-page .rm-page-btn-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .cashier-pos-page .rm-page-ellipsis {
+    padding: 0 4px;
+    color: #999;
+    user-select: none;
+  }
+  .cashier-pos-page .rm-page-btn {
+    min-width: 36px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #d4cfc4;
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-dark, #2c2824);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    font-family: inherit;
+  }
+  .cashier-pos-page .rm-page-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .cashier-pos-page .rm-page-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .cashier-pos-page .rm-page-btn--active {
+    border-color: var(--gold);
+    background: #faf6ee;
+    color: #8a6d1f;
+  }
   
   /* ============================================
      RIGHT: ORDER PANEL
@@ -846,3 +923,49 @@
     text-align: center; font-size: 12px; color: #aaa;
     padding-top: 14px; border-top: 1px solid #eee; margin-top: 4px;
   }
+
+/* POS notice prompt modal (same visual language as POS bill modal). */
+.pos-notice-modal {
+  max-width: 420px;
+  padding: 24px 28px 22px;
+}
+.pos-notice-header {
+  text-align: center;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eee;
+}
+.pos-notice-title {
+  font-family: 'Montserrat', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #2f261b;
+  margin: 0;
+}
+.pos-notice-message {
+  margin: 0;
+  padding: 6px 2px 16px;
+  font-size: 1.05rem;
+  color: #333;
+  line-height: 1.45;
+}
+.pos-notice-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+.pos-notice-ok-btn {
+  min-width: 96px;
+  padding: 10px 22px;
+  background: var(--gold);
+  color: #fff;
+  border: none;
+  border-radius: var(--pos-btn-radius);
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.pos-notice-ok-btn:hover {
+  background: var(--gold-dark);
+}

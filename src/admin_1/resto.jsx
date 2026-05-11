@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -6,25 +7,69 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { fetchCategoriesBackend, createCategoryBackend } from "../api/menuApi";
+import { getMenus, createMenu, updateMenu, deleteMenu } from "../api/menu.service";
 import "./resto.css";
 
-const CATEGORIES = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
+/** Default category names created in MongoDB when the collection is empty (admin only). */
+const CATEGORIES_FALLBACK = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
+/** In-memory menu list cache so category tabs can swap without waiting on the network again. */
+const MENU_LIST_CACHE_MS = 5 * 60 * 1000;
 
-const INITIAL_DISHES = [
-  { id: 1,  name: "Tinolang Isda",         price: "225", category: "Main Course", availability: "Available",   description: "A comforting Filipino dish with fish, ginger and green papaya in a light savory broth.", image: "https://i.ytimg.com/vi/vS_Z-pCJCEA/maxresdefault.jpg" },
-  { id: 2,  name: "Tinolang Manok",        price: "225", category: "Main Course", availability: "Available",   description: "Classic Filipino chicken tinola with ginger, green papaya in a light savory broth.",    image: "https://i.ytimg.com/vi/1qsziJWurg4/maxresdefault.jpg" },
-  { id: 3,  name: "Tinolang Isda",         price: "225", category: "Main Course", availability: "Available",   description: "A comforting Filipino dish with fish, ginger and green papaya.",                       image: "https://i.ytimg.com/vi/vS_Z-pCJCEA/maxresdefault.jpg" },
-  { id: 4,  name: "Sinigang na Bangus",    price: "275", category: "Main Course", availability: "Available",   description: "Tender milkfish in a tangy tamarind broth with vegetables.",                          image: "https://yummykitchentv.com/wp-content/uploads/2023/06/sinigang.jpg" },
-  { id: 5,  name: "Sinigang na Baboy",     price: "295", category: "Main Course", availability: "Available",   description: "Rich and savory Filipino sinigang with pork in a tangy tamarind broth.",               image: "https://speedyrecipe.com/wp-content/uploads/2022/09/how-to-cook-sinigang-na-baboy.jpg" },
-  { id: 6,  name: "Sinigang na Bangus",    price: "275", category: "Main Course", availability: "Available",   description: "Tender milkfish in a tangy tamarind broth with vegetables.",                          image: "https://yummykitchentv.com/wp-content/uploads/2023/06/sinigang.jpg" },
-  { id: 7,  name: "Special Chicken Wings", price: "199", category: "Main Course", availability: "Available",   description: "Crispy golden chicken wings seasoned with special house spices.",                      image: "https://easychickenrecipes.com/wp-content/uploads/2023/08/featured-buffalo-wings-recipe.jpg" },
-  { id: 8,  name: "Fruit Salad",           price: "99",  category: "Fruits",      availability: "Available",   description: "Fresh mixed fruits with cream dressing.",                                              image: "https://www.valyastasteofhome.com/wp-content/uploads/2015/06/062-1.jpg" },
-  { id: 9,  name: "Iced Tea",              price: "55",  category: "Beverages",   availability: "Available",   description: "Refreshing iced tea served cold.",                                                     image: "https://images.cocktailwave.com/long-island-iced-tea.png" },
-  { id: 10, name: "Lemon Juice",           price: "65",  category: "Beverages",   availability: "Unavailable", description: "Freshly squeezed lemon juice.",                                                        image: "https://i.pinimg.com/originals/1a/39/f4/1a39f4a400ba206d743e4ec8a1b69dd5.jpg" },
-  { id: 11, name: "Sinigang na Isda",      price: "265", category: "Soup",        availability: "Available",   description: "Fish in sour tamarind broth.",                                                         image: "https://thefoodxp.com/wp-content/uploads/2022/11/Jamie-Oliver-Chicken-Soup-Recipe-1.jpg" },
-  { id: 12, name: "Chicken Sopas",         price: "145", category: "Soup",        availability: "Available",   description: "Creamy Filipino chicken macaroni soup.",                                               image: "https://thefoodxp.com/wp-content/uploads/2022/11/Jamie-Oliver-Chicken-Soup-Recipe-1.jpg" },
-  { id: 13, name: "Caesar Salad",          price: "175", category: "Side Dish",   availability: "Available",   description: "Classic caesar salad with croutons.",                                                  image: "https://www.thespruceeats.com/thmb/Z6IWF7c9zywuU9maSIimGLbHoI4=/3000x2000/filters:fill(auto,1)/classic-caesar-salad-recipe-996054-Hero_01-33c94cc8b8e841ee8f2a815816a0af95.jpg" },
-];
+function menuListCacheKey(categoryId, search, page, limit) {
+  const p = Math.max(1, Number(page) || 1);
+  const lim = Math.max(1, Number(limit) || 10);
+  return `${categoryId ?? ""}|${String(search ?? "").trim()}|${p}|${lim}`;
+}
+
+/** Category id from API row (`id` from backend or legacy `_id`). */
+function categoryRowId(row) {
+  const v = row?.id ?? row?._id;
+  if (v == null || String(v).trim() === "") return undefined;
+  return String(v).trim();
+}
+
+/** Page buttons for pagination without allocating `Array(totalPages)` (avoids freeze when totalPages is huge). */
+function visibleMenuPageNumbers(currentPage, totalPages) {
+  const t = Math.max(1, Math.min(5000, Number(totalPages) || 1));
+  const c = Math.min(Math.max(1, Number(currentPage) || 1), t);
+  if (t <= 9) return Array.from({ length: t }, (_, i) => i + 1);
+  const set = new Set([1, t, c, c - 1, c + 1]);
+  return [...set].filter((p) => p >= 1 && p <= t).sort((a, b) => a - b);
+}
+
+function orderCategoryNames(rows = []) {
+  const names = Array.isArray(rows) ? rows.map((c) => String(c?.name || "").trim()).filter(Boolean) : [];
+  const seen = new Set();
+  const ordered = [];
+  for (const n of CATEGORIES_FALLBACK) {
+    if (names.includes(n) && !seen.has(n)) {
+      seen.add(n);
+      ordered.push(n);
+    }
+  }
+  for (const n of names.sort((a, b) => a.localeCompare(b))) {
+    if (!seen.has(n)) {
+      seen.add(n);
+      ordered.push(n);
+    }
+  }
+  return ordered.length > 0 ? ordered : [...CATEGORIES_FALLBACK];
+}
+
+async function seedDefaultCategoriesIfEmpty(signal) {
+  await Promise.all(
+    CATEGORIES_FALLBACK.map(async (name) => {
+      try {
+        await createCategoryBackend({ name }, { signal });
+      } catch (err) {
+        if (err?.status === 409) return;
+        /* ignore other errors; a follow-up GET will show whatever exists */
+      }
+    }),
+  );
+}
 
 /* ─── SVG Icons ─── */
 const IconRestoGold  = () => (<svg viewBox="0 0 24 24" fill="none" stroke="#b8922a" strokeWidth="2" width="36" height="36"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>);
@@ -32,6 +77,37 @@ const IconSearch     = () => (<svg viewBox="0 0 24 24" fill="none" stroke="#aaa"
 const IconPlus       = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
 const IconUpload     = () => (<svg viewBox="0 0 24 24" fill="none" stroke="#b8922a" strokeWidth="1.5" width="32" height="32"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>);
 const IconCheck      = () => (<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2"><circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/></svg>);
+
+function menuItemToDish(m, categories = []) {
+  const rawId = m.id ?? m._id;
+  const n = Number(m.price);
+  const priceStr = Number.isFinite(n)
+    ? (Math.abs(n - Math.round(n)) < 1e-9 ? String(Math.round(n)) : String(n))
+    : "0";
+  const categoryNameFromPayload =
+    typeof m.category === "string"
+      ? m.category.trim()
+      : m.category && typeof m.category === "object" && m.category.name
+        ? String(m.category.name).trim()
+        : "";
+  const categoryRefId = String(m.categoryRef ?? m.categoryId ?? "").trim();
+  const categoryNameFromRef =
+    categoryRefId && Array.isArray(categories)
+      ? categories.find((c) => String(categoryRowId(c) ?? "") === categoryRefId)?.name || ""
+      : "";
+  const categoryName = categoryNameFromPayload || categoryNameFromRef || categories[0]?.name || CATEGORIES_FALLBACK[0];
+  const status = String(m.status ?? m.availability ?? "available").toLowerCase();
+  const itemName = String(m.itemName ?? m.name ?? "").trim();
+  return {
+    id: rawId != null ? String(rawId) : "",
+    name: itemName,
+    price: priceStr,
+    category: categoryName,
+    availability: status === "available" ? "Available" : "Unavailable",
+    description: m.description || "",
+    image: m.imageUrl || "",
+  };
+}
 
 /* ─── Custom Select ─── */
 function CustomSelect({ options, value, onChange }) {
@@ -59,13 +135,36 @@ function CustomSelect({ options, value, onChange }) {
   );
 }
 
+/* ─── Dish card skeleton (same footprint as .rm-dish-card while menu is fetching) ─── */
+function DishCardSkeleton() {
+  return (
+    <div className="rm-dish-card rm-dish-card--skeleton" aria-hidden>
+      <div className="rm-dish-skel-img" />
+      <div className="rm-dish-body">
+        <div className="rm-dish-skel-line rm-dish-skel-line--lg" />
+        <div className="rm-dish-skel-line rm-dish-skel-line--sm" />
+        <div className="rm-dish-skel-block" />
+      </div>
+      <div className="rm-dish-footer rm-dish-footer--skeleton">
+        <div className="rm-dish-skel-btn" />
+        <div className="rm-dish-skel-btn" />
+      </div>
+    </div>
+  );
+}
+
 /* ─── Dish Image with fallback ─── */
 function DishImage({ src, alt }) {
   const [errored, setErrored] = useState(false);
+  useEffect(() => {
+    setErrored(false);
+  }, [src]);
   if (!src || errored) {
     return (
-      <div className="rm-dish-img-placeholder">
-        <IconRestoGold />
+      <div className="rm-dish-img-wrap">
+        <div className="rm-dish-img-placeholder rm-dish-img-placeholder--in-card">
+          <IconRestoGold />
+        </div>
       </div>
     );
   }
@@ -85,90 +184,501 @@ function DishImage({ src, alt }) {
 export default function RestoMenu() {
   const { mainStyle } = useAdminShell();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const [dishes, setDishes]         = useState(INITIAL_DISHES);
-  const [nextId, setNextId]         = useState(14);
+
+  const [categories, setCategories] = useState([]);
+  const [dishes, setDishes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  /** True while the main menu GET for the current filters is in flight. */
+  const [menuFetching, setMenuFetching] = useState(false);
+  /** Full card skeletons only after a short delay when switching lists (fast responses skip heavy skeletons). */
+  const [delayedListSkeleton, setDelayedListSkeleton] = useState(false);
+  const [loadNotice, setLoadNotice] = useState("");
+
   const [currentCat, setCurrentCat] = useState("Main Course");
-  const [search, setSearch]         = useState("");
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  const [menuPage, setMenuPage] = useState(1);
+  const [menuLimit, setMenuLimit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(-1);
-  const [fName, setFName]         = useState("");
-  const [fPrice, setFPrice]       = useState("");
-  const [fDesc, setFDesc]         = useState("");
-  const [fCat, setFCat]           = useState("Main Course");
-  const [fAvail, setFAvail]       = useState("Available");
-  const [fImage, setFImage]       = useState("");
-  const [formErr, setFormErr]     = useState("");
+  const [fName, setFName] = useState("");
+  const [fPrice, setFPrice] = useState("");
+  const [fDesc, setFDesc] = useState("");
+  const [fCat, setFCat] = useState("Main Course");
+  const [fAvail, setFAvail] = useState("Available");
+  const [fImage, setFImage] = useState("");
+  const [formErr, setFormErr] = useState("");
+  const [saveBusy, setSaveBusy] = useState(false);
   const fileRef = useRef();
 
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState(-1);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [toast, setToast] = useState({ visible: false, msg: "" });
-  const toastTimer        = useRef();
+  const toastTimer = useRef();
+  const prevSearchTrimRef = useRef("");
+  /** Previous menu list cache key (category + search + page + limit). */
+  const prevListKeyRef = useRef(null);
+  /** Ignore stale GET responses when the user switches tabs quickly. */
+  const menuFetchGenRef = useRef(0);
+  /** Cached menu pages: key → { dishes, totalPages, totalItems, savedAt } */
+  const menuListCacheRef = useRef(new Map());
+  const prefetchInFlightRef = useRef(new Set());
+  /** When unchanged, reload skips clearing menu cache (avoids refetch storm after token refresh). */
+  const lastCategoryDigestRef = useRef("");
+  const dishesRef = useRef([]);
+  const listSkelTimerRef = useRef(null);
 
-  function showToast(msg) {
+  useEffect(() => {
+    dishesRef.current = dishes;
+  }, [dishes]);
+
+  const categoryNames = orderCategoryNames(categories);
+
+  const showToast = useCallback((msg) => {
     clearTimeout(toastTimer.current);
     setToast({ visible: true, msg });
     toastTimer.current = setTimeout(() => setToast({ visible: false, msg: "" }), 3000);
+  }, []);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      const next = search.trim();
+      if (prevSearchTrimRef.current !== next) {
+        prevSearchTrimRef.current = next;
+        setMenuPage(1);
+      }
+      setDebouncedSearch(next);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [search]);
+
+  const loadCategories = useCallback(async (signal) => {
+    setLoading(true);
+    setLoadNotice("");
+    try {
+      let cats = await fetchCategoriesBackend({ signal });
+      if (cats.length === 0) {
+        await seedDefaultCategoriesIfEmpty(signal);
+        cats = await fetchCategoriesBackend({ signal });
+      }
+      const digest = Array.isArray(cats)
+        ? cats
+            .map((c) => `${categoryRowId(c) ?? ""}\t${String(c?.name ?? "").trim()}`)
+            .sort()
+            .join("\n")
+        : "";
+      if (lastCategoryDigestRef.current !== digest) {
+        lastCategoryDigestRef.current = digest;
+        menuListCacheRef.current.clear();
+        prevListKeyRef.current = null;
+      }
+      setCategories(cats);
+      if (cats.length > 0) {
+        const orderedCats = orderCategoryNames(cats);
+        setCurrentCat((prev) => (orderedCats.includes(prev) ? prev : orderedCats[0]));
+        setMenuPage(1);
+      }
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      setCategories([]);
+      lastCategoryDigestRef.current = "";
+      setLoadNotice(
+        e?.code === "NO_TOKEN"
+          ? "Sign in as admin to load the menu from the database."
+          : e?.message || "Could not load categories.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    void loadCategories(ac.signal);
+    return () => ac.abort();
+  }, [loadCategories]);
+
+  useEffect(() => {
+    const onTok = () => void loadCategories();
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+    return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+  }, [loadCategories]);
+
+  /** Prefetch page 1 on tab hover/focus (no bulk warm-up — that competed with the first menu fetch and slowed cold loads). */
+  const prefetchCategoryMenu = useCallback(
+    (catName) => {
+      const row = categories.find((c) => String(c?.name ?? "").trim() === String(catName ?? "").trim());
+      const cid = categoryRowId(row);
+      if (!cid) return;
+      const key = menuListCacheKey(cid, debouncedSearch, 1, menuLimit);
+      const existing = menuListCacheRef.current.get(key);
+      if (existing && Date.now() - existing.savedAt <= MENU_LIST_CACHE_MS) return;
+      if (prefetchInFlightRef.current.has(key)) return;
+      prefetchInFlightRef.current.add(key);
+      void (async () => {
+        try {
+          const result = await getMenus(1, menuLimit, {
+            categoryId: cid,
+            search: debouncedSearch || undefined,
+          });
+          const rows = Array.isArray(result?.data) ? result.data : [];
+          const tp = Number(result?.totalPages);
+          const ti = Number(result?.totalItems);
+          const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
+          const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
+          const mapped = rows.map((m) => menuItemToDish(m, categories));
+          menuListCacheRef.current.set(key, {
+            dishes: mapped,
+            totalPages: nextTp,
+            totalItems: nextTi,
+            savedAt: Date.now(),
+          });
+        } catch {
+          /* ignore prefetch failures */
+        } finally {
+          prefetchInFlightRef.current.delete(key);
+        }
+      })();
+    },
+    [categories, debouncedSearch, menuLimit],
+  );
+
+  useEffect(() => {
+    if (categories.length === 0) {
+      setDishes([]);
+      setTotalItems(0);
+      setTotalPages(1);
+      setMenuFetching(false);
+      setDelayedListSkeleton(false);
+      prevListKeyRef.current = null;
+      if (listSkelTimerRef.current) {
+        clearTimeout(listSkelTimerRef.current);
+        listSkelTimerRef.current = null;
+      }
+      return undefined;
+    }
+
+    if (listSkelTimerRef.current) {
+      clearTimeout(listSkelTimerRef.current);
+      listSkelTimerRef.current = null;
+    }
+    setDelayedListSkeleton(false);
+
+    const fetchGen = ++menuFetchGenRef.current;
+    let cancelled = false;
+
+    const catRow = categories.find(
+      (c) => String(c?.name ?? "").trim() === String(currentCat ?? "").trim(),
+    );
+    const categoryId = categoryRowId(catRow);
+    const key = menuListCacheKey(categoryId, debouncedSearch, menuPage, menuLimit);
+
+    const keyChanged = prevListKeyRef.current !== key;
+    prevListKeyRef.current = key;
+
+    const hit = menuListCacheRef.current.get(key);
+    const cacheFresh = Boolean(hit && Date.now() - hit.savedAt <= MENU_LIST_CACHE_MS);
+
+    if (keyChanged && !cacheFresh) {
+      setDishes([]);
+      const hadRows = dishesRef.current.length > 0;
+      if (hadRows) {
+        listSkelTimerRef.current = window.setTimeout(() => {
+          listSkelTimerRef.current = null;
+          if (!cancelled) setDelayedListSkeleton(true);
+        }, 220);
+      } else {
+        setDelayedListSkeleton(true);
+      }
+    } else if (cacheFresh) {
+      setDishes(hit.dishes);
+      setTotalPages(hit.totalPages);
+      setTotalItems(hit.totalItems);
+    }
+
+    if (!cacheFresh) setMenuFetching(true);
+
+    const menuAc = new AbortController();
+
+    const run = async () => {
+      try {
+        const result = await getMenus(
+          menuPage,
+          menuLimit,
+          {
+            categoryId,
+            search: debouncedSearch || undefined,
+          },
+          { signal: menuAc.signal },
+        );
+        if (cancelled || fetchGen !== menuFetchGenRef.current) return;
+        if (listSkelTimerRef.current) {
+          clearTimeout(listSkelTimerRef.current);
+          listSkelTimerRef.current = null;
+        }
+        setDelayedListSkeleton(false);
+        const rows = Array.isArray(result?.data) ? result.data : [];
+        if (rows.length === 0 && (Number(result?.totalItems) || 0) > 0 && menuPage > 1) {
+          setMenuPage((p) => Math.max(1, p - 1));
+          return;
+        }
+        const tp = Number(result?.totalPages);
+        const ti = Number(result?.totalItems);
+        const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
+        const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
+        const mapped = rows.map((m) => menuItemToDish(m, categories));
+        setTotalPages(nextTp);
+        setTotalItems(nextTi);
+        setDishes(mapped);
+        menuListCacheRef.current.set(key, {
+          dishes: mapped,
+          totalPages: nextTp,
+          totalItems: nextTi,
+          savedAt: Date.now(),
+        });
+      } catch (e) {
+        if (cancelled || fetchGen !== menuFetchGenRef.current) return;
+        if (e?.name === "AbortError") return;
+        if (listSkelTimerRef.current) {
+          clearTimeout(listSkelTimerRef.current);
+          listSkelTimerRef.current = null;
+        }
+        setDelayedListSkeleton(false);
+        setDishes([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        setLoadNotice(e?.message || "Could not load menu page.");
+      } finally {
+        if (!cancelled && fetchGen === menuFetchGenRef.current) {
+          setDelayedListSkeleton(false);
+          setMenuFetching(false);
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+      menuAc.abort();
+      if (listSkelTimerRef.current) {
+        clearTimeout(listSkelTimerRef.current);
+        listSkelTimerRef.current = null;
+      }
+      setDelayedListSkeleton(false);
+      setMenuFetching(false);
+    };
+  }, [categories, currentCat, menuPage, menuLimit, debouncedSearch]);
+
+  const refreshMenuPage = useCallback(async (opts = {}) => {
+    if (categories.length === 0) return;
+    const skipStaleGuard = Boolean(opts.skipStaleGuard);
+    const gen = menuFetchGenRef.current;
+    const catRow = categories.find(
+      (c) => String(c?.name ?? "").trim() === String(currentCat ?? "").trim(),
+    );
+    const categoryId = categoryRowId(catRow);
+    const pageToFetch =
+      opts.page != null
+        ? Math.max(1, parseInt(String(opts.page), 10) || 1)
+        : Math.max(1, parseInt(String(menuPage), 10) || 1);
+    try {
+      const result = await getMenus(pageToFetch, menuLimit, {
+        categoryId,
+        search: debouncedSearch || undefined,
+      });
+      if (!skipStaleGuard && gen !== menuFetchGenRef.current) return;
+      const rows = Array.isArray(result?.data) ? result.data : [];
+      if (rows.length === 0 && (Number(result?.totalItems) || 0) > 0 && pageToFetch > 1) {
+        setMenuPage((p) => Math.max(1, p - 1));
+        return;
+      }
+      const tp = Number(result?.totalPages);
+      const ti = Number(result?.totalItems);
+      const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
+      const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
+      const mapped = rows.map((m) => menuItemToDish(m, categories));
+      setTotalPages(nextTp);
+      setTotalItems(nextTi);
+      setDishes(mapped);
+      menuListCacheRef.current.set(menuListCacheKey(categoryId, debouncedSearch, pageToFetch, menuLimit), {
+        dishes: mapped,
+        totalPages: nextTp,
+        totalItems: nextTi,
+        savedAt: Date.now(),
+      });
+    } catch {
+      /* silent — visibility / post-save refresh should not spam notices */
+    }
+  }, [categories, currentCat, menuPage, menuLimit, debouncedSearch]);
+
+  useEffect(() => {
+    if (categories.length === 0) return undefined;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshMenuPage();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [categories.length, refreshMenuPage]);
+
+  function defaultCategoryName() {
+    return orderCategoryNames(categories)[0] ?? CATEGORIES_FALLBACK[0];
   }
 
   function openAddModal() {
+    if (categories.length === 0) {
+      showToast("No categories yet — refresh the page or check admin login.");
+      void loadCategories();
+      return;
+    }
     setEditingId(-1);
-    setFName(""); setFPrice(""); setFDesc("");
-    setFCat("Main Course"); setFAvail("Available"); setFImage("");
+    setFName("");
+    setFPrice("");
+    setFDesc("");
+    setFCat(defaultCategoryName());
+    setFAvail("Available");
+    setFImage("");
     setFormErr("");
     setModalOpen(true);
   }
 
   function openEditModal(id) {
-    const d = dishes.find(x => x.id === id);
+    const d = dishes.find((x) => String(x.id) === String(id));
     if (!d) return;
     setEditingId(id);
-    setFName(d.name); setFPrice(d.price); setFDesc(d.description || "");
-    setFCat(d.category); setFAvail(d.availability); setFImage(d.image || "");
+    setFName(d.name);
+    setFPrice(d.price);
+    setFDesc(d.description || "");
+    setFCat(d.category);
+    setFAvail(d.availability);
+    setFImage(d.image || "");
     setFormErr("");
     setModalOpen(true);
   }
 
-  function saveDish() {
-    if (!fName.trim() || !fPrice.trim()) { setFormErr("Name and price are required."); return; }
-    if (editingId === -1) {
-      setDishes(prev => [...prev, { id: nextId, name: fName, price: fPrice, category: fCat, availability: fAvail, description: fDesc, image: fImage }]);
-      setNextId(n => n + 1);
-      showToast("Dish added!");
-    } else {
-      setDishes(prev => prev.map(d => d.id === editingId
-        ? { ...d, name: fName, price: fPrice, category: fCat, availability: fAvail, description: fDesc, image: fImage }
-        : d));
-      showToast("Dish updated!");
+  async function saveDish() {
+    if (saveBusy) return;
+    if (!fName.trim() || !fPrice.trim()) {
+      setFormErr("Name and price are required.");
+      return;
     }
-    setModalOpen(false);
+    const cat = categories.find(
+      (c) => String(c?.name ?? "").trim() === String(fCat ?? "").trim(),
+    );
+    const categoryIdStr = categoryRowId(cat);
+    if (!cat || !categoryIdStr) {
+      setFormErr("Choose a category that exists in the database.");
+      return;
+    }
+    const priceNum = parseFloat(String(fPrice).replace(/[₱,\s]/g, ""));
+    if (!Number.isFinite(priceNum) || priceNum <= 0) {
+      setFormErr("Enter a valid price greater than 0.");
+      return;
+    }
+    const availability = fAvail === "Available" ? "available" : "unavailable";
+    const body = {
+      name: fName.trim(),
+      description: fDesc.trim(),
+      price: priceNum,
+      categoryId: categoryIdStr,
+      imageUrl: fImage || "",
+      availability,
+      status: availability,
+    };
+    setSaveBusy(true);
+    const editId = editingId;
+    try {
+      if (editId === -1) {
+        await createMenu(body);
+        setModalOpen(false);
+        showToast("Dish added!");
+        if (menuPage !== 1) setMenuPage(1);
+      } else {
+        const idStr = String(editId);
+        const updatedItem = await updateMenu(idStr, body);
+        const mapped = menuItemToDish(updatedItem, categories);
+        const stillInTab =
+          String(mapped.category ?? "").trim() === String(currentCat ?? "").trim();
+        setDishes((rows) => {
+          if (!stillInTab) return rows.filter((r) => String(r.id) !== idStr);
+          return rows.map((row) => (String(row.id) === idStr ? mapped : row));
+        });
+        setModalOpen(false);
+        showToast("Dish updated!");
+      }
+      menuListCacheRef.current.clear();
+      const pageAfterSave =
+        editId === -1 ? (menuPage !== 1 ? 1 : menuPage) : menuPage;
+      await refreshMenuPage({ skipStaleGuard: true, page: pageAfterSave });
+    } catch (e) {
+      setFormErr(e?.message || "Save failed.");
+    } finally {
+      setSaveBusy(false);
+    }
   }
 
-  function confirmDelete() {
-    setDishes(prev => prev.filter(d => d.id !== deletingId));
+  function closeDelete() {
     setDeleteOpen(false);
-    showToast("Dish deleted.");
+    setDeletingId(null);
+  }
+
+  async function confirmDelete() {
+    if (deletingId == null) return;
+    const id = String(deletingId);
+    const snapshot = {
+      dishes,
+      totalItems,
+      totalPages,
+      menuPage,
+    };
+    closeDelete();
+    setDishes((rows) => rows.filter((x) => String(x.id) !== id));
+    setTotalItems((n) => Math.max(0, n - 1));
+    try {
+      await deleteMenu(id);
+      showToast("Dish deleted.");
+      menuListCacheRef.current.clear();
+      await refreshMenuPage({ skipStaleGuard: true });
+    } catch (e) {
+      setDishes(snapshot.dishes);
+      setTotalItems(snapshot.totalItems);
+      setTotalPages(snapshot.totalPages);
+      setMenuPage(snapshot.menuPage);
+      window.alert(e?.message || "Delete failed.");
+    }
   }
 
   function handleImageChange(e) {
     const file = e.target.files[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => setFImage(ev.target.result);
+    reader.onload = (ev) => setFImage(ev.target.result);
     reader.readAsDataURL(file);
   }
 
-  const filtered = dishes.filter(d =>
-    d.category === currentCat &&
-    [d.name, d.description, d.availability].some(v => v.toLowerCase().includes(search.toLowerCase()))
-  );
+  const tabsToShow = orderCategoryNames(categories);
+  const showDishPlaceholders =
+    delayedListSkeleton &&
+    menuFetching &&
+    dishes.length === 0 &&
+    categories.length > 0 &&
+    !loading;
+  const showListLoadingShim =
+    menuFetching &&
+    dishes.length === 0 &&
+    !delayedListSkeleton &&
+    categories.length > 0 &&
+    !loading;
+  const dishSkeletonCount = Math.min(4, Math.max(2, Math.min(menuLimit, 6)));
 
   return (
     <>
       <RailPortalShell
-        rootClassName="rm-page"
+        rootClassName="app-root resto-admin-page"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav />}
       >
@@ -180,7 +690,14 @@ export default function RestoMenu() {
           </div>
           <AdminTopbarActions
             notifications={[
-              { id: "resto-1", msg: "Menu changes here are local until a restaurant API is added.", time: "Admin", read: true },
+              {
+                id: "resto-1",
+                msg:
+                  loadNotice ||
+                  "Menu is paginated from MongoDB (GET /api/menu?page&limit). Categories from /api/categories.",
+                time: "Admin",
+                read: true,
+              },
             ]}
             onRequestLogout={requestLogout}
           />
@@ -198,73 +715,189 @@ export default function RestoMenu() {
                 className="rm-search-input"
                 placeholder="Search dishes..."
                 value={search}
-                onChange={e => setSearch(e.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <button className="rm-add-btn" onClick={openAddModal}>
+            <button type="button" className="rm-add-btn" onClick={openAddModal}>
               <IconPlus /> Add Dish
             </button>
           </div>
 
-          {/* Category tabs */}
-          <div className="rm-tabs">
-            {CATEGORIES.map(cat => (
+          {/* Category tabs — use resto-cat-* not .rm-tabs/.rm-tab (Room Management uses those globally). */}
+          <div
+            className="resto-cat-tabs"
+            role="tablist"
+            aria-label="Menu categories"
+            aria-busy={menuFetching && dishes.length === 0 ? "true" : "false"}
+          >
+            {tabsToShow.map((cat) => (
               <button
                 key={cat}
-                className={`rm-tab${cat === currentCat ? " active" : ""}`}
-                onClick={() => setCurrentCat(cat)}
+                type="button"
+                role="tab"
+                aria-selected={cat === currentCat}
+                className={`resto-cat-tab${cat === currentCat ? " resto-cat-tab--active" : ""}`}
+                onClick={() => {
+                  setMenuPage(1);
+                  setCurrentCat(cat);
+                }}
+                onFocus={() => prefetchCategoryMenu(cat)}
+                onMouseEnter={() => prefetchCategoryMenu(cat)}
               >
                 {cat}
               </button>
             ))}
           </div>
 
-          {/* Dish grid */}
-          <div className="rm-grid">
-            {filtered.length === 0 ? (
-              <div className="rm-empty">No dishes found in this category.</div>
-            ) : filtered.map(dish => (
-              <div className="rm-dish-card" key={dish.id}>
-                <DishImage src={dish.image} alt={dish.name} />
-                <div className="rm-dish-body">
-                  <p className="rm-dish-name">{dish.name}</p>
-                  <p className="rm-dish-price">₱{dish.price.replace(/&#8369;|₱/g, "")}</p>
-                  <p className="rm-dish-desc">{dish.description}</p>
+          {/* Dish grid — light shim first; full skeletons only if the request is slow */}
+          <div className={`rm-grid${menuFetching && dishes.length > 0 ? " rm-grid--refreshing" : ""}`}>
+            {loading ? (
+              <div className="rm-empty">Loading…</div>
+            ) : showListLoadingShim ? (
+              <div className="rm-menu-loading-shim" role="status" aria-label="Loading menu" />
+            ) : showDishPlaceholders ? (
+              Array.from({ length: dishSkeletonCount }, (_, i) => <DishCardSkeleton key={`menu-skel-${i}`} />)
+            ) : dishes.length === 0 ? (
+              !menuFetching ? (
+                <div className="rm-empty">
+                  {debouncedSearch
+                    ? `No dishes match your search in ${currentCat}.`
+                    : `No dishes in ${currentCat} yet. Use “Add Dish” to create one.`}
                 </div>
-                <div className="rm-dish-footer">
-                  <button className="rm-btn-edit"   onClick={() => openEditModal(dish.id)}>Edit</button>
-                  <button className="rm-btn-delete" onClick={() => { setDeletingId(dish.id); setDeleteOpen(true); }}>Delete</button>
+              ) : null
+            ) : (
+              dishes.map((dish) => (
+                <div className="rm-dish-card" key={dish.id || `${dish.name}-${dish.price}-${dish.category}`}>
+                  <DishImage src={dish.image} alt={dish.name} />
+                  <div className="rm-dish-body">
+                    <p className="rm-dish-name">{dish.name}</p>
+                    <p className="rm-dish-price">₱{String(dish.price).replace(/&#8369;|₱/g, "")}</p>
+                    <p className="rm-dish-desc">{dish.description}</p>
+                  </div>
+                  <div className="rm-dish-footer">
+                    <button type="button" className="rm-btn-edit" onClick={() => openEditModal(dish.id)}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="rm-btn-delete"
+                      onClick={() => {
+                        setDeletingId(dish.id);
+                        setDeleteOpen(true);
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
+
+          {!loading && !showDishPlaceholders && !showListLoadingShim && categories.length > 0 && (
+            <div className="rm-pagination-row">
+              <div className="rm-pagination-meta">
+                <span className="rm-pagination-count">
+                  {totalItems} dish{totalItems === 1 ? "" : "es"} · Page {menuPage} of {totalPages}
+                </span>
+                <label className="rm-pagination-limit">
+                  <span>Per page</span>
+                  <select
+                    className="rm-pagination-select"
+                    value={menuLimit}
+                    onChange={(e) => {
+                      setMenuLimit(Number(e.target.value));
+                      setMenuPage(1);
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </label>
+              </div>
+              <div className="rm-pagination-btns">
+                <button
+                  type="button"
+                  className="rm-page-btn"
+                  disabled={menuPage <= 1}
+                  onClick={() => setMenuPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                {visibleMenuPageNumbers(menuPage, totalPages).map((p, idx, arr) => {
+                    const prev = arr[idx - 1];
+                    const showEllipsis = prev && p - prev > 1;
+                    return (
+                      <span key={p} className="rm-page-btn-wrap">
+                        {showEllipsis ? <span className="rm-page-ellipsis">…</span> : null}
+                        <button
+                          type="button"
+                          className={`rm-page-btn${p === menuPage ? " rm-page-btn--active" : ""}`}
+                          onClick={() => setMenuPage(p)}
+                        >
+                          {p}
+                        </button>
+                      </span>
+                    );
+                  })}
+                <button
+                  type="button"
+                  className="rm-page-btn"
+                  disabled={menuPage >= totalPages}
+                  onClick={() => setMenuPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
 
         </main>
       </RailPortalShell>
 
       {/* ── ADD / EDIT MODAL ── */}
       {modalOpen && (
-        <div className="rm-modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setModalOpen(false); }}>
+        <div
+          className="rm-modal-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setModalOpen(false);
+          }}
+        >
           <div className="rm-modal">
             <div className="rm-modal-header">
               <h2 className="rm-modal-title">{editingId === -1 ? "Add Dish" : "Edit Dish"}</h2>
-              <button className="rm-modal-close" onClick={() => setModalOpen(false)}>&#x2715;</button>
+              <button type="button" className="rm-modal-close" onClick={() => setModalOpen(false)}>
+                &#x2715;
+              </button>
             </div>
             <div className="rm-modal-body">
               <div className="rm-form-row">
                 <div className="rm-form-group">
                   <label className="rm-label">Name</label>
-                  <input type="text" className="rm-input" placeholder="e.g. Chicken Wings" value={fName} onChange={e => setFName(e.target.value)} />
+                  <input
+                    type="text"
+                    className="rm-input"
+                    placeholder="e.g. Chicken Wings"
+                    value={fName}
+                    onChange={(e) => setFName(e.target.value)}
+                  />
                 </div>
                 <div className="rm-form-group">
                   <label className="rm-label">Price</label>
-                  <input type="text" className="rm-input" placeholder="e.g. 199" value={fPrice} onChange={e => setFPrice(e.target.value)} />
+                  <input
+                    type="text"
+                    className="rm-input"
+                    placeholder="e.g. 199"
+                    value={fPrice}
+                    onChange={(e) => setFPrice(e.target.value)}
+                  />
                 </div>
               </div>
               <div className="rm-form-row">
                 <div className="rm-form-group">
                   <label className="rm-label">Category</label>
-                  <CustomSelect options={CATEGORIES} value={fCat} onChange={setFCat} />
+                  <CustomSelect options={categoryNames} value={fCat} onChange={setFCat} />
                 </div>
                 <div className="rm-form-group">
                   <label className="rm-label">Availability</label>
@@ -273,63 +906,98 @@ export default function RestoMenu() {
               </div>
               <div className="rm-form-group">
                 <label className="rm-label">Description</label>
-                <textarea className="rm-textarea" placeholder="Write something here..." value={fDesc} onChange={e => setFDesc(e.target.value)} />
+                <textarea
+                  className="rm-textarea"
+                  placeholder="Write something here..."
+                  value={fDesc}
+                  onChange={(e) => setFDesc(e.target.value)}
+                />
               </div>
               <div className="rm-form-group">
                 <label className="rm-label">Upload Image</label>
-                <div className="rm-upload-area" onClick={() => fileRef.current.click()}>
+                <div className="rm-upload-area" onClick={() => fileRef.current?.click()}>
                   <input type="file" accept="image/*" className="rm-file-input" ref={fileRef} onChange={handleImageChange} />
-                  {fImage
-                    ? <img src={fImage} className="rm-upload-preview" alt="preview" />
-                    : (
-                      <div className="rm-upload-content">
-                        <span className="rm-upload-text">Click to upload image</span>
-                        <IconUpload />
-                      </div>
-                    )
-                  }
+                  {fImage ? (
+                    <img src={fImage} className="rm-upload-preview" alt="preview" />
+                  ) : (
+                    <div className="rm-upload-content">
+                      <span className="rm-upload-text">Click to upload image</span>
+                      <IconUpload />
+                    </div>
+                  )}
                 </div>
               </div>
               {formErr && <span className="rm-form-err">{formErr}</span>}
               <div className="rm-modal-actions">
-                <button className="rm-btn-clear" onClick={() => { setFName(""); setFPrice(""); setFDesc(""); setFCat("Main Course"); setFAvail("Available"); setFImage(""); setFormErr(""); }}>Clear</button>
-                <button className="rm-btn-save" onClick={saveDish}>{editingId === -1 ? "Add Dish" : "Save Changes"}</button>
+                <button
+                  type="button"
+                  className="rm-btn-clear"
+                  onClick={() => {
+                    setFName("");
+                    setFPrice("");
+                    setFDesc("");
+                    setFCat(defaultCategoryName());
+                    setFAvail("Available");
+                    setFImage("");
+                    setFormErr("");
+                  }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="rm-btn-save"
+                  disabled={saveBusy}
+                  onClick={() => void saveDish()}
+                >
+                  {saveBusy ? "Saving…" : editingId === -1 ? "Add Dish" : "Save Changes"}
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── DELETE CONFIRM ── */}
+      {/* ── DELETE CONFIRM (same pattern as room-management.jsx) ── */}
       {deleteOpen && (
-        <div className="rm-confirm-backdrop">
+        <div
+          className="rm-confirm-backdrop active"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) closeDelete();
+          }}
+        >
           <div className="rm-confirm-dialog">
             <div className="rm-confirm-icon">
-              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8"><circle cx="12" cy="12" r="10"/></svg>
+              <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8">
+                <circle cx="12" cy="12" r="10" />
+              </svg>
               <span className="rm-confirm-exclaim">!</span>
             </div>
             <h3 className="rm-confirm-title">Delete Dish?</h3>
             <p className="rm-confirm-sub">This action cannot be undone.</p>
             <div className="rm-confirm-btns">
-              <button className="rm-confirm-cancel" onClick={() => setDeleteOpen(false)}>Cancel</button>
-              <button className="rm-confirm-delete" onClick={confirmDelete}>Delete</button>
+              <button type="button" className="rm-btn-cancel-confirm" onClick={closeDelete}>
+                Cancel
+              </button>
+              <button type="button" className="rm-btn-delete-confirm" onClick={() => void confirmDelete()}>
+                Delete
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── TOAST ── */}
-      <div className={`rm-toast${toast.visible ? " active" : ""}`}>
-        <IconCheck />
-        <span>{toast.msg}</span>
-      </div>
+      {toast.visible &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="resto-menu-toast active" role="status">
+            <IconCheck />
+            <span>{toast.msg}</span>
+          </div>,
+          document.body
+        )}
 
-      <LogoutConfirmModal
-        open={logoutModalOpen}
-        onClose={closeLogoutModal}
-        onConfirm={confirmLogout}
-      />
-
+      <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>
   );
 }

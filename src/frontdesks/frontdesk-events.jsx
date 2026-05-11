@@ -9,6 +9,7 @@ import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
+import { useLazyBookingIdPhoto } from "./useLazyBookingIdPhoto";
 import {
   fetchBookingsBackend,
   fetchEventVenuesBackend,
@@ -143,6 +144,20 @@ function parsePesoNum(v) {
 function fmtPeso(n) {
   if (!Number.isFinite(n)) return "—";
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function formatChargeLinesForAdditionalRequests(items) {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  return items
+    .map((c) => {
+      const q = Math.max(1, Math.floor(Number(c.qty) || 1));
+      const unit = Number(c.amount) || 0;
+      const sub = unit * q;
+      const name = String(c.item || "").trim() || "Item";
+      if (q <= 1) return `${name} (₱${sub.toFixed(2)})`;
+      return `${name} ×${q} (₱${sub.toFixed(2)})`;
+    })
+    .join("; ");
 }
 
 /** Paid amount counted toward this booking (never more than the event total). */
@@ -397,6 +412,13 @@ function SuccessDialog({ open, onClose }) {
    DETAILS MODAL (Review)
 ══════════════════════════════════════════ */
 function DetailsModal({ r, open, onClose, onApprove, onReject }) {
+  const idPhotoData = useLazyBookingIdPhoto({
+    open: open && !!r,
+    bookingId: r?._bookingId,
+    rowPhoto: r?.validIdPhotoData,
+  });
+  const idSrc =
+    idPhotoData && String(idPhotoData).startsWith("data:") ? idPhotoData : IMAGES.guestId;
   if (!r) return null;
   return (
     <Modal
@@ -474,7 +496,7 @@ function DetailsModal({ r, open, onClose, onApprove, onReject }) {
                 <h4 className="id-uploaded-card-title">ID Uploaded</h4>
                 <div className="id-uploaded-frame">
                   <img
-                    src={r.validIdPhotoData && String(r.validIdPhotoData).startsWith("data:") ? r.validIdPhotoData : IMAGES.guestId}
+                    src={idSrc}
                     alt="Guest ID"
                     className="id-img"
                     decoding="async"
@@ -491,6 +513,13 @@ function DetailsModal({ r, open, onClose, onApprove, onReject }) {
    VIEW MODAL
 ══════════════════════════════════════════ */
 function ViewModal({ r, open, onClose, onEdit }) {
+  const idPhotoData = useLazyBookingIdPhoto({
+    open: open && !!r,
+    bookingId: r?._bookingId,
+    rowPhoto: r?.validIdPhotoData,
+  });
+  const idSrc =
+    idPhotoData && String(idPhotoData).startsWith("data:") ? idPhotoData : IMAGES.guestId;
   if (!r) return null;
   return (
     <Modal
@@ -557,7 +586,7 @@ function ViewModal({ r, open, onClose, onEdit }) {
                 <h4 className="id-uploaded-card-title">ID Uploaded</h4>
                 <div className="id-uploaded-frame">
                   <img
-                    src={r.validIdPhotoData && String(r.validIdPhotoData).startsWith("data:") ? r.validIdPhotoData : IMAGES.guestId}
+                    src={idSrc}
                     alt="Guest ID"
                     className="id-img"
                     decoding="async"
@@ -782,7 +811,7 @@ function CheckModal({ open, row, onClose, onCheckin, onCheckout, onAddCharges })
             <div className="check-grid">
               <div><span className="detail-label">Guest</span><span className="detail-value">{row.guest}</span></div>
               <div><span className="detail-label">Date</span><span className="detail-value">{row.date}</span></div>
-              <div><span className="detail-label">Balance</span><span className="detail-value">{row.balance}</span></div>
+              <div><span className="detail-label">Total Balance</span><span className="detail-value">{row.balance}</span></div>
               <div><span className="detail-label">Venue No.</span><span className="detail-value">{row.venueno}</span></div>
               <div><span className="detail-label">Time Slot</span><span className="detail-value">{row.timeslot}</span></div>
               <div>
@@ -827,7 +856,7 @@ function GuestViewModal({ open, row, onClose, onEdit }) {
             <div className="check-grid">
               <div><span className="detail-label">Guest</span><span className="detail-value">{row.guest}</span></div>
               <div><span className="detail-label">Date</span><span className="detail-value">{row.date}</span></div>
-              <div><span className="detail-label">Balance</span><span className="detail-value">{row.balance}</span></div>
+              <div><span className="detail-label">Total Balance</span><span className="detail-value">{row.balance}</span></div>
               <div><span className="detail-label">Venue No.</span><span className="detail-value">{row.venueno}</span></div>
               <div><span className="detail-label">Time Slot</span><span className="detail-value">{row.timeslot}</span></div>
               <div>
@@ -916,14 +945,25 @@ function GuestEditModal({ open, row, onClose, onSave }) {
 /* ══════════════════════════════════════════
    ADD CHARGES MODAL
 ══════════════════════════════════════════ */
-function AddChargesModal({ open, onClose, onAddItem }) {
+function AddChargesModal({ open, onClose, onAddItem, currentTotalBalanceStr = "—" }) {
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
   const [qty, setQty] = useState(1);
   const [chargeItems, setChargeItems] = useState([]);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    setItem("");
+    setAmount("");
+    setQty(1);
+    setChargeItems([]);
+    setShowConfirm(false);
+  }, [open]);
+
   const previewTotal = chargeItems.reduce((s, c) => s + c.amount * c.qty, 0) + (item && parseFloat(amount) > 0 ? parseFloat(amount) * qty : 0);
+  const baseBal = parsePesoNum(currentTotalBalanceStr);
+  const balanceAfterCharges = Number.isFinite(baseBal) ? Math.max(0, baseBal + previewTotal) : NaN;
   if (!open) return null;
 
   const changeQty = (i, d) => setChargeItems((prev) => prev.map((c, idx) => idx === i ? { ...c, qty: Math.max(1, c.qty + d) } : c));
@@ -1002,8 +1042,20 @@ function AddChargesModal({ open, onClose, onAddItem }) {
                   )}
                 </div>
                 <div className="charges-total-row">
-                  <span>Total</span>
+                  <span>New charges total</span>
                   <span>₱{previewTotal.toFixed(2)}</span>
+                </div>
+                <div className="charges-balance-hint" aria-live="polite">
+                  <div>
+                    <span className="charges-balance-hint-label">Current total balance</span>
+                    <span className="charges-balance-hint-value">{currentTotalBalanceStr}</span>
+                  </div>
+                  <div>
+                    <span className="charges-balance-hint-label">Total balance after save</span>
+                    <span className="charges-balance-hint-value">
+                      {Number.isFinite(balanceAfterCharges) ? fmtPeso(balanceAfterCharges) : "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1630,6 +1682,13 @@ function EventReservation() {
     [reservations],
   );
 
+  const addChargesTotalBalanceStr = useMemo(() => {
+    if (!checkRow) return "—";
+    const key = eventRowMatchKey(checkRow);
+    const r = reservations.find((x) => eventRowMatchKey(x) === key);
+    return r?.balance ?? checkRow.balance ?? "—";
+  }, [checkRow, reservations]);
+
   useEffect(() => {
     if (!checkRow) setAddChargesOpen(false);
   }, [checkRow]);
@@ -1907,7 +1966,7 @@ function EventReservation() {
     const d0 = Number.isFinite(downWas) ? downWas : 0;
     const newTotal = t0 + extra;
     const newBal = Math.max(0, newTotal - d0);
-    const chargeLine = items.map((c) => `${c.item} (₱${Number(c.amount).toFixed(2)})`).join(", ");
+    const chargeLine = formatChargeLinesForAdditionalRequests(items);
     const prevReq = String(r.addreq || "").trim();
     const addreqMerged = [prevReq && prevReq !== "N/A" ? prevReq : "", chargeLine]
       .filter(Boolean)
@@ -2189,7 +2248,7 @@ function EventReservation() {
                     <th>Package</th>
                     <th className="rooms-th-num">Total</th>
                     <th className="rooms-th-num">Downpayment</th>
-                    <th className="rooms-th-num">Balance</th>
+                    <th className="rooms-th-num">Total Balance</th>
                     <th className="rooms-th-status">Status</th>
                     <th className="rooms-th-action">Action</th>
                   </tr>
@@ -2262,7 +2321,7 @@ function EventReservation() {
                     <th>Package</th>
                     <th className="rooms-th-num">Total</th>
                     <th className="rooms-th-num">Downpayment</th>
-                    <th className="rooms-th-num">Balance</th>
+                    <th className="rooms-th-num">Total Balance</th>
                     <th className="rooms-th-status">Status</th>
                     <th className="rooms-th-action">Action</th>
                   </tr>
@@ -2402,7 +2461,12 @@ function EventReservation() {
       <ConfirmDialog open={checkoutConfirm} text="Confirm Check-Out?"
         onCancel={() => setCheckoutConfirm(false)} onConfirm={handleCheckout} />
 
-      <AddChargesModal open={addChargesOpen} onClose={() => setAddChargesOpen(false)} onAddItem={handleAddItem} />
+      <AddChargesModal
+        open={addChargesOpen}
+        onClose={() => setAddChargesOpen(false)}
+        onAddItem={handleAddItem}
+        currentTotalBalanceStr={addChargesTotalBalanceStr}
+      />
 
       <WalkinModal open={walkinOpen} onClose={() => setWalkinOpen(false)} onSubmit={handleWalkinSubmit} />
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -7,6 +7,28 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import "./inventory.css";
+
+const INVENTORY_STORAGE_KEY = "abela-admin-inventory-v1";
+
+function maxInventoryId(items) {
+  return items.reduce((m, it) => Math.max(m, Number(it?.id) || 0), 0);
+}
+
+/** Accept only rows that match the table shape so bad JSON cannot break the page. */
+function normalizeLoadedInventory(raw) {
+  if (!Array.isArray(raw) || raw.length === 0) return null;
+  const out = raw.filter(
+    (it) =>
+      it &&
+      typeof it.name === "string" &&
+      (it.category === "Room" || it.category === "Event") &&
+      typeof it.unit === "string" &&
+      Number.isFinite(Number(it.quantity)) &&
+      Number.isFinite(Number(it.threshold)) &&
+      typeof it.cost === "string",
+  );
+  return out.length ? out : null;
+}
 
 /* ── INITIAL DATA ── */
 const initialInventory = [
@@ -36,6 +58,8 @@ export default function InventoryManagement() {
   const [currentTab, setCurrentTab]         = useState("Rooms");
   const [searchQuery, setSearchQuery]       = useState("");
   const [nextId, setNextId]                 = useState(9);
+  /** One paint cycle: show table loading while restoring from localStorage (no API yet). */
+  const [hydrating, setHydrating]           = useState(true);
 
   /* Modal states */
   const [addModalOpen, setAddModalOpen]         = useState(false);
@@ -59,7 +83,7 @@ export default function InventoryManagement() {
   const [fUnitCost, setFUnitCost]           = useState("");
 
   const [selectedWithdrawId, setSelectedWithdrawId] = useState(-1);
-  const [fWithdrawQty, setFWithdrawQty]     = useState(0);
+  const [fWithdrawQty, setFWithdrawQty]     = useState("");
   const [fWithdrawNote, setFWithdrawNote]   = useState("");
   const [customSelectOpen, setCustomSelectOpen] = useState(false);
 
@@ -68,6 +92,15 @@ export default function InventoryManagement() {
   /* Toast */
   const [toast, setToast]                   = useState({ visible: false, msg: "" });
   const toastTimer = useRef(null);
+  const suppressModalOpensUntilRef = useRef(0);
+
+  useLayoutEffect(() => {
+    suppressModalOpensUntilRef.current = performance.now() + 600;
+  }, []);
+
+  function modalOpenAllowed() {
+    return performance.now() >= suppressModalOpensUntilRef.current;
+  }
 
   /* ── HELPERS ── */
   function logActivity(title, desc) {
@@ -81,6 +114,58 @@ export default function InventoryManagement() {
     toastTimer.current = setTimeout(() => setToast({ visible: false, msg: "" }), 3000);
   }
 
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      if (cancelled) return;
+      try {
+        const raw = localStorage.getItem(INVENTORY_STORAGE_KEY);
+        if (raw) {
+          const p = JSON.parse(raw);
+          const inv = normalizeLoadedInventory(p.inventory);
+          if (inv) {
+            setInventory(inv);
+            const maxId = maxInventoryId(inv);
+            const n = Number(p.nextId);
+            setNextId(Number.isFinite(n) && n > maxId ? n : maxId + 1);
+          }
+          if (Array.isArray(p.activityLog) && p.activityLog.length) {
+            setActivityLog(
+              p.activityLog.filter(
+                (a) => a && typeof a.title === "string" && typeof a.desc === "string" && typeof a.time === "string",
+              ),
+            );
+          }
+        }
+      } catch {
+        /* ignore corrupt storage */
+      }
+      if (!cancelled) setHydrating(false);
+    }, 0);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hydrating) return;
+    try {
+      localStorage.setItem(
+        INVENTORY_STORAGE_KEY,
+        JSON.stringify({ inventory, activityLog, nextId }),
+      );
+    } catch {
+      /* quota / private mode */
+    }
+  }, [inventory, activityLog, nextId, hydrating]);
+
   /* ── FILTER ── */
   const catFilter = currentTab === "Rooms" ? "Room" : "Event";
   const filtered = inventory.filter(item =>
@@ -92,6 +177,7 @@ export default function InventoryManagement() {
 
   /* ── ADD / EDIT ── */
   function openAddModal() {
+    if (!modalOpenAllowed()) return;
     setEditingId(-1);
     setFProductName(""); setFCategory("Room"); setFUnit("Piece");
     setFQuantity(""); setFThreshold(""); setFUnitCost("");
@@ -100,6 +186,7 @@ export default function InventoryManagement() {
   }
 
   function openEditModal(id) {
+    if (!modalOpenAllowed()) return;
     const item = inventory.find(i => i.id === id);
     if (!item) return;
     setEditingId(id);
@@ -142,14 +229,21 @@ export default function InventoryManagement() {
 
   /* ── VIEW ── */
   function openViewModal(id) {
+    if (!modalOpenAllowed()) return;
     const item = inventory.find(i => i.id === id);
     if (item) { setViewItem(item); setViewModalOpen(true); }
   }
 
   /* ── WITHDRAW ── */
+  function openActivityModal() {
+    if (!modalOpenAllowed()) return;
+    setActivityModalOpen(true);
+  }
+
   function openWithdrawModal(preselectedId = -1) {
+    if (!modalOpenAllowed()) return;
     setSelectedWithdrawId(preselectedId);
-    setFWithdrawQty(0);
+    setFWithdrawQty("");
     setFWithdrawNote("");
     setWithdrawErr("");
     setCustomSelectOpen(false);
@@ -157,7 +251,7 @@ export default function InventoryManagement() {
   }
 
   function confirmWithdraw() {
-    const qty = parseInt(fWithdrawQty) || 0;
+    const qty = parseInt(String(fWithdrawQty).trim(), 10) || 0;
     if (selectedWithdrawId === -1) { setWithdrawErr("Please select an item."); return; }
     if (qty <= 0) { setWithdrawErr("Quantity must be greater than 0."); return; }
     const item = inventory.find(i => i.id === selectedWithdrawId);
@@ -169,15 +263,28 @@ export default function InventoryManagement() {
   }
 
   /* ── DELETE ── */
-  function openDelete(id) { setDeletingId(id); setDeleteModalOpen(true); }
+  function openDelete(id) {
+    if (!modalOpenAllowed()) return;
+    setDeletingId(id);
+    setDeleteModalOpen(true);
+  }
   function confirmDelete() {
     const item = inventory.find(i => i.id === deletingId);
     if (item) {
       logActivity(`Deleted "${item.name}"`, "Item removed from inventory.");
       setInventory(prev => prev.filter(i => i.id !== deletingId));
+      if (viewItem && viewItem.id === deletingId) {
+        setViewModalOpen(false);
+        setViewItem(null);
+      }
     }
-    setDeleteModalOpen(false);
+    closeDelete();
     showToast("Item deleted.");
+  }
+
+  function closeDelete() {
+    setDeleteModalOpen(false);
+    setDeletingId(-1);
   }
 
   /* ── CLOSE ON OUTSIDE CLICK ── */
@@ -190,12 +297,14 @@ export default function InventoryManagement() {
   }, []);
 
   const selectedWithdrawItem = inventory.find(i => i.id === selectedWithdrawId);
+  /** View modal tracks id in `viewItem` but reads fields from inventory so edit/delete/update the table live */
+  const viewItemLive = viewItem ? inventory.find((i) => i.id === viewItem.id) ?? null : null;
 
   return (
     <>
       <RailPortalShell
+        rootClassName="app-root"
         mainStyle={mainStyle}
-        rootStyle={{ display: "flex" }}
         sidebar={<AdminSidebarNav />}
       >
         {/* ── TOP BAR ── */}
@@ -226,21 +335,22 @@ export default function InventoryManagement() {
               <input
                 type="text" id="invSearch" className="inv-search-input" placeholder="Search item..."
                 value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                disabled={hydrating}
               />
             </div>
-            <button className="inv-btn inv-btn-add" onClick={openAddModal}>
+            <button type="button" className="inv-btn inv-btn-add" onClick={openAddModal} disabled={hydrating}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14">
                 <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
               </svg>
               Add
             </button>
-            <button className="inv-btn inv-btn-activity" onClick={() => setActivityModalOpen(true)}>
+            <button type="button" className="inv-btn inv-btn-activity" onClick={openActivityModal} disabled={hydrating}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
               </svg>
               Activity
             </button>
-            <button className="inv-btn inv-btn-withdraw" onClick={() => openWithdrawModal()}>
+            <button type="button" className="inv-btn inv-btn-withdraw" onClick={() => openWithdrawModal()} disabled={hydrating}>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                 <polyline points="17 11 12 6 7 11"/><line x1="12" y1="18" x2="12" y2="6"/>
               </svg>
@@ -250,8 +360,8 @@ export default function InventoryManagement() {
 
           {/* TABS */}
           <div className="inv-tabs">
-            <button className={`inv-tab${currentTab === "Rooms" ? " active" : ""}`} onClick={() => setCurrentTab("Rooms")}>Rooms</button>
-            <button className={`inv-tab${currentTab === "Event" ? " active" : ""}`} onClick={() => setCurrentTab("Event")}>Event</button>
+            <button type="button" className={`inv-tab${currentTab === "Rooms" ? " active" : ""}`} onClick={() => setCurrentTab("Rooms")} disabled={hydrating}>Rooms</button>
+            <button type="button" className={`inv-tab${currentTab === "Event" ? " active" : ""}`} onClick={() => setCurrentTab("Event")} disabled={hydrating}>Event</button>
           </div>
 
           {/* TABLE */}
@@ -264,7 +374,13 @@ export default function InventoryManagement() {
                 </tr>
               </thead>
               <tbody id="invTableBody">
-                {filtered.length === 0 ? (
+                {hydrating ? (
+                  <tr>
+                    <td colSpan="7" className="inv-empty">
+                      Loading inventory…
+                    </td>
+                  </tr>
+                ) : filtered.length === 0 ? (
                   <tr><td colSpan="7" className="inv-empty">No items found.</td></tr>
                 ) : filtered.map(item => {
                   const st = getStatus(item);
@@ -307,14 +423,15 @@ export default function InventoryManagement() {
       </RailPortalShell>
 
       {/* ── ADD / EDIT MODAL ── */}
-      <div className={`inv-modal-backdrop${addModalOpen ? " active" : ""}`} id="addBackdrop"
+      {addModalOpen ? (
+      <div className="rm-modal-backdrop active" id="addBackdrop"
         onClick={e => { if (e.target === e.currentTarget) setAddModalOpen(false); }}>
-        <div className="inv-modal">
-          <div className="inv-modal-header">
-            <h2 className="inv-modal-title">{editingId === -1 ? "Add Products" : "Edit Product"}</h2>
-            <button className="inv-modal-close" onClick={() => setAddModalOpen(false)}>✕</button>
+        <div className="rm-modal">
+          <div className="rm-modal-header">
+            <h2 className="rm-modal-title">{editingId === -1 ? "Add Products" : "Edit Product"}</h2>
+            <button type="button" className="rm-modal-close" onClick={() => setAddModalOpen(false)}>&#x2715;</button>
           </div>
-          <div className="inv-modal-body">
+          <div className="rm-modal-body">
             <div className="inv-form-row">
               <div className="inv-form-group">
                 <label>Product Name</label>
@@ -367,59 +484,65 @@ export default function InventoryManagement() {
               </div>
             </div>
             {addErr && <span className="inv-err">{addErr}</span>}
-            <div className="inv-modal-actions">
-              <button className="inv-btn-clear" onClick={() => {
+            <div className="rm-modal-actions">
+              <button type="button" className="rm-btn-clear" onClick={() => {
                 setFProductName(""); setFCategory("Room"); setFUnit("Piece");
                 setFQuantity(""); setFThreshold(""); setFUnitCost(""); setAddErr("");
               }}>Clear</button>
-              <button className="inv-btn-submit" onClick={saveProduct}>
+              <button type="button" className="rm-btn-save" onClick={saveProduct}>
                 {editingId === -1 ? "Add" : "Save Changes"}
               </button>
             </div>
           </div>
         </div>
       </div>
+      ) : null}
 
       {/* ── VIEW MODAL ── */}
-      <div className={`inv-modal-backdrop${viewModalOpen ? " active" : ""}`}
+      {viewModalOpen ? (
+      <div className="rm-modal-backdrop active"
         onClick={e => { if (e.target === e.currentTarget) setViewModalOpen(false); }}>
-        <div className="inv-modal" style={{ maxWidth: "380px" }}>
-          <div className="inv-modal-header">
-            <h2 className="inv-modal-title">View Item</h2>
-            <button className="inv-modal-close" onClick={() => setViewModalOpen(false)}>✕</button>
+        <div className="rm-modal inv-modal--narrow">
+          <div className="rm-modal-header">
+            <h2 className="rm-modal-title">View Item</h2>
+            <button type="button" className="rm-modal-close" onClick={() => setViewModalOpen(false)}>&#x2715;</button>
           </div>
-          <div className="inv-modal-body">
+          <div className="rm-modal-body">
             <div className="view-item-info" id="viewItemInfo">
-              {viewItem && (() => {
-                const st = getStatus(viewItem);
+              {viewItem && !viewItemLive ? (
+                <p className="inv-empty">This item was removed from inventory.</p>
+              ) : viewItemLive ? (() => {
+                const st = getStatus(viewItemLive);
                 return (
                   <>
-                    <div className="view-item-row"><strong>Name:</strong> {viewItem.name}</div>
-                    <div className="view-item-row"><strong>Category:</strong> {viewItem.category}</div>
-                    <div className="view-item-row"><strong>Quantity:</strong> {viewItem.quantity}</div>
-                    <div className="view-item-row"><strong>Unit:</strong> {viewItem.unit.toLowerCase()}</div>
-                    <div className="view-item-row"><strong>Threshold:</strong> {viewItem.threshold}</div>
+                    <div className="view-item-row"><strong>Name:</strong> {viewItemLive.name}</div>
+                    <div className="view-item-row"><strong>Category:</strong> {viewItemLive.category}</div>
+                    <div className="view-item-row"><strong>Quantity:</strong> {viewItemLive.quantity}</div>
+                    <div className="view-item-row"><strong>Unit:</strong> {viewItemLive.unit.toLowerCase()}</div>
+                    <div className="view-item-row"><strong>Threshold:</strong> {viewItemLive.threshold}</div>
                     <div className="view-item-row">
-                      <strong>Status:</strong> {viewItem.quantity} {viewItem.unit}(s) -{" "}
+                      <strong>Status:</strong> {viewItemLive.quantity} {viewItemLive.unit}(s) -{" "}
                       <span className={`inv-badge ${st.cls}`} style={{ fontSize: "11px" }}>{st.label}</span>
                     </div>
                   </>
                 );
-              })()}
+              })() : null}
             </div>
           </div>
         </div>
       </div>
+      ) : null}
 
       {/* ── WITHDRAW MODAL ── */}
-      <div className={`inv-modal-backdrop${withdrawModalOpen ? " active" : ""}`}
+      {withdrawModalOpen ? (
+      <div className="rm-modal-backdrop active"
         onClick={e => { if (e.target === e.currentTarget) { setWithdrawModalOpen(false); setCustomSelectOpen(false); } }}>
-        <div className="inv-modal" style={{ maxWidth: "440px" }}>
-          <div className="inv-modal-header">
-            <h2 className="inv-modal-title">Withdraw Item</h2>
-            <button className="inv-modal-close" onClick={() => { setWithdrawModalOpen(false); setCustomSelectOpen(false); }}>✕</button>
+        <div className="rm-modal inv-modal--withdraw">
+          <div className="rm-modal-header">
+            <h2 className="rm-modal-title">Withdraw Item</h2>
+            <button type="button" className="rm-modal-close" onClick={() => { setWithdrawModalOpen(false); setCustomSelectOpen(false); }}>&#x2715;</button>
           </div>
-          <div className="inv-modal-body">
+          <div className="rm-modal-body">
             <div className="withdraw-info" id="withdrawInfo">
               {selectedWithdrawItem ? (
                 <><strong>Item:</strong> {selectedWithdrawItem.name}<br/><strong>Available:</strong> {selectedWithdrawItem.quantity}</>
@@ -462,23 +585,25 @@ export default function InventoryManagement() {
                 value={fWithdrawNote} onChange={e => setFWithdrawNote(e.target.value)} />
             </div>
             {withdrawErr && <span className="inv-err">{withdrawErr}</span>}
-            <div className="inv-modal-actions">
-              <button className="inv-btn-cancel" onClick={() => { setWithdrawModalOpen(false); setCustomSelectOpen(false); }}>Cancel</button>
-              <button className="inv-btn-withdraw-submit" onClick={confirmWithdraw}>Withdraw</button>
+            <div className="rm-modal-actions">
+              <button type="button" className="rm-btn-clear" onClick={() => { setWithdrawModalOpen(false); setCustomSelectOpen(false); }}>Cancel</button>
+              <button type="button" className="inv-btn-withdraw-submit" onClick={confirmWithdraw}>Withdraw</button>
             </div>
           </div>
         </div>
       </div>
+      ) : null}
 
       {/* ── ACTIVITY LOG MODAL ── */}
-      <div className={`inv-modal-backdrop${activityModalOpen ? " active" : ""}`}
+      {activityModalOpen ? (
+      <div className="rm-modal-backdrop active"
         onClick={e => { if (e.target === e.currentTarget) setActivityModalOpen(false); }}>
-        <div className="inv-modal" style={{ maxWidth: "480px" }}>
-          <div className="inv-modal-header">
-            <h2 className="inv-modal-title">Activity Log</h2>
-            <button className="inv-modal-close" onClick={() => setActivityModalOpen(false)}>✕</button>
+        <div className="rm-modal inv-modal--activity">
+          <div className="rm-modal-header">
+            <h2 className="rm-modal-title">Activity Log</h2>
+            <button type="button" className="rm-modal-close" onClick={() => setActivityModalOpen(false)}>&#x2715;</button>
           </div>
-          <div className="inv-modal-body">
+          <div className="rm-modal-body">
             <div className="activity-list" id="activityList">
               {activityLog.length === 0 ? (
                 <div className="activity-empty">No activity yet.</div>
@@ -495,32 +620,41 @@ export default function InventoryManagement() {
           </div>
         </div>
       </div>
+      ) : null}
 
       {/* ── DELETE CONFIRM ── */}
-      <div className={`inv-confirm-backdrop${deleteModalOpen ? " active" : ""}`} id="deleteBackdrop">
-        <div className="inv-confirm-dialog">
-          <div className="inv-confirm-icon">
+      {deleteModalOpen ? (
+      <div
+        className="rm-confirm-backdrop active"
+        id="deleteBackdrop"
+        onClick={e => { if (e.target === e.currentTarget) closeDelete(); }}
+      >
+        <div className="rm-confirm-dialog">
+          <div className="rm-confirm-icon">
             <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8">
               <circle cx="12" cy="12" r="10"/>
             </svg>
-            <span className="inv-confirm-exclaim">!</span>
+            <span className="rm-confirm-exclaim">!</span>
           </div>
-          <h3 className="inv-confirm-title">Delete Item?</h3>
-          <p className="inv-confirm-sub">This action cannot be undone.</p>
-          <div className="inv-confirm-btns">
-            <button className="inv-confirm-cancel" onClick={() => setDeleteModalOpen(false)}>Cancel</button>
-            <button className="inv-confirm-delete" onClick={confirmDelete}>Delete</button>
+          <h3 className="rm-confirm-title">Delete Item?</h3>
+          <p className="rm-confirm-sub">This action cannot be undone.</p>
+          <div className="rm-confirm-btns">
+            <button type="button" className="rm-btn-cancel-confirm" onClick={closeDelete}>Cancel</button>
+            <button type="button" className="rm-btn-delete-confirm" onClick={confirmDelete}>Delete</button>
           </div>
         </div>
       </div>
+      ) : null}
 
-      {/* ── TOAST ── */}
-      <div className={`inv-toast${toast.visible ? " active" : ""}`} id="invToast">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
-          <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>
-        </svg>
-        <span id="invToastMsg">{toast.msg}</span>
-      </div>
+      {/* ── TOAST (mount only when visible — avoids stray layout / .active conflicts) ── */}
+      {toast.visible ? (
+        <div className="inv-toast" id="invToast" role="status" aria-live="polite">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>
+          </svg>
+          <span id="invToastMsg" className="inv-toast-msg">{toast.msg}</span>
+        </div>
+      ) : null}
 
       <LogoutConfirmModal
         open={logoutModalOpen}

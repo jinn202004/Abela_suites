@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -40,6 +40,12 @@ export default function StaffManagement() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [toast, setToast] = useState({ visible: false, msg: "" });
+
+  /** Block stray pointer/click activation right after landing on this route (sidebar ghost-click). */
+  const suppressModalOpensUntilRef = useRef(0);
+  useLayoutEffect(() => {
+    suppressModalOpensUntilRef.current = performance.now() + 600;
+  }, []);
 
   const showToast = useCallback((msg) => {
     setToast({ visible: true, msg });
@@ -83,6 +89,7 @@ export default function StaffManagement() {
   });
 
   const openAdd = () => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
     setEditingId(null);
     setForm(emptyForm);
     setFormErr("");
@@ -90,6 +97,7 @@ export default function StaffManagement() {
   };
 
   const openEdit = (row) => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
     setEditingId(row.id);
     setForm({
       name: row.name ?? "",
@@ -176,6 +184,7 @@ export default function StaffManagement() {
   };
 
   const openDelete = (id) => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
     setDeletingId(id);
     setDeleteOpen(true);
   };
@@ -198,6 +207,7 @@ export default function StaffManagement() {
     status === "Active" ? "badge-active" : status === "On Leave" ? "badge-onleave" : "badge-inactive";
 
   return (
+    
     <>
       <RailPortalShell rootClassName="app-root" mainStyle={mainStyle} sidebar={<AdminSidebarNav />}>
         <header className="topbar">
@@ -308,20 +318,21 @@ export default function StaffManagement() {
         </main>
       </RailPortalShell>
 
+      {modalOpen ? (
       <div
-        className={`sm-modal-backdrop ${modalOpen ? "active" : ""}`}
+        className="rm-modal-backdrop active"
         onClick={(e) => {
           if (e.target === e.currentTarget) closeModal();
         }}
       >
-        <div className="sm-modal">
-          <div className="sm-modal-header">
-            <h2 className="sm-modal-title">{editingId == null ? "Add team member (User account)" : "Edit team member"}</h2>
-            <button type="button" className="sm-modal-close" onClick={closeModal}>
+        <div className="rm-modal sm-staff-dialog">
+          <div className="rm-modal-header">
+            <h2 className="rm-modal-title">{editingId == null ? "Add team member (User account)" : "Edit team member"}</h2>
+            <button type="button" className="rm-modal-close" onClick={closeModal}>
               ✕
             </button>
           </div>
-          <div className="sm-modal-body">
+          <div className="rm-modal-body">
             <div className="sm-form-group full">
               <label>Name</label>
               <input type="text" className="sm-input" placeholder="Enter full name" value={form.name} onChange={handleChange("name")} />
@@ -402,51 +413,56 @@ export default function StaffManagement() {
 
             <span className="sm-err">{formErr}</span>
 
-            <div className="sm-modal-actions">
-              <button type="button" className="sm-btn-clear" onClick={clearForm} disabled={saving}>
+            <div className="rm-modal-actions">
+              <button type="button" className="rm-btn-clear" onClick={clearForm} disabled={saving}>
                 Clear
               </button>
-              <button type="button" className="sm-btn-save" onClick={() => void saveStaff()} disabled={saving}>
+              <button type="button" className="rm-btn-save" onClick={() => void saveStaff()} disabled={saving}>
                 {saving ? "Saving…" : editingId == null ? "Add Staff" : "Save Changes"}
               </button>
             </div>
           </div>
         </div>
       </div>
+      ) : null}
 
+      {deleteOpen ? (
       <div
-        className={`sm-confirm-backdrop ${deleteOpen ? "active" : ""}`}
+        className="rm-confirm-backdrop active"
         onClick={(e) => {
           if (e.target === e.currentTarget) closeDelete();
         }}
       >
-        <div className="sm-confirm-dialog">
-          <div className="sm-confirm-icon">
+        <div className="rm-confirm-dialog">
+          <div className="rm-confirm-icon">
             <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8">
               <circle cx="12" cy="12" r="10" />
             </svg>
-            <span className="sm-confirm-exclaim">!</span>
+            <span className="rm-confirm-exclaim">!</span>
           </div>
-          <h3 className="sm-confirm-title">Delete Staff?</h3>
-          <p className="sm-confirm-sub">This action cannot be undone.</p>
-          <div className="sm-confirm-btns">
-            <button type="button" className="sm-btn-cancel-confirm" onClick={closeDelete}>
+          <h3 className="rm-confirm-title">Delete Staff?</h3>
+          <p className="rm-confirm-sub">This action cannot be undone.</p>
+          <div className="rm-confirm-btns">
+            <button type="button" className="rm-btn-cancel-confirm" onClick={closeDelete}>
               Cancel
             </button>
-            <button type="button" className="sm-btn-delete-confirm" onClick={() => void confirmDelete()}>
+            <button type="button" className="rm-btn-delete-confirm" onClick={() => void confirmDelete()}>
               Delete
             </button>
           </div>
         </div>
       </div>
+      ) : null}
 
-      <div className={`sm-toast ${toast.visible ? "active" : ""}`}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="9 12 11 14 15 10" />
-        </svg>
-        <span>{toast.msg}</span>
-      </div>
+      {toast.visible ? (
+        <div className="rm-toast active">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="9 12 11 14 15 10" />
+          </svg>
+          <span>{toast.msg}</span>
+        </div>
+      ) : null}
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>

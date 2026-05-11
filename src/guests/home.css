@@ -28,9 +28,9 @@
   }
   
   /* ============================================
-     SIDEBAR
+     SIDEBAR (scoped — file is always bundled; unscoped rules broke admin inventory & other rails)
      ============================================ */
-  .sidebar {
+  .guest-home-root .sidebar {
     width: var(--sidebar-w);
     height: 100vh;
     background: #b8922a;
@@ -43,7 +43,7 @@
     align-items: center;
   }
   
-  .sidebar-logo {
+  .guest-home-root .sidebar-logo {
     padding: 15px;
     border-bottom: 1px solid rgba(255,255,255,.3);
     width: 100%;
@@ -51,8 +51,8 @@
     justify-content: center;
   }
   
-  .sidebar-logo img,
-  .sidebar-logo-img {
+  .guest-home-root .sidebar-logo img,
+  .guest-home-root .sidebar-logo-img {
     width: 90px;
     height: 90px;
     border-radius: 50%;
@@ -61,9 +61,9 @@
   }
   
   /* NAV */
-  .sidebar-nav { width: 100%; }
+  .guest-home-root .sidebar-nav { width: 100%; }
   
-  .nav-item {
+  .guest-home-root .nav-item {
     display: flex;
     align-items: center;
     gap: 16px;
@@ -74,10 +74,10 @@
     font-weight: 600;
   }
   
-  .nav-item:hover  { background: rgba(0,0,0,0.10); color: #fff; }
-  .nav-item.active { background: rgba(0,0,0,0.20); color: #fff; }
+  .guest-home-root .nav-item:hover  { background: rgba(0,0,0,0.10); color: #fff; }
+  .guest-home-root .nav-item.active { background: rgba(0,0,0,0.20); color: #fff; }
   
-  .nav-icon {
+  .guest-home-root .nav-icon {
     width: 36px;
     height: 36px;
     display: flex;
@@ -85,12 +85,12 @@
     justify-content: center;
   }
   
-  .nav-icon svg { width: 30px; height: 30px; }
+  .guest-home-root .nav-icon svg { width: 30px; height: 30px; }
   
   /* ============================================
      MAIN WRAPPER
      ============================================ */
-  .main-wrapper {
+  .guest-home-root .main-wrapper {
     margin-left: var(--sidebar-w);
     width: calc(100% - var(--sidebar-w));
     flex: 1;
@@ -103,7 +103,7 @@
   /* ============================================
      TOP BAR
      ============================================ */
-  .topbar {
+  .guest-home-root .topbar {
     position: sticky;
     top: 0;
     min-height: var(--topbar-h);
@@ -120,19 +120,19 @@
     box-shadow: 0 1px 8px rgba(0,0,0,0.07);
   }
   
-  .topbar-breadcrumb {
+  .guest-home-root .topbar-breadcrumb {
     display: flex; align-items: center; gap: 8px;
     min-width: 0;
     flex: 1 1 auto;
   }
   
-  .breadcrumb-arrow {
+  .guest-home-root .breadcrumb-arrow {
     font-size: 20px; font-weight: 700;
     color: var(--gold); line-height: 1;
     flex-shrink: 0;
   }
   
-  .breadcrumb-title {
+  .guest-home-root .breadcrumb-title {
     font-family: 'Montserrat', sans-serif;
     font-size: 17px; font-weight: 700;
     color: var(--gold); letter-spacing: 0.02em;
@@ -142,31 +142,31 @@
     min-width: 0;
   }
   
-  .topbar-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  .guest-home-root .topbar-actions { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
   
-  .icon-btn {
+  .guest-home-root .icon-btn {
     position: relative;
     display: flex; align-items: center; gap: 5px;
     cursor: pointer; padding: 6px;
     border-radius: 50%; transition: background 0.2s;
   }
-  .icon-btn:hover { background: rgba(184,146,42,0.10); }
+  .guest-home-root .icon-btn:hover { background: rgba(184,146,42,0.10); }
   
-  .topbar-icon { width: 30px; height: 30px; object-fit: contain; }
+  .guest-home-root .topbar-icon { width: 30px; height: 30px; object-fit: contain; }
   
-  .notif-dot {
+  .guest-home-root .notif-dot {
     position: absolute; top: 5px; right: 5px;
     width: 9px; height: 9px;
     background: #e74c3c; border-radius: 50%;
     border: 2px solid #fff;
   }
   
-  .user-arrow { font-size: 15px; color: var(--text-mid); line-height: 1; }
+  .guest-home-root .user-arrow { font-size: 15px; color: var(--text-mid); line-height: 1; }
   
   /* ============================================
      DROPDOWN BASE
      ============================================ */
-  .dropdown {
+  .guest-home-root .dropdown {
     position: absolute;
     top: calc(100% + 10px);
     right: 0;
@@ -180,7 +180,7 @@
     animation: dropIn 0.18s ease;
   }
   
-  .dropdown.open { display: block; }
+  .guest-home-root .dropdown.open { display: block; }
   
   @keyframes dropIn {
     from { opacity: 0; transform: translateY(-6px); }
@@ -190,26 +190,26 @@
   /* ============================================
      NOTIFICATION DROPDOWN
      ============================================ */
-  .notif-dropdown {
+  .guest-home-root .notif-dropdown {
     right: 0;
     min-width: 270px;
   }
   
-  .notif-item {
+  .guest-home-root .notif-item {
     padding: 12px 16px;
     border-bottom: 1px solid #f0ebe0;
     cursor: pointer;
     transition: background 0.15s;
   }
-  .notif-item:last-child { border-bottom: none; }
-  .notif-item:hover { background: #faf6ee; }
-  .notif-item--unread {
+  .guest-home-root .notif-item:last-child { border-bottom: none; }
+  .guest-home-root .notif-item:hover { background: #faf6ee; }
+  .guest-home-root .notif-item--unread {
     border-left: 3px solid #b8922a;
     padding-left: 13px;
     background: #fffdf8;
   }
   
-  .notif-msg {
+  .guest-home-root .notif-msg {
     font-family: 'Roboto', sans-serif;
     font-size: 13px;
     font-weight: 500;
@@ -217,7 +217,7 @@
     margin-bottom: 3px;
   }
   
-  .notif-time {
+  .guest-home-root .notif-time {
     font-family: 'Roboto', sans-serif;
     font-size: 11px;
     color: var(--text-light);
@@ -226,7 +226,7 @@
   /* ============================================
      USER DROPDOWN
      ============================================ */
-  .user-dropdown-item {
+  .guest-home-root .user-dropdown-item {
     display: flex;
     align-items: center;
     gap: 12px;
@@ -240,10 +240,10 @@
     transition: background 0.15s;
     text-decoration: none;
   }
-  .user-dropdown-item:last-child { border-bottom: none; }
-  .user-dropdown-item:hover { background: #faf6ee; }
+  .guest-home-root .user-dropdown-item:last-child { border-bottom: none; }
+  .guest-home-root .user-dropdown-item:hover { background: #faf6ee; }
   
-  .user-dropdown-item svg {
+  .guest-home-root .user-dropdown-item svg {
     width: 22px; height: 22px;
     flex-shrink: 0;
     color: var(--text-mid);
@@ -545,43 +545,44 @@
   }
 
   @media (max-width: 1200px) {
-    .sidebar-logo {
+    .guest-home-root .sidebar-logo {
       padding: 12px;
     }
-    .sidebar-logo img,
-    .sidebar-logo-img {
+    .guest-home-root .sidebar-logo img,
+    .guest-home-root .sidebar-logo-img {
       width: 72px;
       height: 72px;
     }
   }
 
   @media (max-width: 960px) {
-    .sidebar-logo {
+    .guest-home-root .sidebar-logo {
       padding: 10px;
     }
-    .sidebar-logo img,
-    .sidebar-logo-img {
+    .guest-home-root .sidebar-logo img,
+    .guest-home-root .sidebar-logo-img {
       width: 56px;
       height: 56px;
     }
   }
 
   @media (max-width: 768px) {
-    .sidebar { width: 64px; }
-    .nav-item > span:not(.nav-icon) { display: none; }
-    .nav-item { justify-content: center; padding: 14px 10px; }
-    .sidebar-logo {
+    /* Scoped to guest home shell only — unscoped rules were restyling admin/frontdesk .sidebar app-wide. */
+    .guest-home-root .sidebar { width: 64px; }
+    .guest-home-root .nav-item > span:not(.nav-icon) { display: none; }
+    .guest-home-root .nav-item { justify-content: center; padding: 14px 10px; }
+    .guest-home-root .sidebar-logo {
       padding: 8px 6px;
     }
-    .sidebar-logo img,
-    .sidebar-logo-img {
+    .guest-home-root .sidebar-logo img,
+    .guest-home-root .sidebar-logo-img {
       width: 36px;
       height: 36px;
     }
-    .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
-    .breadcrumb-title { font-size: 15px; }
-    .notif-dropdown { max-width: min(270px, calc(100vw - 20px)); }
-    .user-dropdown-item { font-size: 13px; padding: 12px 14px; }
+    .guest-home-root .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
+    .guest-home-root .breadcrumb-title { font-size: 15px; }
+    .guest-home-root .notif-dropdown { max-width: min(270px, calc(100vw - 20px)); }
+    .guest-home-root .user-dropdown-item { font-size: 13px; padding: 12px 14px; }
     .carousel-slide { flex: 0 0 85%; height: 150px; }
     .deals-section { padding: 14px 12px; }
     .bookings-wrap { padding: 14px 12px; }
@@ -601,7 +602,8 @@
       min-height: 100dvh;
     }
 
-    .sidebar {
+    /* Must stay under .guest-home-root — these were moving every app .sidebar to the bottom bar. */
+    .guest-home-root .sidebar {
       top: auto;
       bottom: 0;
       left: 0;
@@ -618,11 +620,11 @@
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
-    .sidebar-logo {
+    .guest-home-root .sidebar-logo {
       display: none;
     }
 
-    .sidebar-nav {
+    .guest-home-root .sidebar-nav {
       display: flex;
       flex-direction: row;
       width: 100%;
@@ -630,7 +632,7 @@
       align-items: stretch;
     }
 
-    .nav-item {
+    .guest-home-root .nav-item {
       flex: 1;
       flex-direction: column;
       justify-content: center;
@@ -644,7 +646,7 @@
       line-height: 1.15;
     }
 
-    .nav-item > span:not(.nav-icon) {
+    .guest-home-root .nav-item > span:not(.nav-icon) {
       display: block;
       max-width: 100%;
       overflow: hidden;
@@ -652,18 +654,18 @@
       white-space: nowrap;
     }
 
-    .nav-icon {
+    .guest-home-root .nav-icon {
       width: 28px;
       height: 28px;
       flex-shrink: 0;
     }
 
-    .nav-icon svg {
+    .guest-home-root .nav-icon svg {
       width: 22px;
       height: 22px;
     }
 
-    .main-wrapper {
+    .guest-home-root .main-wrapper {
       margin-left: 0;
       width: 100%;
       padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
@@ -671,7 +673,7 @@
       min-width: 0;
     }
 
-    .topbar {
+    .guest-home-root .topbar {
       padding: 8px 12px;
     }
 
@@ -715,7 +717,7 @@
   }
 
   @media (max-width: 480px) {
-    .breadcrumb-title { font-size: 14px; }
+    .guest-home-root .breadcrumb-title { font-size: 14px; }
     .bookings-table th,
     .bookings-table td {
       padding: 10px 8px;

@@ -78,7 +78,7 @@ export default function VerificationCodeModal({
   const handleSubmit = (e) => {
     e.preventDefault()
     if (!digits.every((d) => d !== '')) return
-    onValidCode?.()
+    onValidCode?.(digits.join(''))
   }
 
   const handleResend = (e) => {

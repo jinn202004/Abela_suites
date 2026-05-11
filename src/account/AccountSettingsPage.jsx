@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
@@ -20,6 +20,7 @@ import {
 } from "../frontdesks/StaffNotificationDetailModal";
 import { useFrontdeskPendingNotifications } from "../frontdesks/useFrontdeskPendingNotifications";
 import { useCashierSidebarLayout } from "../cashier/useCashierSidebarLayout";
+import { useCashierUnifiedBell } from "../cashier/useCashierUnifiedBell";
 import CashierSidebarToggle from "../cashier/CashierSidebarToggle";
 import HousekeepingSidebar from "../housekeeping/HousekeepingSidebar";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
@@ -701,9 +702,17 @@ function FrontdeskAccountSettings() {
 }
 
 function CashierAccountSettings() {
+  const navigate = useNavigate();
   const { topbarProfile, refreshTopbarProfile } = useTopbarUserProfile("cashier");
   const core = useAccountSettingsCore("cashier", { refreshTopbarProfile });
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
+  const { bellNotifications, hasUnreadBell, handleNotifItemClick } = useCashierUnifiedBell({
+    displayName: topbarProfile?.name || TOPBAR.cashier.profile.name,
+    onOrderNotificationClick: (n) =>
+      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } }),
+    onMenuNotificationRead: (n) =>
+      navigate("/cashier", { state: { focusMenuItemId: n.menuItemId, fromNotification: true } }),
+  });
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const {
@@ -788,9 +797,10 @@ function CashierAccountSettings() {
             <RoleTopbarBell
               isOpen={notifOpen}
               onBellClick={toggleNotif}
-              notifications={TOPBAR.cashier.notifications}
+              onItemClick={handleNotifItemClick}
+              notifications={bellNotifications}
               bellIconClassName="topbar-icon"
-              dot="muted"
+              dot={hasUnreadBell ? "active" : "muted"}
             />
             <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
               <TopbarUserIcon className="topbar-icon" />

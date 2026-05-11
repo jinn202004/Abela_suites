@@ -6,6 +6,7 @@ import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
+import { useLazyBookingIdPhoto } from "./useLazyBookingIdPhoto";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -135,6 +136,21 @@ function parsePesoNum(v) {
 function fmtPeso(n) {
   if (!Number.isFinite(n)) return "—";
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Charge lines appended to `additionalRequests` on the booking (qty × unit → line subtotal). */
+function formatChargeLinesForAdditionalRequests(items) {
+  if (!Array.isArray(items) || items.length === 0) return "";
+  return items
+    .map((c) => {
+      const q = Math.max(1, Math.floor(Number(c.qty) || 1));
+      const unit = Number(c.amount) || 0;
+      const sub = unit * q;
+      const name = String(c.item || "").trim() || "Item";
+      if (q <= 1) return `${name} (₱${sub.toFixed(2)})`;
+      return `${name} ×${q} (₱${sub.toFixed(2)})`;
+    })
+    .join("; ");
 }
 
 /** Paid amount counted toward this booking (never more than the stay total). */
@@ -367,11 +383,16 @@ function ConfirmDialog({ open, text, onCancel, onConfirm, isSuccess, cancelLabel
 
 // ─── DETAILS MODAL (Reservation) ────────────────────────────
 function DetailsModal({ open, row, onClose, onApprove, onReject }) {
+  const idPhotoData = useLazyBookingIdPhoto({
+    open: open && !!row,
+    bookingId: row?._bookingId,
+    rowPhoto: row?.validIdPhotoData,
+  });
   if (!row) return null;
   const roomType = roomTitleFromPackageField(row.package);
   const idSrc =
-    row.validIdPhotoData && String(row.validIdPhotoData).startsWith("data:")
-      ? row.validIdPhotoData
+    idPhotoData && String(idPhotoData).startsWith("data:")
+      ? idPhotoData
       : IMAGES.guestId;
   return (
     <Modal
@@ -477,11 +498,16 @@ function DetailsModal({ open, row, onClose, onApprove, onReject }) {
 
 // ─── VIEW MODAL (Read-only + Edit) ──────────────────────────
 function ViewModal({ open, row, onClose, onEdit }) {
+  const idPhotoData = useLazyBookingIdPhoto({
+    open: open && !!row,
+    bookingId: row?._bookingId,
+    rowPhoto: row?.validIdPhotoData,
+  });
   if (!row) return null;
   const roomType = roomTitleFromPackageField(row.package);
   const idSrc =
-    row.validIdPhotoData && String(row.validIdPhotoData).startsWith("data:")
-      ? row.validIdPhotoData
+    idPhotoData && String(idPhotoData).startsWith("data:")
+      ? idPhotoData
       : IMAGES.guestId;
   return (
     <Modal
@@ -729,7 +755,7 @@ function CheckModal({ open, row, onClose, onCheckin, onCheckout, onAddCharges })
             <div className="check-grid">
               <div><span className="detail-label">Guest</span><span className="detail-value">{row.guest}</span></div>
               <div><span className="detail-label">Check-In</span><span className="detail-value">{row.checkin}</span></div>
-              <div><span className="detail-label">Balance</span><span className="detail-value">{row.balance}</span></div>
+              <div><span className="detail-label">Total Balance</span><span className="detail-value">{row.balance}</span></div>
               <div><span className="detail-label">Room No.</span><span className="detail-value">{row.roomno}</span></div>
               <div><span className="detail-label">Check-Out</span><span className="detail-value">{row.checkout}</span></div>
               <div><span className="detail-label">Payment Method</span><span className="detail-value">{row.paymethod}</span></div>
@@ -743,14 +769,25 @@ function CheckModal({ open, row, onClose, onCheckin, onCheckout, onAddCharges })
 }
 
 // ─── ADD CHARGES (occupied room — same UX as Events) ─────────
-function AddChargesModal({ open, onClose, onAddItem }) {
+function AddChargesModal({ open, onClose, onAddItem, currentTotalBalanceStr = "—" }) {
   const [item, setItem] = useState("");
   const [amount, setAmount] = useState("");
   const [qty, setQty] = useState(1);
   const [chargeItems, setChargeItems] = useState([]);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  useEffect(() => {
+    if (!open) return;
+    setItem("");
+    setAmount("");
+    setQty(1);
+    setChargeItems([]);
+    setShowConfirm(false);
+  }, [open]);
+
   const previewTotal = chargeItems.reduce((s, c) => s + c.amount * c.qty, 0) + (item && parseFloat(amount) > 0 ? parseFloat(amount) * qty : 0);
+  const baseBal = parsePesoNum(currentTotalBalanceStr);
+  const balanceAfterCharges = Number.isFinite(baseBal) ? Math.max(0, baseBal + previewTotal) : NaN;
   if (!open) return null;
 
   const changeQty = (i, d) => setChargeItems((prev) => prev.map((c, idx) => idx === i ? { ...c, qty: Math.max(1, c.qty + d) } : c));
@@ -830,8 +867,20 @@ function AddChargesModal({ open, onClose, onAddItem }) {
                   )}
                 </div>
                 <div className="charges-total-row">
-                  <span>Total</span>
+                  <span>New charges total</span>
                   <span>₱{previewTotal.toFixed(2)}</span>
+                </div>
+                <div className="charges-balance-hint" aria-live="polite">
+                  <div>
+                    <span className="charges-balance-hint-label">Current total balance</span>
+                    <span className="charges-balance-hint-value">{currentTotalBalanceStr}</span>
+                  </div>
+                  <div>
+                    <span className="charges-balance-hint-label">Total balance after save</span>
+                    <span className="charges-balance-hint-value">
+                      {Number.isFinite(balanceAfterCharges) ? fmtPeso(balanceAfterCharges) : "—"}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -866,7 +915,7 @@ function GuestViewModal({ open, row, onClose, onEdit }) {
             <div className="check-grid">
               <div><span className="detail-label">Guest</span><span className="detail-value">{row.guest}</span></div>
               <div><span className="detail-label">Check-In</span><span className="detail-value">{row.checkin}</span></div>
-              <div><span className="detail-label">Balance</span><span className="detail-value">{row.balance}</span></div>
+              <div><span className="detail-label">Total Balance</span><span className="detail-value">{row.balance}</span></div>
               <div><span className="detail-label">Room No.</span><span className="detail-value">{row.roomno}</span></div>
               <div><span className="detail-label">Check-Out</span><span className="detail-value">{row.checkout}</span></div>
               <div><span className="detail-label">Payment Method</span><span className="detail-value">{row.paymethod}</span></div>
@@ -927,11 +976,11 @@ function GuestEditModal({ open, row, onClose, onSave }) {
 
 // ─── WALK-IN MODAL ───────────────────────────────────────────
 const WALKIN_ROOM_FALLBACK = [
-  { id: "", title: "Single Suites", roomNumber: "RM001", guests: 2 },
-  { id: "", title: "Twin Bed", roomNumber: "RM002", guests: 2 },
-  { id: "", title: "Double Standard", roomNumber: "RM003", guests: 4 },
-  { id: "", title: "Family Room", roomNumber: "RM004", guests: 6 },
-  { id: "", title: "Executive Suite", roomNumber: "RM005", guests: 4 },
+  { id: "", package: "Single Suites", roomNumber: "RM001", guests: 2 },
+  { id: "", package: "Twin Bed", roomNumber: "RM002", guests: 2 },
+  { id: "", package: "Double Standard", roomNumber: "RM003", guests: 4 },
+  { id: "", package: "Family Room", roomNumber: "RM004", guests: 6 },
+  { id: "", package: "Executive Suite", roomNumber: "RM005", guests: 4 },
 ];
 
 function WalkinModal({ open, onClose, onSubmit }) {
@@ -955,7 +1004,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
     const fromApi = (roomCatalog || [])
       .map((r) => ({
         id: String(r.id ?? "").trim(),
-        label: `${String(r.title ?? r.package ?? "Room").trim()} - ${formatStoredRoomNumberForDisplay(r.roomNumber)}`,
+        label: `${String(r.package ?? r.title ?? "Room").trim()} - ${formatStoredRoomNumberForDisplay(r.roomNumber)}`,
         guests: Math.max(1, parseInt(String(r.guests ?? 1), 10) || 1),
       }))
       .filter((r) => r.id);
@@ -963,7 +1012,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
       ? fromApi
       : WALKIN_ROOM_FALLBACK.map((r) => ({
           id: r.id,
-          label: `${r.title} - ${formatStoredRoomNumberForDisplay(r.roomNumber)}`,
+          label: `${r.package || r.title} - ${formatStoredRoomNumberForDisplay(r.roomNumber)}`,
           guests: r.guests,
         }));
     const ci = form.checkin;
@@ -1437,6 +1486,13 @@ export default function RoomReservation() {
       .some((v) => String(v ?? "").toLowerCase().includes(q)),
   );
 
+  const addChargesTotalBalanceStr = useMemo(() => {
+    if (!checkRow) return "—";
+    const key = rowMatchKey(checkRow);
+    const r = reservations.find((x) => rowMatchKey(x) === key);
+    return r?.balance ?? checkRow.balance ?? "—";
+  }, [checkRow, reservations]);
+
   const openNotificationBooking = useCallback((notif) => {
     const bookingId = String(notif?.bookingId || "").trim();
     if (!bookingId) return;
@@ -1627,7 +1683,7 @@ export default function RoomReservation() {
     const d0 = Number.isFinite(downWas) ? downWas : 0;
     const newTotal = t0 + extra;
     const newBal = Math.max(0, newTotal - d0);
-    const chargeLine = items.map((c) => `${c.item} (₱${Number(c.amount).toFixed(2)})`).join(", ");
+    const chargeLine = formatChargeLinesForAdditionalRequests(items);
     const prevReq = String(r.addreq || "").trim();
     const addreqMerged = [prevReq && prevReq !== "N/A" ? prevReq : "", chargeLine].filter(Boolean).join("; ");
 
@@ -1912,7 +1968,7 @@ export default function RoomReservation() {
                     <th>Package</th>
                     <th className="rooms-th-num">Total</th>
                     <th className="rooms-th-num">Downpayment</th>
-                    <th className="rooms-th-num">Balance</th>
+                    <th className="rooms-th-num">Total Balance</th>
                     <th className="rooms-th-status">Status</th>
                     <th className="rooms-th-action">Action</th>
                   </tr>
@@ -1975,7 +2031,7 @@ export default function RoomReservation() {
                     <th>Package</th>
                     <th className="rooms-th-num">Total</th>
                     <th className="rooms-th-num">Downpayment</th>
-                    <th className="rooms-th-num">Balance</th>
+                    <th className="rooms-th-num">Total Balance</th>
                     <th className="rooms-th-status">Status</th>
                     <th className="rooms-th-action">Action</th>
                   </tr>
@@ -2086,6 +2142,7 @@ export default function RoomReservation() {
         open={addChargesOpen}
         onClose={() => setAddChargesOpen(false)}
         onAddItem={handleRoomAddItem}
+        currentTotalBalanceStr={addChargesTotalBalanceStr}
       />
 
       <GuestViewModal

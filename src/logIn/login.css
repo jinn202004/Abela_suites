@@ -244,6 +244,16 @@
   padding-right: 46px;
 }
 
+/* Edge / Chromium: built-in reveal overlaps our toggle */
+.login-page .password-wrapper input[type="password"]::-ms-reveal,
+.login-page .password-wrapper input[type="password"]::-ms-clear {
+  display: none;
+}
+
+.login-page .password-wrapper input[type="password"]::-webkit-textfield-decoration-container {
+  display: none !important;
+}
+
 .login-page .toggle-password {
   position: absolute;
   right: 12px;

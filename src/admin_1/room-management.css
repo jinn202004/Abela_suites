@@ -523,6 +523,10 @@
   gap: 6px;
 }
 
+.rm-form-group--full {
+  grid-column: 1 / -1;
+}
+
 .rm-form-group label {
   font-size: 12px;
   font-weight: 600;

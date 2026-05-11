@@ -85,15 +85,11 @@ export function useFrontdeskPendingNotifications({ bookingType = "all" } = {}) {
   }, [loadPending]);
 
   useEffect(() => {
-    const id = window.setInterval(loadPending, 20_000);
     const onVisible = () => {
       if (document.visibilityState === "visible") loadPending();
     };
     document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, [loadPending]);
 
   const derivedStaffUnread = useMemo(

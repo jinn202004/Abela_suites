@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
@@ -12,31 +12,7 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import CashierSidebarToggle from "./CashierSidebarToggle";
 import "./orderhis.css";
 import "./cashier-sidebar-shared.css";
-
-// ── Sample Data ────────────────────────────────────────────────────────
-const initialOrders = [
-  {
-    number: 1, date: "24-02-2026", customer: "James",
-    cashier: "Joanah Faye Cultura", total: 250, received: 250,
-    payment: "Cash", discount: "None",
-    items: [{ name: "Sinigang na Bangus", qty: 1, price: 250 }],
-  },
-  {
-    number: 2, date: "24-02-2026", customer: "Jane",
-    cashier: "Joanah Faye Cultura", total: 520, received: 700,
-    payment: "GCash", discount: "None",
-    items: [
-      { name: "Steamed Rice", qty: 2, price: 50 },
-      { name: "Bulalo",       qty: 1, price: 420 },
-    ],
-  },
-  {
-    number: 3, date: "24-02-2026", customer: "Jay",
-    cashier: "Joanah Faye Cultura", total: 250, received: 250,
-    payment: "Cash", discount: "None",
-    items: [{ name: "Sinigang na Bangus", qty: 1, price: 250 }],
-  },
-];
+import { useCashierUnifiedBell } from "./useCashierUnifiedBell";
 
 const HOTEL = {
   name:    "Abela Suites",
@@ -67,13 +43,6 @@ const SettingsNavIcon = () => (
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
   </svg>
 );
-const BillingNavIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="2" y="5" width="20" height="14" rx="2" />
-    <line x1="2" y1="10" x2="22" y2="10" />
-  </svg>
-);
-
 const EyeIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
@@ -96,9 +65,8 @@ function ReceiptModal({ order, onClose }) {
     return () => { document.body.style.overflow = ""; };
   }, []);
 
-  const now         = new Date();
-  const timeStr     = now.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  const subtotalRaw = order.items.reduce((s, i) => s + i.price * i.qty, 0);
+  const timeStr     = order.timeLabel || "—";
+  const subtotalRaw = (order.items || []).reduce((s, i) => s + i.price * i.qty, 0);
   const discountAmt = subtotalRaw - order.total;
 
   return (
@@ -126,8 +94,6 @@ function ReceiptModal({ order, onClose }) {
             </p>
             <p className="ri-meta">Date: {order.date}</p>
             <p className="ri-meta">Time: {timeStr}</p>
-            <p className="ri-meta">Cashier: {order.cashier}</p>
-            <p className="ri-meta">Customer: {order.customer}</p>
           </div>
 
           <hr className="ri-divider" />
@@ -177,7 +143,7 @@ function ReceiptModal({ order, onClose }) {
             <div className="ri-total-row" style={{ marginTop: 4 }}>
               <span>Payment Method</span>
               <span>
-                <span className={`oh-pay-badge oh-pay-${order.payment.toLowerCase()}`}>
+                <span className={`oh-pay-badge oh-pay-${order.paymentKey || String(order.payment).toLowerCase()}`}>
                   {order.payment}
                 </span>
               </span>
@@ -192,8 +158,24 @@ function ReceiptModal({ order, onClose }) {
 
 // ── Main Component ─────────────────────────────────────────────────────
 export default function OrderHistory() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { topbarProfile } = useTopbarUserProfile("cashier");
+  const {
+    orders,
+    ordersLoading,
+    ordersError,
+    bellNotifications,
+    hasUnreadBell,
+    handleNotifItemClick,
+  } = useCashierUnifiedBell({
+    displayName: topbarProfile?.name || TOPBAR.cashier.profile.name,
+    onOrderNotificationClick: (n) =>
+      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } }),
+    onMenuNotificationRead: (n) =>
+      navigate("/cashier", { state: { focusMenuItemId: n.menuItemId, fromNotification: true } }),
+  });
   const [searchQuery,   setSearchQuery]   = useState("");
   const [currentPage,   setCurrentPage]   = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -224,15 +206,36 @@ export default function OrderHistory() {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
+  useEffect(() => {
+    const focusOrderId = location.state?.focusOrderId;
+    if (!focusOrderId) return;
+    const hit = orders.find((o) => String(o.id) === String(focusOrderId));
+    if (hit) {
+      setSelectedOrder(hit);
+      // Jump to the page that contains the order instead of filling search.
+      const idx = orders.findIndex((o) => String(o.id) === String(focusOrderId));
+      if (idx >= 0) {
+        setCurrentPage(Math.floor(idx / ROWS_PER_PAGE) + 1);
+      }
+    }
+    navigate("/order-history", { replace: true, state: {} });
+  }, [location.state, orders, navigate]);
+
   // ── Filter ──
   const q = searchQuery.trim().toLowerCase();
-  const filtered = initialOrders.filter(o =>
-    o.customer.toLowerCase().includes(q) ||
-    o.cashier.toLowerCase().includes(q)  ||
-    o.payment.toLowerCase().includes(q)  ||
-    String(o.number).includes(q)         ||
-    o.date.includes(q)
-  );
+  const filtered = orders.filter((o) => {
+    if (!q) return true;
+    const itemHay = (o.items || []).some((it) => String(it.name).toLowerCase().includes(q));
+    return (
+      o.customer.toLowerCase().includes(q) ||
+      o.status.toLowerCase().includes(q) ||
+      o.payment.toLowerCase().includes(q) ||
+      String(o.number).toLowerCase().includes(q) ||
+      String(o.id).toLowerCase().includes(q) ||
+      o.date.includes(q) ||
+      itemHay
+    );
+  });
 
   // ── Pagination ──
   const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
@@ -287,15 +290,6 @@ export default function OrderHistory() {
             </Link>
             <nav className="sidebar-nav">
               <NavLink
-                to="/cashier-billing"
-                end
-                onClick={() => { if (isMobile) closeMobileSidebar(); }}
-                className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-              >
-                <span className="nav-icon"><BillingNavIcon /></span>
-                <span>Guest billing</span>
-              </NavLink>
-              <NavLink
                 to="/cashier"
                 end
                 onClick={() => { if (isMobile) closeMobileSidebar(); }}
@@ -347,9 +341,10 @@ export default function OrderHistory() {
                 setNotifOpen((v) => !v);
                 setUserOpen(false);
               }}
-              notifications={TOPBAR.cashier.notifications}
+              onItemClick={handleNotifItemClick}
+              notifications={bellNotifications}
               bellIconClassName="topbar-icon"
-              dot="muted"
+              dot={hasUnreadBell ? "active" : "muted"}
             />
             <div
               className="icon-btn"
@@ -388,6 +383,11 @@ export default function OrderHistory() {
         {/* ── PAGE CONTENT ── */}
         <main className="content">
           <div className="oh-wrap">
+            {ordersError ? (
+              <p className="oh-api-banner oh-api-banner--err" role="status">
+                {ordersError}
+              </p>
+            ) : null}
 
             {/* Top row: title + search */}
             <div className="oh-top-row">
@@ -419,8 +419,6 @@ export default function OrderHistory() {
                     <tr>
                       <th>Number</th>
                       <th>Date</th>
-                      <th>Customer</th>
-                      <th>Cashier</th>
                       <th>Total</th>
                       <th>Received</th>
                       <th>Payment</th>
@@ -428,34 +426,41 @@ export default function OrderHistory() {
                     </tr>
                   </thead>
                   <tbody>
-                    {paged.length === 0 ? (
+                    {ordersLoading ? (
                       <tr>
-                        <td colSpan={8} className="oh-empty">No orders found.</td>
-                      </tr>
-                    ) : paged.map((order, i) => (
-                      <tr key={i}>
-                        <td>{order.number}</td>
-                        <td>{order.date}</td>
-                        <td>{order.customer}</td>
-                        <td>{order.cashier}</td>
-                        <td>₱{order.total.toLocaleString()}</td>
-                        <td>₱{order.received.toLocaleString()}</td>
-                        <td>
-                          <span className={`oh-pay-badge oh-pay-${order.payment.toLowerCase()}`}>
-                            {order.payment}
-                          </span>
-                        </td>
-                        <td>
-                          <button
-                            className="oh-eye-btn"
-                            title="View Receipt"
-                            onClick={() => setSelectedOrder(order)}
-                          >
-                            <EyeIcon />
-                          </button>
+                        <td colSpan={6} className="oh-empty">
+                          Loading orders…
                         </td>
                       </tr>
-                    ))}
+                    ) : paged.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="oh-empty">No orders found.</td>
+                      </tr>
+                    ) : (
+                      paged.map((order) => (
+                        <tr key={order.id}>
+                          <td>{order.number}</td>
+                          <td>{order.date}</td>
+                          <td>₱{order.total.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td>₱{order.received.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td>
+                            <span className={`oh-pay-badge oh-pay-${order.paymentKey}`}>
+                              {order.payment}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              type="button"
+                              className="oh-eye-btn"
+                              title="View Receipt"
+                              onClick={() => setSelectedOrder(order)}
+                            >
+                              <EyeIcon />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -463,7 +468,7 @@ export default function OrderHistory() {
               {/* Pagination */}
               <div className="oh-pagination">
                 <span className="oh-showing">
-                  Showing {filtered.length} of {initialOrders.length} orders
+                  Showing {filtered.length} of {orders.length} orders
                 </span>
                 <div className="oh-page-controls">
                   <button

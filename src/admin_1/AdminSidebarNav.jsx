@@ -1,4 +1,4 @@
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAdminShell } from "./AdminShellContext";
 import "./admin-sidebar-collapse.css";
 import "../cashier/cashier-sidebar-shared.css";
@@ -94,9 +94,47 @@ function normalizePath(pathname) {
   return pathname;
 }
 
-/** Shared admin shell sidebar: NavLink for client navigation + stable active state per route. */
+function adminNavIsSameRoute(to, currentPathname) {
+  const t = normalizePath(to);
+  const c = normalizePath(currentPathname);
+  if (t === c) return true;
+  if (t === "/admin-settings" && SETTINGS_ROUTES.has(c)) return true;
+  return false;
+}
+
+/** Match prior NavLink `end` behavior: exact path, with settings subtree grouped under /admin-settings. */
+function navItemIsActive(to, pathname) {
+  const p = normalizePath(pathname);
+  if (to === "/admin-settings" && SETTINGS_ROUTES.has(p)) return true;
+  return normalizePath(to) === p;
+}
+
+/**
+ * Programmatic navigation (no `<a href>`). Use the full `click` / keyboard activation only —
+ * `mousedown`-based navigation fires `navigate()` mid-gesture so `mouseup`/`click` can land on
+ * the next page’s buttons (Add / Delete modals on staff, attendance, inventory).
+ */
+function scheduleAdminNav(to, e, { pathname, navigate, isMobile, closeMobileSidebar }) {
+  if (e && e.type === "click" && e.button !== 0) return;
+
+  if (adminNavIsSameRoute(to, pathname)) {
+    if (isMobile) closeMobileSidebar();
+    return;
+  }
+
+  if (e) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  if (isMobile) closeMobileSidebar();
+  navigate(to);
+}
+
+/** Shared admin shell sidebar: buttons + `navigate()` (avoids link mid-click repaints / ghost modals). */
 export default function AdminSidebarNav({ logoSrc = "/public/logo.png" }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const pathname = normalizePath(location.pathname);
   const {
     sidebarCollapsed,
@@ -113,6 +151,8 @@ export default function AdminSidebarNav({ logoSrc = "/public/logo.png" }) {
     logoSrc === "/images/logo.png" || logoSrc === "/public/logo.png"
       ? "/logo.png"
       : logoSrc;
+
+  const navCtx = { pathname: location.pathname, navigate, isMobile, closeMobileSidebar };
 
   return (
     <>
@@ -139,14 +179,12 @@ export default function AdminSidebarNav({ logoSrc = "/public/logo.png" }) {
             ✕
           </button>
         ) : null}
-        <Link
-          to="/admin-dashboard"
+        <button
+          type="button"
           className="sidebar-logo"
           title="Admin dashboard"
           style={logoWrapStyle}
-          onClick={() => {
-            if (isMobile) closeMobileSidebar();
-          }}
+          onClick={(e) => scheduleAdminNav("/admin-dashboard", e, navCtx)}
         >
           <img
             src={normalizedLogoSrc}
@@ -155,29 +193,24 @@ export default function AdminSidebarNav({ logoSrc = "/public/logo.png" }) {
             decoding="async"
             style={logoImgStyle}
           />
-        </Link>
+        </button>
         <nav className="sidebar-nav">
-          {ITEMS.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end
-              title={sidebarCollapsed ? item.label : undefined}
-              className={({ isActive }) => {
-                const active =
-                  item.to === "/admin-settings"
-                    ? SETTINGS_ROUTES.has(pathname)
-                    : isActive;
-                return `nav-item${active ? " active" : ""}`;
-              }}
-              onClick={() => {
-                if (isMobile) closeMobileSidebar();
-              }}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+          {ITEMS.map((item) => {
+            const active = navItemIsActive(item.to, pathname);
+            return (
+              <button
+                key={item.to}
+                type="button"
+                title={sidebarCollapsed ? item.label : undefined}
+                className={`nav-item${active ? " active" : ""}`}
+                aria-current={active ? "page" : undefined}
+                onClick={(e) => scheduleAdminNav(item.to, e, navCtx)}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
         </nav>
       </aside>
     </>

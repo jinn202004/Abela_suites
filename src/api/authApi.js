@@ -386,3 +386,154 @@ export async function patchMyPassword({ currentPassword, newPassword }) {
   if (data.user) persistSessionAfterLogin(data.user);
   return data;
 }
+
+/* ── Password reset (OTP) — session keys + `/api/auth/forgot-password` … `/reset-password` ── */
+
+const PASSWORD_RESET_EMAIL_KEY = "abela_pw_reset_email";
+const PASSWORD_RESET_TOKEN_KEY = "abela_pw_reset_token";
+
+export function clearPasswordResetFlow() {
+  try {
+    sessionStorage.removeItem(PASSWORD_RESET_EMAIL_KEY);
+    sessionStorage.removeItem(PASSWORD_RESET_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPasswordResetEmail() {
+  try {
+    const v = sessionStorage.getItem(PASSWORD_RESET_EMAIL_KEY);
+    return v && String(v).trim() ? String(v).trim().toLowerCase() : "";
+  } catch {
+    return "";
+  }
+}
+
+export function setPasswordResetEmail(email) {
+  try {
+    const e = String(email ?? "").trim().toLowerCase();
+    if (e) sessionStorage.setItem(PASSWORD_RESET_EMAIL_KEY, e);
+    else sessionStorage.removeItem(PASSWORD_RESET_EMAIL_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+export function getPasswordResetToken() {
+  try {
+    const v = sessionStorage.getItem(PASSWORD_RESET_TOKEN_KEY);
+    return v && String(v).trim() ? String(v).trim() : "";
+  } catch {
+    return "";
+  }
+}
+
+export function setPasswordResetToken(token) {
+  try {
+    const t = String(token ?? "").trim();
+    if (t) sessionStorage.setItem(PASSWORD_RESET_TOKEN_KEY, t);
+    else sessionStorage.removeItem(PASSWORD_RESET_TOKEN_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/**
+ * @param {string} email
+ * @returns {Promise<unknown>} Parsed JSON (e.g. `{ message }`).
+ */
+export async function requestPasswordReset(email) {
+  const em = String(email ?? "").trim().toLowerCase();
+  if (!em) {
+    const err = new Error("Email is required.");
+    err.status = 400;
+    throw err;
+  }
+  const res = await fetch(backendUrl("/api/auth/forgot-password"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email: em }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      typeof data.error === "string" && data.error.trim()
+        ? data.error.trim()
+        : `Could not send reset code (${res.status}).`;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+/**
+ * @param {string} [email] — optional if already stored via `setPasswordResetEmail`
+ * @param {string} otp
+ * @returns {Promise<string>} `resetToken`
+ */
+export async function verifyPasswordResetOtp(email, otp) {
+  const em =
+    String(email ?? "").trim().toLowerCase() || getPasswordResetEmail();
+  const code = String(otp ?? "").replace(/\D/g, "");
+  if (!em) {
+    throw new Error("Session expired. Start again from Forgot password.");
+  }
+  if (code.length < 6) {
+    const err = new Error("Enter the 6-digit code.");
+    err.status = 400;
+    throw err;
+  }
+  const res = await fetch(backendUrl("/api/auth/verify-otp"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email: em, otp: code }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      typeof data.error === "string" && data.error.trim()
+        ? data.error.trim()
+        : "Invalid or expired code.";
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  const token = data.resetToken;
+  if (!token || typeof token !== "string") {
+    throw new Error("Invalid response from server.");
+  }
+  setPasswordResetToken(token);
+  return token;
+}
+
+/**
+ * @param {string} [token] — optional if already stored after verify-otp
+ * @param {string} password
+ */
+export async function resetPasswordWithToken(token, password) {
+  const t = String(token ?? "").trim() || getPasswordResetToken();
+  if (!t) {
+    const err = new Error("Session expired. Start again from Forgot password.");
+    err.status = 401;
+    throw err;
+  }
+  const res = await fetch(backendUrl("/api/auth/reset-password"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ resetToken: t, password }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      typeof data.error === "string" && data.error.trim()
+        ? data.error.trim()
+        : `Could not reset password (${res.status}).`;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  clearPasswordResetFlow();
+  return data;
+}

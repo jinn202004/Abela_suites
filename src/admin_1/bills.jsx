@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -6,78 +6,77 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import { fetchCurrentUserMeBackend } from "../api/guestApi";
+import { getBilling, updatePayment, getBillingById } from "../api/cashier.service";
 import "./bills.css";
 
-/* ── STATIC DATA ── */
-const initialRoomBills = [
-  { id: 152, customer: "Joanah Cultura", room: 5,  package: "N/A", checkIn: "2/20/2026", checkOut: "2/23/2026", amount: 5000, paid: 0 },
-  { id: 153, customer: "Jujenn Nabo",    room: 1,  package: "N/A", checkIn: "2/20/2026", checkOut: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 154, customer: "Jujenn Nabo",    room: 12, package: "N/A", checkIn: "2/20/2026", checkOut: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 155, customer: "Jujenn Nabo",    room: 13, package: "N/A", checkIn: "2/20/2026", checkOut: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 156, customer: "Joanah Cultura", room: 20, package: "N/A", checkIn: "2/20/2026", checkOut: "2/20/2026", amount: 5000, paid: 0 },
-];
+const BILLING_POLL_MS = 30000;
 
-const initialEventBills = [
-  { id: 16,  customer: "Joanah Cultura", venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 17,  customer: "Jujenn Nabo",    venue: "Function Hall", package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 18,  customer: "Jujenn Nabo",    venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 19,  customer: "Janah Cultura",  venue: "Function Hall", package: "N/A", date: "2/20/2026", amount: 5000, paid: 2500 },
-  { id: 20,  customer: "Janah Cultura",  venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 21,  customer: "Jujenn Nabo",    venue: "Function Hall", package: "N/A", date: "2/20/2026", amount: 5000, paid: 5000 },
-  { id: 22,  customer: "Jujenn Nabo",    venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 23,  customer: "Janah Cultura",  venue: "Function Hall", package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 24,  customer: "Janah Cultura",  venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 25,  customer: "Jujenn Nabo",    venue: "Function Hall", package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 26,  customer: "Jujenn Nabo",    venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 27,  customer: "Joanah Cultura", venue: "Function Hall", package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 28,  customer: "Janah Cultura",  venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 29,  customer: "Jujenn Nabo",    venue: "Function Hall", package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-  { id: 30,  customer: "Joanah Cultura", venue: "Mini Sky Bar",  package: "N/A", date: "2/20/2026", amount: 5000, paid: 0 },
-];
+function visiblePageNumbers(currentPage, totalPages) {
+  const t = Math.max(1, Math.min(5000, Number(totalPages) || 1));
+  const c = Math.min(Math.max(1, Number(currentPage) || 1), t);
+  if (t <= 9) return Array.from({ length: t }, (_, i) => i + 1);
+  const set = new Set([1, t, c, c - 1, c + 1]);
+  return [...set].filter((p) => p >= 1 && p <= t).sort((a, b) => a - b);
+}
+
+function fmtPeso(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  return `₱${x.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function paymentStatusLabel(st) {
+  const k = String(st || "").toLowerCase();
+  if (k === "paid") return "Paid";
+  if (k === "partial") return "Partial";
+  return "Unpaid";
+}
+
+function bookingTypeLabel(t) {
+  const k = String(t || "").toLowerCase();
+  if (k === "event") return "Event";
+  return "Room";
+}
 
 /* ── SVG ICONS ── */
 const Icons = {
   Room: () => (
     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden>
-      <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z"/>
-    </svg>
-  ),
-  Logout: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-      <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+      <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
     </svg>
   ),
   Eye: () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
     </svg>
   ),
   Print: () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-      <polyline points="6 9 6 2 18 2 18 9"/>
-      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-      <rect x="6" y="14" width="12" height="8"/>
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" />
     </svg>
   ),
   Search: () => (
     <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" width="14" height="14">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
     </svg>
   ),
   Check: () => (
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
-      <circle cx="12" cy="12" r="10"/><polyline points="9 12 11 14 15 10"/>
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="9 12 11 14 15 10" />
     </svg>
   ),
 };
 
-/* ── SIDEBAR ── */
 function Sidebar() {
   return <AdminSidebarNav logoSrc="/public/logo.png" />;
 }
 
-/* ── TOPBAR ── */
 function Topbar({ onRequestLogout }) {
   return (
     <header className="topbar">
@@ -85,105 +84,236 @@ function Topbar({ onRequestLogout }) {
         <AdminSidebarToggle />
         <span className="breadcrumb-title">Bills and Invoices</span>
       </div>
-      <AdminTopbarActions
-        notifications={[{ msg: "Bill #152 has an outstanding balance", time: "3/15/2026, 9:00:00 AM" }]}
-        onRequestLogout={onRequestLogout}
-      />
+      <AdminTopbarActions notifications={[]} onRequestLogout={onRequestLogout} />
     </header>
   );
 }
 
-/* ── STAT CARDS ── */
-function StatCards({ roomCount, eventCount }) {
+function StatCards({ totalItems, pageCount }) {
   return (
     <div className="bills-stats-row">
       <div className="bills-stat-card">
         <div className="bills-stat-label">
           <Icons.Room />
-          Room Bills
+          Billing records
         </div>
-        <div className="bills-stat-value">{roomCount}</div>
+        <div className="bills-stat-value">{totalItems}</div>
       </div>
       <div className="bills-stat-card">
         <div className="bills-stat-label">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
-          Event Bills
+          On this page
         </div>
-        <div className="bills-stat-value">{eventCount}</div>
-      </div>
-      <div className="bills-stat-card">
-        <div className="bills-stat-label">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-            <polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-          </svg>
-          Total Bills
-        </div>
-        <div className="bills-stat-value">{roomCount + eventCount}</div>
+        <div className="bills-stat-value">{pageCount}</div>
       </div>
     </div>
   );
 }
 
-/* ── BILLS DETAILS MODAL ── */
-function DetailsModal({ bill, onClose }) {
-  if (!bill) return null;
-  const remaining = bill.amount - bill.paid;
-  const isRoom    = bill.room !== undefined;
+/** Full billing bundle from GET /api/billing/:id */
+function DetailsModal({ billingId, onClose }) {
+  const [detail, setDetail] = useState(null);
+  /** False while idle (no row selected); avoids stuck "Loading" when modal closes mid-fetch. */
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  useEffect(() => {
+    if (!billingId) {
+      setLoading(false);
+      setErr("");
+      setDetail(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setErr("");
+    setDetail(null);
+    void (async () => {
+      try {
+        const r = await getBillingById(billingId);
+        if (!cancelled) setDetail(r);
+      } catch (e) {
+        if (!cancelled) setErr(e?.message || "Could not load billing.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [billingId]);
+
+  if (!billingId) return null;
+
+  const g = detail?.guest || {};
+  const b = detail?.booking || {};
+  const bill = detail?.billing || {};
+  const guestName = String(g.name || "").trim() || "—";
+  const isRoom = String(b.type || "").toLowerCase() === "room";
 
   return (
-    <div className="bills-modal-backdrop active" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bills-modal">
-        <div className="bills-modal-header">
-          <h2 className="bills-modal-title">Bills Details</h2>
-          <button className="bills-modal-close" onClick={onClose}>✕</button>
+    <div className="rm-modal-backdrop active" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="rm-modal bills-details-modal">
+        <div className="rm-modal-header">
+          <h2 className="rm-modal-title">Billing details</h2>
+          <button type="button" className="rm-modal-close" onClick={onClose}>
+            &#x2715;
+          </button>
         </div>
-        <div className="bills-modal-body">
-          <div className="bill-detail-row"><strong>Bills:</strong> {bill.id}</div>
-          <div className="bill-detail-row"><strong>Customer:</strong> {bill.customer}</div>
-
-          {isRoom ? (
-            <>
-              <div className="bill-detail-row"><strong>Room:</strong> {bill.room}</div>
-              <div className="bill-detail-row"><strong>Package:</strong> {bill.package || "N/A"}</div>
-              <div className="bill-detail-row"><strong>Check-in:</strong> {bill.checkIn}</div>
-              <div className="bill-detail-row"><strong>Check-out:</strong> {bill.checkOut}</div>
-            </>
+        <div className="rm-modal-body">
+          {loading ? (
+            <div className="bills-modal-loading">Loading…</div>
+          ) : err ? (
+            <div className="bills-modal-error">{err}</div>
           ) : (
             <>
-              <div className="bill-detail-row"><strong>Venue:</strong> {bill.venue}</div>
-              <div className="bill-detail-row"><strong>Package:</strong> {bill.package || "N/A"}</div>
-              <div className="bill-detail-row"><strong>Date:</strong> {bill.date}</div>
+              <div className="bill-detail-row">
+                <strong>Billing ID:</strong> {billingId}
+              </div>
+              <div className="bill-detail-row">
+                <strong>Guest:</strong> {guestName}
+              </div>
+              {isRoom ? (
+                <>
+                  <div className="bill-detail-row">
+                    <strong>Room / stay:</strong> {String(b.room || "").trim() || "—"}
+                  </div>
+                  <div className="bill-detail-row">
+                    <strong>Check-in:</strong> {String(b.checkIn || "").trim() || "—"}
+                  </div>
+                  <div className="bill-detail-row">
+                    <strong>Check-out:</strong> {String(b.checkOut || "").trim() || "—"}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="bill-detail-row">
+                    <strong>Venue / event:</strong> {String(b.venueName || b.eventTitle || b.room || "").trim() || "—"}
+                  </div>
+                  <div className="bill-detail-row">
+                    <strong>Event date:</strong> {String(b.eventDate || "").trim() || "—"}
+                  </div>
+                </>
+              )}
+              <div className="bill-detail-row">
+                <strong>Booking status:</strong> {String(b.status || "").trim() || "—"}
+              </div>
+              <div className="bill-amount-box">
+                <div className="bill-amount-row">
+                  <strong>Total:</strong>
+                  <span className="bill-amount-total">{fmtPeso(bill.totalAmount)}</span>
+                </div>
+                <div className="bill-amount-row">
+                  <span className="bill-balance-label">Amount paid:</span>
+                  <span>{fmtPeso(bill.amountPaid)}</span>
+                </div>
+                <div className="bill-amount-row">
+                  <span className="bill-balance-label">Balance:</span>
+                  <span className="bill-balance-value">{fmtPeso(bill.balance)}</span>
+                </div>
+                <div className="bill-detail-row" style={{ marginTop: 8 }}>
+                  <strong>Payment status:</strong>{" "}
+                  <span className={`bills-pay-badge bills-pay-badge--${String(bill.paymentStatus || "unpaid")}`}>
+                    {paymentStatusLabel(bill.paymentStatus)}
+                  </span>
+                </div>
+              </div>
             </>
           )}
-
-          <div className="bill-amount-box">
-            <div className="bill-amount-row">
-              <strong>Total Amount:</strong>
-              <span className="bill-amount-total">₱{Number(bill.amount).toFixed(2)}</span>
-            </div>
-            <div className="bill-no-payment">
-              {bill.paid === 0 ? "No payments recorded yet" : `₱${Number(bill.paid).toFixed(2)} paid`}
-            </div>
-            <div className="bill-amount-row" style={{ marginTop: 4 }}>
-              <span className="bill-balance-label">Total Paid:</span>
-              <span>₱{Number(bill.paid).toFixed(2)}</span>
-            </div>
-            <div className="bill-amount-row">
-              <span className="bill-balance-label">Remaining Balance:</span>
-              <span className="bill-balance-value">₱{Number(remaining).toFixed(2)}</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* ── TOAST ── */
+function PaymentModal({ row, onClose, onSaved }) {
+  const total = Number(row?.totalAmount) || 0;
+  const currentPaid = Number(row?.amountPaid) || 0;
+  const [amountStr, setAmountStr] = useState(String(currentPaid));
+  const [busy, setBusy] = useState(false);
+  const [formErr, setFormErr] = useState("");
+
+  useEffect(() => {
+    setAmountStr(String(currentPaid));
+    setFormErr("");
+  }, [row?.id, currentPaid]);
+
+  if (!row) return null;
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const n = Number(String(amountStr).replace(/[₱,\s]/g, ""));
+    if (!Number.isFinite(n) || n < 0) {
+      setFormErr("Enter a valid non-negative amount.");
+      return;
+    }
+    if (n > total + 1e-6) {
+      setFormErr(`Amount paid cannot exceed total (${fmtPeso(total)}).`);
+      return;
+    }
+    setBusy(true);
+    setFormErr("");
+    try {
+      await updatePayment(row.id, n);
+      onSaved?.();
+      onClose();
+    } catch (err) {
+      setFormErr(err?.message || "Payment update failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rm-modal-backdrop active" onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
+      <div className="rm-modal bills-payment-modal">
+        <div className="rm-modal-header">
+          <h2 className="rm-modal-title">Record payment</h2>
+          <button type="button" className="rm-modal-close" disabled={busy} onClick={onClose}>
+            &#x2715;
+          </button>
+        </div>
+        <form className="rm-modal-body" onSubmit={handleSubmit}>
+          <div className="bill-detail-row">
+            <strong>Guest:</strong> {String(row.guestName || "").trim() || "—"}
+          </div>
+          <div className="bill-detail-row">
+            <strong>Total due:</strong> {fmtPeso(total)}
+          </div>
+          <div className="bills-form-group">
+            <label className="bills-form-label" htmlFor="cashier-amount-paid">
+              Total amount paid (cumulative)
+            </label>
+            <input
+              id="cashier-amount-paid"
+              className="bills-search-input"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              value={amountStr}
+              onChange={(e) => setAmountStr(e.target.value)}
+            />
+          </div>
+          {formErr ? <div className="bills-modal-error">{formErr}</div> : null}
+          <div className="bills-payment-actions">
+            <button type="button" className="bills-btn-secondary" disabled={busy} onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className="bills-btn-primary" disabled={busy}>
+              {busy ? "Saving…" : "Save payment"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function Toast({ message, visible }) {
   return (
     <div className={`bills-toast${visible ? " active" : ""}`}>
@@ -193,174 +323,301 @@ function Toast({ message, visible }) {
   );
 }
 
-/* ── MAIN COMPONENT ── */
 export default function Bills() {
   const { mainStyle } = useAdminShell();
-  const [currentTab, setCurrentTab] = useState("room");
-  const [search,     setSearch]     = useState("");
-  const [timeFilter, setTimeFilter] = useState("all");
-  const [selectedBill, setSelectedBill] = useState(null);
-  const [toast,      setToast]      = useState({ visible: false, message: "" });
+  const [billingTab, setBillingTab] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [rows, setRows] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [loadNotice, setLoadNotice] = useState("");
+  const [staffRole, setStaffRole] = useState("");
+  const [detailId, setDetailId] = useState(null);
+  const [paymentRow, setPaymentRow] = useState(null);
+  const [toast, setToast] = useState({ visible: false, message: "" });
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
+
+  const billingFetchGenRef = useRef(0);
+
+  const canRecordPayment =
+    staffRole === "cashier" || staffRole === "admin" || staffRole === "superadmin";
 
   const showToast = (msg) => {
     setToast({ visible: true, message: msg });
-    setTimeout(() => setToast({ visible: false, message: "" }), 3000);
+    window.setTimeout(() => setToast({ visible: false, message: "" }), 2800);
   };
 
-  const handleRequestLogout = () => {
-    requestLogout();
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const me = await fetchCurrentUserMeBackend();
+        if (!cancelled) setStaffRole(String(me.role || "").trim().toLowerCase());
+      } catch {
+        if (!cancelled) setStaffRole("");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [billingTab, debouncedSearch]);
+
+  const refreshBillingPage = useCallback(
+    async (opts = {}) => {
+      const skipStaleGuard = Boolean(opts.skipStaleGuard);
+      const gen = billingFetchGenRef.current;
+      const pageToFetch =
+        opts.page != null ? Math.max(1, parseInt(String(opts.page), 10) || 1) : Math.max(1, parseInt(String(page), 10) || 1);
+      const typeFilter =
+        billingTab === "room" || billingTab === "event" ? billingTab : "";
+      try {
+        const result = await getBilling(pageToFetch, limit, {
+          type: typeFilter,
+          search: debouncedSearch || undefined,
+        });
+        if (!skipStaleGuard && gen !== billingFetchGenRef.current) return;
+        const list = Array.isArray(result?.data) ? result.data : [];
+        if (list.length === 0 && (Number(result?.totalItems) || 0) > 0 && pageToFetch > 1) {
+          setPage((p) => Math.max(1, p - 1));
+          return;
+        }
+        const tp = Number(result?.totalPages);
+        const ti = Number(result?.totalItems);
+        setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
+        setTotalItems(Number.isFinite(ti) && ti >= 0 ? ti : list.length);
+        setRows(list);
+        if (opts.syncPageFromResult && result?.currentPage != null) {
+          const cp = Math.max(1, parseInt(String(result.currentPage), 10) || 1);
+          if (cp !== pageToFetch) setPage(cp);
+        }
+      } catch {
+        if (!skipStaleGuard && gen !== billingFetchGenRef.current) return;
+        /* silent for poll */
+      }
+    },
+    [page, limit, billingTab, debouncedSearch],
+  );
+
+  useEffect(() => {
+    billingFetchGenRef.current += 1;
+    const fetchGen = billingFetchGenRef.current;
+    let cancelled = false;
+    const ac = new AbortController();
+    setLoading(true);
+    setLoadNotice("");
+
+    const typeFilter = billingTab === "room" || billingTab === "event" ? billingTab : "";
+
+    void (async () => {
+      try {
+        const result = await getBilling(page, limit, {
+          type: typeFilter,
+          search: debouncedSearch || undefined,
+        }, { signal: ac.signal });
+        if (cancelled || fetchGen !== billingFetchGenRef.current) return;
+        const list = Array.isArray(result?.data) ? result.data : [];
+        if (list.length === 0 && (Number(result?.totalItems) || 0) > 0 && page > 1) {
+          setPage((p) => Math.max(1, p - 1));
+          return;
+        }
+        const tp = Number(result?.totalPages);
+        const ti = Number(result?.totalItems);
+        setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
+        setTotalItems(Number.isFinite(ti) && ti >= 0 ? ti : list.length);
+        setRows(list);
+        const cp = Math.max(1, parseInt(String(result?.currentPage), 10) || page);
+        if (cp !== page) setPage(cp);
+      } catch (e) {
+        if (cancelled || fetchGen !== billingFetchGenRef.current) return;
+        if (e?.name === "AbortError") return;
+        setRows([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        setLoadNotice(e?.message || "Could not load billing.");
+      } finally {
+        if (!cancelled && fetchGen === billingFetchGenRef.current) {
+          setLoading(false);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [page, limit, billingTab, debouncedSearch]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshBillingPage({ skipStaleGuard: true });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refreshBillingPage]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void refreshBillingPage({ skipStaleGuard: true });
+    }, BILLING_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refreshBillingPage]);
+
+  const handlePaymentSaved = () => {
+    showToast("Payment saved. List refreshed.");
+    void (async () => {
+      try {
+        const result = await getBilling(page, limit, {
+          type: billingTab === "room" || billingTab === "event" ? billingTab : "",
+          search: debouncedSearch || undefined,
+        });
+        const list = Array.isArray(result?.data) ? result.data : [];
+        const tp = Number(result?.totalPages);
+        const ti = Number(result?.totalItems);
+        setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
+        setTotalItems(Number.isFinite(ti) && ti >= 0 ? ti : list.length);
+        setRows(list);
+      } catch {
+        /* ignore */
+      }
+    })();
   };
 
-  const openDetails = (id) => {
-    const bill =
-      initialRoomBills.find((b) => b.id === id) ||
-      initialEventBills.find((b) => b.id === id);
-    setSelectedBill(bill || null);
+  const printRowSummary = (r) => {
+    showToast(`Prepared bill ${r.id} for printing.`);
+    window.print();
   };
-
-  const printBill = (id) => {
-    const bill =
-      initialRoomBills.find((b) => b.id === id) ||
-      initialEventBills.find((b) => b.id === id);
-    if (bill) showToast(`Printing Bill #${bill.id}...`);
-  };
-
-  /* Filter logic */
-  const data     = currentTab === "room" ? initialRoomBills : initialEventBills;
-  const q        = search.toLowerCase();
-  const filtered = data.filter((b) => {
-    const str =
-      String(b.id) +
-      " " +
-      b.customer.toLowerCase() +
-      (currentTab === "room" ? " " + b.room : " " + b.venue.toLowerCase());
-    return str.includes(q);
-  });
 
   return (
     <>
       <RailPortalShell rootClassName="bills-page" mainStyle={mainStyle} sidebar={<Sidebar />}>
-        <Topbar
-          onRequestLogout={handleRequestLogout}
-        />
+        <Topbar onRequestLogout={requestLogout} />
 
         <main className="content">
-          {/* Header */}
           <div>
-            <div className="bills-title">Billings Management</div>
-            <div className="bills-sub">View and manage all room and event bills</div>
+            <div className="bills-title">Billings management</div>
+            <div className="bills-sub">
+              Paginated ledger from MongoDB — cashiers and admins can record payments; front desk can view balances.
+            </div>
           </div>
 
-          {/* Stat Cards */}
-          <StatCards roomCount={initialRoomBills.length} eventCount={initialEventBills.length} />
+          <StatCards totalItems={totalItems} pageCount={rows.length} />
 
-          {/* Tabs */}
           <div className="bills-tabs">
             <button
-              className={`bills-tab${currentTab === "room" ? " active" : ""}`}
-              onClick={() => { setCurrentTab("room"); setSearch(""); }}
+              type="button"
+              className={`bills-tab${billingTab === "" ? " active" : ""}`}
+              onClick={() => setBillingTab("")}
             >
-              Room Bills
+              All billing
             </button>
             <button
-              className={`bills-tab${currentTab === "event" ? " active" : ""}`}
-              onClick={() => { setCurrentTab("event"); setSearch(""); }}
+              type="button"
+              className={`bills-tab${billingTab === "room" ? " active" : ""}`}
+              onClick={() => setBillingTab("room")}
             >
-              Event Bills
+              Room bills
+            </button>
+            <button
+              type="button"
+              className={`bills-tab${billingTab === "event" ? " active" : ""}`}
+              onClick={() => setBillingTab("event")}
+            >
+              Event bills
             </button>
           </div>
 
-          {/* Filter Row */}
           <div className="bills-filter-row">
             <div className="bills-search-wrap">
               <Icons.Search />
               <input
                 type="text"
                 className="bills-search-input"
-                placeholder="Search customer name, bill #, room, or event..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search guest name or email (server-side)…"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
               />
             </div>
-            <div className="bills-time-wrap">
-              <select
-                className="bills-time-select"
-                value={timeFilter}
-                onChange={(e) => setTimeFilter(e.target.value)}
-              >
-                <option value="all">All Time</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
-              </select>
-            </div>
+            {!canRecordPayment && staffRole === "frontdesk" ? (
+              <span className="bills-role-hint">Front desk: view-only · Payments require cashier or admin</span>
+            ) : null}
           </div>
 
-          {/* Section Label */}
-          <div className="bills-section-label">
-            {currentTab === "room" ? "Room Reservations" : "Event Reservations"}
-          </div>
+          {loadNotice ? <div className="bills-load-notice">{loadNotice}</div> : null}
 
-          {/* Table */}
+          <div className="bills-section-label">Billing records</div>
+
           <div className="bills-table-wrap">
             <table className="bills-table">
               <thead>
                 <tr>
-                  {currentTab === "room" ? (
-                    <>
-                      <th>Bill #</th><th>Customer</th><th>Room</th>
-                      <th>Check-In</th><th>Check-Out</th><th>Amount</th><th>Action</th>
-                    </>
-                  ) : (
-                    <>
-                      <th>Customer</th><th>Venue</th><th>Date</th><th>Amount</th><th>Action</th>
-                    </>
-                  )}
+                  <th>Guest</th>
+                  <th>Type</th>
+                  <th>Booking</th>
+                  <th>Total</th>
+                  <th>Paid</th>
+                  <th>Balance</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {loading ? (
                   <tr>
-                    <td colSpan={currentTab === "room" ? 7 : 5} className="bills-empty">
-                      No bills found.
+                    <td colSpan={8} className="bills-empty">
+                      Loading billing…
+                    </td>
+                  </tr>
+                ) : rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="bills-empty">
+                      No billing records match this view.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((b) => (
-                    <tr key={b.id}>
-                      {currentTab === "room" ? (
-                        <>
-                          <td>#{b.id}</td>
-                          <td>{b.customer}</td>
-                          <td>{b.room}</td>
-                          <td>{b.checkIn}</td>
-                          <td>{b.checkOut}</td>
-                          <td>₱{Number(b.amount).toFixed(2)}</td>
-                        </>
-                      ) : (
-                        <>
-                          <td>{b.customer}</td>
-                          <td>{b.venue}</td>
-                          <td>{b.date}</td>
-                          <td>₱{Number(b.amount).toFixed(2)}</td>
-                        </>
-                      )}
+                  rows.map((r) => (
+                    <tr key={r.id}>
+                      <td>{String(r.guestName || "").trim() || "—"}</td>
+                      <td>{bookingTypeLabel(r.bookingType)}</td>
+                      <td>{String(r.contextLabel || "").trim() || "—"}</td>
+                      <td>{fmtPeso(r.totalAmount)}</td>
+                      <td>{fmtPeso(r.amountPaid)}</td>
+                      <td>{fmtPeso(r.balance)}</td>
+                      <td>
+                        <span className={`bills-pay-badge bills-pay-badge--${String(r.paymentStatus || "unpaid")}`}>
+                          {paymentStatusLabel(r.paymentStatus)}
+                        </span>
+                      </td>
                       <td className="action-cell">
-                        <button
-                          className="icon-action view-btn"
-                          title="View Details"
-                          onClick={() => openDetails(b.id)}
-                        >
+                        <button type="button" className="icon-action view-btn" title="View details" onClick={() => setDetailId(r.id)}>
                           <Icons.Eye />
                         </button>
-                        <button
-                          className="icon-action print-btn"
-                          title="Print"
-                          onClick={() => printBill(b.id)}
-                        >
+                        <button type="button" className="icon-action print-btn" title="Print" onClick={() => printRowSummary(r)}>
                           <Icons.Print />
                         </button>
+                        {canRecordPayment ? (
+                          <button
+                            type="button"
+                            className="icon-action bills-pay-btn"
+                            title="Record payment"
+                            onClick={() => setPaymentRow(r)}
+                          >
+                            Pay
+                          </button>
+                        ) : null}
                       </td>
                     </tr>
                   ))
@@ -368,20 +625,77 @@ export default function Bills() {
               </tbody>
             </table>
           </div>
+
+          {!loading && (
+            <div className="rm-pagination-row">
+              <div className="rm-pagination-meta">
+                <span className="rm-pagination-count">
+                  {totalItems} record{totalItems === 1 ? "" : "s"} · Page {page} of {totalPages}
+                </span>
+                <label className="rm-pagination-limit">
+                  <span>Per page</span>
+                  <select
+                    className="rm-pagination-select"
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(Number(e.target.value));
+                      setPage(1);
+                    }}
+                  >
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </label>
+              </div>
+              <div className="rm-pagination-btns">
+                <button
+                  type="button"
+                  className="rm-page-btn"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  Previous
+                </button>
+                {visiblePageNumbers(page, totalPages).map((pNum, idx, arr) => {
+                  const prev = arr[idx - 1];
+                  const showEllipsis = prev && pNum - prev > 1;
+                  return (
+                    <span key={pNum} className="rm-page-btn-wrap">
+                      {showEllipsis ? <span className="rm-page-ellipsis">…</span> : null}
+                      <button
+                        type="button"
+                        className={`rm-page-btn${pNum === page ? " rm-page-btn--active" : ""}`}
+                        onClick={() => setPage(pNum)}
+                      >
+                        {pNum}
+                      </button>
+                    </span>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="rm-page-btn"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
         </main>
       </RailPortalShell>
 
-      {/* Modal */}
-      <DetailsModal bill={selectedBill} onClose={() => setSelectedBill(null)} />
+      <DetailsModal billingId={detailId} onClose={() => setDetailId(null)} />
 
-      {/* Toast */}
+      {paymentRow ? (
+        <PaymentModal row={paymentRow} onClose={() => setPaymentRow(null)} onSaved={handlePaymentSaved} />
+      ) : null}
+
       <Toast message={toast.message} visible={toast.visible} />
 
-      <LogoutConfirmModal
-        open={logoutModalOpen}
-        onClose={closeLogoutModal}
-        onConfirm={confirmLogout}
-      />
+      <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>
   );
 }

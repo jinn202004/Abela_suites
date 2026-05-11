@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useLayoutEffect, useRef } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -33,7 +33,6 @@ export default function AttendanceManagement() {
   const [loadError] = useState(
     "Staff and attendance are not loaded: the Express API does not expose these endpoints yet. This screen is UI-only until backend routes exist.",
   );
-  const [loading] = useState(false);
 
   const [search, setSearch] = useState("");
   const [dateFilter, setDateFilter] = useState("");
@@ -47,6 +46,13 @@ export default function AttendanceManagement() {
   const [deletingId, setDeletingId] = useState(null);
 
   const [toast, setToast] = useState({ visible: false, msg: "" });
+
+  /** After sidebar route change, ignore stray activations on Add / row actions (shared admin shell). */
+  const suppressModalOpensUntilRef = useRef(0);
+  useLayoutEffect(() => {
+    suppressModalOpensUntilRef.current = performance.now() + 600;
+  }, []);
+
   const showToast = (msg) => {
     setToast({ visible: true, msg });
     setTimeout(() => setToast({ visible: false, msg: "" }), 3000);
@@ -76,6 +82,7 @@ export default function AttendanceManagement() {
   });
 
   const openAdd = () => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
     setEditingId(null);
     setForm(emptyForm());
     setFormErr("");
@@ -83,6 +90,7 @@ export default function AttendanceManagement() {
   };
 
   const openEdit = (row) => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
     setEditingId(row.id);
     setForm({
       staffId: row.staffId != null ? String(row.staffId) : "",
@@ -137,6 +145,7 @@ export default function AttendanceManagement() {
   };
 
   const openDelete = (id) => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
     setDeletingId(id);
     setDeleteOpen(true);
   };
@@ -195,7 +204,6 @@ export default function AttendanceManagement() {
           </section>
 
           {loadError && <p className="att-api-warning">{loadError}</p>}
-          {loading && <p className="att-loading">Loading…</p>}
 
           <div className="sm-top-row att-toolbar">
             <div className="sm-search-wrap">
@@ -249,7 +257,7 @@ export default function AttendanceManagement() {
                 </tr>
               </thead>
               <tbody>
-                {!loading && filtered.length === 0 ? (
+                {filtered.length === 0 ? (
                   <tr>
                     <td colSpan="8" className="sm-empty">
                       No attendance rows match your filters.
@@ -293,20 +301,21 @@ export default function AttendanceManagement() {
         </main>
       </RailPortalShell>
 
+      {modalOpen ? (
       <div
-        className={`sm-modal-backdrop ${modalOpen ? "active" : ""}`}
+        className="rm-modal-backdrop active"
         onClick={(e) => {
           if (e.target === e.currentTarget) closeModal();
         }}
       >
-        <div className="sm-modal att-modal">
-          <div className="sm-modal-header">
-            <h2 className="sm-modal-title">{editingId == null ? "Record attendance" : "Edit attendance"}</h2>
-            <button type="button" className="sm-modal-close" onClick={closeModal}>
+        <div className="rm-modal att-modal">
+          <div className="rm-modal-header">
+            <h2 className="rm-modal-title">{editingId == null ? "Record attendance" : "Edit attendance"}</h2>
+            <button type="button" className="rm-modal-close" onClick={closeModal}>
               ✕
             </button>
           </div>
-          <div className="sm-modal-body">
+          <div className="rm-modal-body">
             <div className="sm-form-group full">
               <label htmlFor="att-staff">Employee</label>
               <div className="sm-select-wrap">
@@ -378,51 +387,56 @@ export default function AttendanceManagement() {
 
             <span className="sm-err">{formErr}</span>
 
-            <div className="sm-modal-actions">
-              <button type="button" className="sm-btn-clear" onClick={() => setForm(emptyForm())}>
+            <div className="rm-modal-actions">
+              <button type="button" className="rm-btn-clear" onClick={() => setForm(emptyForm())}>
                 Reset
               </button>
-              <button type="button" className="sm-btn-save" onClick={saveAttendance}>
+              <button type="button" className="rm-btn-save" onClick={saveAttendance}>
                 {editingId == null ? "Save record" : "Update record"}
               </button>
             </div>
           </div>
         </div>
       </div>
+      ) : null}
 
+      {deleteOpen ? (
       <div
-        className={`sm-confirm-backdrop ${deleteOpen ? "active" : ""}`}
+        className="rm-confirm-backdrop active"
         onClick={(e) => {
           if (e.target === e.currentTarget) closeDelete();
         }}
       >
-        <div className="sm-confirm-dialog">
-          <div className="sm-confirm-icon">
+        <div className="rm-confirm-dialog">
+          <div className="rm-confirm-icon">
             <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8">
               <circle cx="12" cy="12" r="10" />
             </svg>
-            <span className="sm-confirm-exclaim">!</span>
+            <span className="rm-confirm-exclaim">!</span>
           </div>
-          <h3 className="sm-confirm-title">Delete attendance row?</h3>
-          <p className="sm-confirm-sub">This removes the log entry from the server.</p>
-          <div className="sm-confirm-btns">
-            <button type="button" className="sm-btn-cancel-confirm" onClick={closeDelete}>
+          <h3 className="rm-confirm-title">Delete attendance row?</h3>
+          <p className="rm-confirm-sub">This removes the log entry from the server.</p>
+          <div className="rm-confirm-btns">
+            <button type="button" className="rm-btn-cancel-confirm" onClick={closeDelete}>
               Cancel
             </button>
-            <button type="button" className="sm-btn-delete-confirm" onClick={confirmDelete}>
+            <button type="button" className="rm-btn-delete-confirm" onClick={confirmDelete}>
               Delete
             </button>
           </div>
         </div>
       </div>
+      ) : null}
 
-      <div className={`sm-toast ${toast.visible ? "active" : ""}`}>
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
-          <circle cx="12" cy="12" r="10" />
-          <polyline points="9 12 11 14 15 10" />
-        </svg>
-        <span>{toast.msg}</span>
-      </div>
+      {toast.visible ? (
+        <div className="rm-toast active">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="9 12 11 14 15 10" />
+          </svg>
+          <span>{toast.msg}</span>
+        </div>
+      ) : null}
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>

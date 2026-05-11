@@ -53,7 +53,7 @@ export default function SetNewPasswordModal({ isOpen, onClose, onBackToLogin, on
     e.preventDefault()
     if (!passwordMeetsAllRules(password)) return
     if (password !== confirm) return
-    onPasswordSet?.()
+    onPasswordSet?.(password)
   }
 
   const showRules = password.length > 0

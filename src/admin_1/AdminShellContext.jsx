@@ -3,9 +3,12 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { useLocation } from "react-router-dom";
 
 const STORAGE_KEY = "abela-admin-sidebar-collapsed";
 /** Match frontdesk/sidebar template width. */
@@ -22,6 +25,53 @@ const PAD_EXPANDED = 15;
 const AdminShellContext = createContext(null);
 
 export function AdminShellProvider({ children }) {
+  const location = useLocation();
+  const navGhostRouteRef = useRef(undefined);
+  const navGhostTimerRef = useRef(null);
+
+  /**
+   * Ghost navigation click: mousedown on the rail can finish with mouseup/click on the *new* page.
+   * Modals often live outside `.main-wrapper`, so briefly mount a transparent fullscreen layer above
+   * the app (below nothing) to absorb stray pointer events after each admin route change.
+   */
+  useLayoutEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const p = String(location.pathname || "");
+    const isAdminRoute = p === "/admin" || p.startsWith("/admin/") || p.startsWith("/admin-");
+    if (!isAdminRoute) return undefined;
+
+    const token = `${location.pathname}\0${location.key}`;
+    if (navGhostRouteRef.current === undefined) {
+      navGhostRouteRef.current = token;
+      return undefined;
+    }
+    if (navGhostRouteRef.current === token) return undefined;
+    navGhostRouteRef.current = token;
+
+    const overlay = document.createElement("div");
+    overlay.setAttribute("data-abela-admin-nav-guard", "");
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.style.cssText =
+      "position:fixed;inset:0;z-index:100000;background:transparent;pointer-events:auto;touch-action:none;";
+    document.body.appendChild(overlay);
+
+    if (navGhostTimerRef.current != null) {
+      window.clearTimeout(navGhostTimerRef.current);
+    }
+    navGhostTimerRef.current = window.setTimeout(() => {
+      navGhostTimerRef.current = null;
+      if (overlay.isConnected) overlay.remove();
+    }, 450);
+
+    return () => {
+      if (navGhostTimerRef.current != null) {
+        window.clearTimeout(navGhostTimerRef.current);
+        navGhostTimerRef.current = null;
+      }
+      if (overlay.isConnected) overlay.remove();
+    };
+  }, [location.pathname, location.key]);
+
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.innerWidth <= MOBILE_BREAKPOINT;

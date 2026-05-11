@@ -289,6 +289,219 @@
   color: #fff;
 }
 
+/* ── Booking calendar (dashboard) ── */
+.fd-dash-grid--booking-cal {
+  grid-template-columns: 1fr 1fr;
+  margin-top: 22px;
+}
+
+@media (max-width: 960px) {
+  .fd-dash-grid--booking-cal {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fd-booking-cal-panel {
+  min-height: 280px;
+}
+
+.fd-cal-signin-hint {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-mid, #6b5a3e);
+  line-height: 1.45;
+}
+
+.fd-cal-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin-bottom: 12px;
+}
+
+.fd-cal-nav-btn {
+  font-family: "Montserrat", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border, #d4c4a0);
+  background: #fff;
+  color: var(--gold-dark, #8f7228);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.fd-cal-nav-btn:hover:not(:disabled) {
+  background: #f5efe3;
+  border-color: var(--gold, #b08d32);
+}
+
+.fd-cal-nav-label {
+  flex: 1 1 140px;
+  text-align: center;
+  font-family: "Montserrat", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gold-dark, #8f7228);
+  min-width: 0;
+}
+
+.fd-cal-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dark, #2c2418);
+  text-align: center;
+}
+
+.fd-cal-weekday {
+  padding: 4px 0;
+}
+
+.fd-cal-cells {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.fd-cal-cell {
+  aspect-ratio: 1;
+  max-height: 44px;
+  border-radius: 8px;
+  border: 1px solid #2c2418;
+  background: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark, #2c2418);
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  padding: 0;
+}
+
+.fd-cal-cell:hover:not(:disabled) {
+  border-color: var(--gold, #b08d32);
+  box-shadow: 0 2px 8px rgba(176, 141, 50, 0.2);
+}
+
+.fd-cal-cell:disabled {
+  opacity: 0.38;
+  cursor: default;
+  box-shadow: none;
+}
+
+.fd-cal-cell--muted {
+  opacity: 0.35;
+}
+
+.fd-cal-cell--selected {
+  background: #d4b896 !important;
+  border-color: #8f7228 !important;
+  color: #2c2418 !important;
+  box-shadow: inset 0 0 0 2px rgba(143, 114, 40, 0.35);
+}
+
+.fd-cal-cell--occupied {
+  background: #e74c3c;
+  border-color: #c0392b;
+  color: #fff;
+}
+
+.fd-cal-cell--reserved {
+  background: #f1c40f;
+  border-color: #d4ac0d;
+  color: #4a3d08;
+}
+
+.fd-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid, #6b5a3e);
+}
+
+.fd-cal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fd-cal-legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.fd-cal-legend-swatch--occupied {
+  background: #e74c3c;
+}
+
+.fd-cal-legend-swatch--reserved {
+  background: #f1c40f;
+}
+
+.fd-cal-detail-sub {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark, #2c2418);
+}
+
+.fd-cal-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.fd-cal-detail-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-light, #9a8060);
+}
+
+.fd-cal-detail-card {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #d8d0c4;
+  background: #ece8e0;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fd-cal-detail-card:hover {
+  border-color: var(--gold, #b08d32);
+  background: #e8e2d6;
+}
+
+.fd-cal-detail-line {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark, #2c2418);
+  margin-bottom: 6px;
+}
+
+.fd-cal-detail-status {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid, #6b5a3e);
+}
+
 @media (max-width: 768px) {
   .fd-dash-table-wrap {
     -webkit-overflow-scrolling: touch;

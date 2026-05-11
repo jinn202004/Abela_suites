@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
@@ -7,6 +7,14 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import { fetchBookingsBackend } from "../api/guestApi";
+import {
+  fetchEventVenuesAdmin,
+  createEventVenueAdmin,
+  updateEventVenueAdmin,
+  deleteEventVenueAdmin,
+  EVENT_VENUE_STATUSES,
+} from "../api/eventManagementApi";
 import "./event-management.css";
 
 /* ── ICONS ── */
@@ -150,25 +158,102 @@ const Icon = {
   ),
 };
 
-/* ── INITIAL DATA ── */
-const INIT_STATUSES = [
-  { type: "Mini Sky Bar",  date: "22-02-2026", time: "7:00 PM", guest: 20, total: "₱1,148",  downpayment: "₱803",   status: "Approved" },
-  { type: "Function Hall", date: "26-02-2026", time: "5:00 PM", guest: 20, total: "₱2,205",  downpayment: "₱1,543", status: "Approved" },
-  { type: "Mini Sky Bar",  date: "22-02-2026", time: "7:00 PM", guest: 20, total: "₱1,148",  downpayment: "₱803",   status: "Approved" },
-  { type: "Function Hall", date: "26-02-2026", time: "5:00 PM", guest: 20, total: "₱2,205",  downpayment: "₱1,543", status: "Approved" },
-  { type: "Mini Sky Bar",  date: "22-02-2026", time: "7:00 PM", guest: 20, total: "₱1,148",  downpayment: "₱803",   status: "Approved" },
-];
+function fmtPeso(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return "—";
+  return `₱${x.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
 
-const INIT_VENUES = [
-  { eventNum: "1", package: "Mini Sky Bar",  type: "Event", limit: "30-40 guest", price: "₱1,148", features: [], housekeeping: [], description: "", image: "https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjZeJklcJbVFcVdSM8sdqr48JKS8n7HgBrhyB6tr9auSs1p2-jgzQc-9jc4a3QPapgkhol-VyuGqWJtTKV2LLB72OXatunkcoY9pPU4vaAzQPZ1cDGHKclK3Zv4RTuzCUSBPdxTsr22l4aCNfENcwnzf6Y-LOd8Yr5djvoj0tWT9JrhL6mlrTnrZl4LgPc/s1500/17-AngKaladkarin-Straight%20Up%20Seda%20North%20(3).jpg" },
-  { eventNum: "2", package: "Function Hall", type: "Event", limit: "20-30 guest", price: "₱2,205", features: [], housekeeping: [], description: "", image: "/venue-function-hall.png" },
-];
+function todayIsoDate() {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+}
+
+function mapEventBookingToStatusRow(b) {
+  return {
+    id: String(b.id || ""),
+    type: String(b.venueName || b.eventTitle || "Event").trim() || "Event",
+    date: String(b.eventDate || "—").trim(),
+    time: String(b.timeSlot || "—").trim(),
+    guest: b.expectedPax != null ? String(b.expectedPax) : String(b.customerName || "—"),
+    total: String(b.totalAmount || b.venuePrice || "—").trim(),
+    downpayment: String(b.paymentAmount || "—").trim(),
+    status: String(b.status || "").replace(/_/g, " ") || "—",
+    rawDate: String(b.eventDate || "").trim(),
+  };
+}
 
 const EMPTY_FORM = {
-  eventNum: "", package: "", limit: "", price: "", description: "",
-  featSpeaker: false, featChairs: false, featTv: false, featOther: "",
-  hkJanah: false, hkJujenn: false, hkJoanah: false, image: "",
+  package: "",
+  limit: "",
+  price: "",
+  status: "available",
+  eventNum: "",
+  featSound: false,
+  featStage: false,
+  featAv: false,
+  featCatering: false,
+  featOther: "",
+  description: "",
+  image: "",
 };
+
+/** Derive numeric capacity for API from limit text (e.g. "30", "20-30 guests"). */
+function capacityFromLimitText(limitStr) {
+  const s = String(limitStr || "").trim();
+  const nums = [...s.matchAll(/\d+/g)].map((m) => parseInt(m[0], 10)).filter((n) => Number.isInteger(n) && n > 0);
+  if (nums.length === 0) return NaN;
+  return Math.max(...nums);
+}
+
+function featuresFromVenueForm(form) {
+  const parts = [
+    form.featSound && "Sound system",
+    form.featStage && "Stage & seating area",
+    form.featAv && "AV & projector",
+    form.featCatering && "Catering access",
+  ].filter(Boolean);
+  const other = String(form.featOther || "")
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+  return [...parts, ...other];
+}
+
+function matchedSound(x) {
+  const l = String(x).toLowerCase();
+  return l.includes("sound") || l.includes("speaker");
+}
+function matchedStage(x) {
+  const l = String(x).toLowerCase();
+  return l.includes("stage") || l.includes("chair") || l.includes("seating");
+}
+function matchedAv(x) {
+  const l = String(x).toLowerCase();
+  return l.includes("projector") || l.includes("tv") || /\bav\b/.test(l);
+}
+function matchedCatering(x) {
+  const l = String(x).toLowerCase();
+  return l.includes("catering") || l.includes("kitchen");
+}
+
+function mapVenueFeaturesToForm(features) {
+  const raw = Array.isArray(features) ? features.map((x) => String(x).trim()).filter(Boolean) : [];
+  const featSound = raw.some(matchedSound);
+  const featStage = raw.some(matchedStage);
+  const featAv = raw.some(matchedAv);
+  const featCatering = raw.some(matchedCatering);
+  const other = raw.filter(
+    (x) => !matchedSound(x) && !matchedStage(x) && !matchedAv(x) && !matchedCatering(x),
+  );
+  return {
+    featSound,
+    featStage,
+    featAv,
+    featCatering,
+    featOther: other.join(", "),
+  };
+}
 
 const IconCheckToast = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2" aria-hidden>
@@ -177,11 +262,8 @@ const IconCheckToast = () => (
   </svg>
 );
 
-/* ── VENUE MODAL ── */
-function VenueModal({ visible, editIdx, form, setForm, onClose, onSave, onClear }) {
-  const fileRef = useRef(null);
-  const isEdit = editIdx > -1;
-
+/* ── VENUE MODAL (layout mirrors room-management add/edit room) ── */
+function VenueModal({ visible, isEdit, form, setForm, formErr, saving, onClose, onSave, onClear }) {
   if (!visible) return null;
 
   const handleImage = (e) => {
@@ -193,97 +275,154 @@ function VenueModal({ visible, editIdx, form, setForm, onClose, onSave, onClear 
   };
 
   return (
-    <div className="rm-modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="rm-modal-backdrop active" onClick={(e) => e.target === e.currentTarget && !saving && onClose()}>
       <div className="rm-modal">
         <div className="rm-modal-header">
           <h2 className="rm-modal-title">{isEdit ? "Edit Event Venue" : "Add New Event Venue"}</h2>
-          <button type="button" className="rm-modal-close" onClick={onClose}>&#x2715;</button>
+          <button type="button" className="rm-modal-close" onClick={onClose} disabled={saving}>
+            &#x2715;
+          </button>
         </div>
         <div className="rm-modal-body">
-
           <div className="rm-form-row">
-            <div className="rm-form-group">
-              <label>Event Number</label>
-              <input className="rm-input" placeholder="e.g. 4" value={form.eventNum}
-                onChange={(e) => setForm((f) => ({ ...f, eventNum: e.target.value }))}/>
-            </div>
-            <div className="rm-form-group">
+            <div className="rm-form-group rm-form-group--full">
               <label>Package</label>
-              <input className="rm-input" placeholder="e.g. Function Hall 2" value={form.package}
-                onChange={(e) => setForm((f) => ({ ...f, package: e.target.value }))}/>
+              <input
+                type="text"
+                className="rm-input"
+                placeholder="e.g. Grand Ballroom, Wedding package, Half-day"
+                value={form.package}
+                onChange={(e) => setForm((f) => ({ ...f, package: e.target.value }))}
+              />
             </div>
           </div>
 
           <div className="rm-form-row">
             <div className="rm-form-group">
-              <label>Limit</label>
-              <input className="rm-input" placeholder="e.g. 30-40" value={form.limit}
-                onChange={(e) => setForm((f) => ({ ...f, limit: e.target.value }))}/>
+              <label>Limit (guests)</label>
+              <input
+                type="text"
+                className="rm-input"
+                placeholder="e.g. 300 or 200-300 guests"
+                value={form.limit}
+                onChange={(e) => setForm((f) => ({ ...f, limit: e.target.value }))}
+              />
             </div>
             <div className="rm-form-group">
               <label>Price</label>
-              <input className="rm-input" placeholder="₱1,148" value={form.price}
-                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}/>
+              <input
+                type="text"
+                className="rm-input"
+                placeholder="15000 or ₱15,000"
+                value={form.price}
+                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+              />
             </div>
           </div>
 
           <div className="rm-form-row">
             <div className="rm-form-group">
+              <label>Status</label>
+              <select
+                className="rm-input"
+                value={form.status}
+                onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+              >
+                {EVENT_VENUE_STATUSES.map((st) => (
+                  <option key={st} value={st}>
+                    {st.replace(/_/g, " ")}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="rm-form-group">
+              <label>Event number (optional)</label>
+              <input
+                type="text"
+                className="rm-input"
+                placeholder="Leave blank to auto-generate"
+                value={form.eventNum}
+                onChange={(e) => setForm((f) => ({ ...f, eventNum: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="rm-form-row">
+            <div className="rm-form-group rm-form-group--full">
               <label>Features</label>
               <div className="rm-checkbox-group">
-                {[["featSpeaker", "Speaker"], ["featChairs", "30 Chairs"], ["featTv", "Smart TV"]].map(([key, label]) => (
-                  <label key={key} className="rm-checkbox-item">
-                    <input type="checkbox" checked={form[key]}
-                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.checked }))}/>
-                    {label}
+                {[
+                  { id: "featSound", label: "Sound system" },
+                  { id: "featStage", label: "Stage & seating area" },
+                  { id: "featAv", label: "AV & projector" },
+                  { id: "featCatering", label: "Catering access" },
+                ].map((f) => (
+                  <label key={f.id} className="rm-checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(form[f.id])}
+                      onChange={(e) => setForm((prev) => ({ ...prev, [f.id]: e.target.checked }))}
+                    />
+                    {f.label}
                   </label>
                 ))}
                 <div className="rm-other-wrap">
                   <span className="rm-other-label">Other</span>
-                  <input className="rm-input rm-other-input" placeholder="Other features..." value={form.featOther}
-                    onChange={(e) => setForm((f) => ({ ...f, featOther: e.target.value }))}/>
+                  <input
+                    type="text"
+                    className="rm-input rm-other-input"
+                    placeholder="Other features..."
+                    value={form.featOther}
+                    onChange={(e) => setForm((f) => ({ ...f, featOther: e.target.value }))}
+                  />
                 </div>
-              </div>
-            </div>
-            <div className="rm-form-group">
-              <label>Housekeeping</label>
-              <div className="rm-checkbox-group">
-                {[["hkJanah", "Janah Cultura"], ["hkJujenn", "Jujenn Nabo"], ["hkJoanah", "Joanah Cultura"]].map(([key, label]) => (
-                  <label key={key} className="rm-checkbox-item">
-                    <input type="checkbox" checked={form[key]}
-                      onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.checked }))}/>
-                    {label}
-                  </label>
-                ))}
               </div>
             </div>
           </div>
 
           <div className="rm-form-group">
             <label>Description</label>
-            <textarea className="rm-textarea" placeholder="Write something here..." value={form.description}
-              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}/>
+            <textarea
+              className="rm-textarea"
+              placeholder="Write something here..."
+              value={form.description}
+              onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+            />
           </div>
 
           <div className="rm-form-group">
             <label>Upload Image</label>
-            <div className="rm-upload-area" onClick={() => fileRef.current.click()}>
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: "none" }} onChange={handleImage}/>
-              {form.image
-                ? <img src={form.image} style={{ maxHeight: 110, borderRadius: 6, objectFit: "contain" }} alt="preview"/>
-                : <div className="rm-upload-content">
+            <div className="rm-upload-area" onClick={() => !saving && document.getElementById("evVenueImage")?.click()}>
+              <input
+                id="evVenueImage"
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={handleImage}
+              />
+              <div className="rm-upload-content">
+                {form.image ? (
+                  <img src={form.image} style={{ maxHeight: 110, borderRadius: 6, objectFit: "contain" }} alt="preview" />
+                ) : (
+                  <>
                     <span className="rm-upload-text">Upload your venue image here...</span>
-                    <Icon.Upload/>
-                  </div>
-              }
+                    <Icon.Upload />
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
-          <div className="rm-modal-actions">
-            <button type="button" className="rm-btn-clear" onClick={onClear}>Clear</button>
-            <button type="button" className="rm-btn-save" onClick={onSave}>{isEdit ? "Save Changes" : "Add Event"}</button>
-          </div>
+          {formErr ? <span className="rm-err">{formErr}</span> : null}
 
+          <div className="rm-modal-actions">
+            <button type="button" className="rm-btn-clear" onClick={onClear} disabled={saving}>
+              Clear
+            </button>
+            <button type="button" className="rm-btn-save" onClick={onSave} disabled={saving}>
+              {saving ? "Saving…" : isEdit ? "Save Changes" : "Add Venue"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -325,104 +464,195 @@ const IconSearchField = () => (
 export default function EventManage() {
   const { mainStyle } = useAdminShell();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const [tab, setTab]           = useState("status");
-  const [statuses]              = useState(INIT_STATUSES);
-  const [venues, setVenues]     = useState(INIT_VENUES);
-  const [statusSearch, setStatusSearch] = useState("");
-  const [venueSearch, setVenueSearch]   = useState("");
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editIdx, setEditIdx]           = useState(-1);
-  const [form, setForm]                 = useState(EMPTY_FORM);
-  const [deleteIdx, setDeleteIdx]       = useState(-1);
-  const [toast, setToast]               = useState({ visible: false, msg: "" });
-  /* stats */
-  const today = (() => {
-    const d = new Date();
-    return `${String(d.getDate()).padStart(2,"0")}-${String(d.getMonth()+1).padStart(2,"0")}-${d.getFullYear()}`;
-  })();
-  const statToday = statuses.filter(s => s.date === today).length;
+  const [tab, setTab] = useState("status");
+  const [statuses, setStatuses] = useState([]);
+  const [bookingsLoadErr, setBookingsLoadErr] = useState("");
+  const [bookingsLoading, setBookingsLoading] = useState(true);
 
-  /* toast */
+  const [venues, setVenues] = useState([]);
+  const [venuesLoading, setVenuesLoading] = useState(true);
+  const [venuesError, setVenuesError] = useState("");
+
+  const [statusSearch, setStatusSearch] = useState("");
+  const [venueSearch, setVenueSearch] = useState("");
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingVenueId, setEditingVenueId] = useState(null);
+  const [form, setForm] = useState(() => ({ ...EMPTY_FORM }));
+  const [formErr, setFormErr] = useState("");
+  const [savingVenue, setSavingVenue] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [toast, setToast] = useState({ visible: false, msg: "" });
+
+  const loadVenues = useCallback(async () => {
+    setVenuesError("");
+    setVenuesLoading(true);
+    try {
+      const rows = await fetchEventVenuesAdmin();
+      setVenues(Array.isArray(rows) ? rows : []);
+    } catch (e) {
+      const msg =
+        e.code === "NO_TOKEN"
+          ? "Sign in as admin to manage event venues."
+          : e.status === 403
+            ? "Admin access required for /api/eventvenues."
+            : e.message || "Could not load event venues.";
+      setVenuesError(msg);
+      setVenues([]);
+    } finally {
+      setVenuesLoading(false);
+    }
+  }, []);
+
+  const loadEventBookings = useCallback(async () => {
+    setBookingsLoadErr("");
+    setBookingsLoading(true);
+    try {
+      const list = await fetchBookingsBackend();
+      const events = (Array.isArray(list) ? list : [])
+        .filter((b) => String(b.type || "").toLowerCase() === "event")
+        .map(mapEventBookingToStatusRow);
+      setStatuses(events);
+    } catch (e) {
+      setBookingsLoadErr(e.message || "Could not load event bookings.");
+      setStatuses([]);
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadVenues();
+    void loadEventBookings();
+  }, [loadVenues, loadEventBookings]);
+
+  const todayIso = todayIsoDate();
+  const statToday = statuses.filter((s) => s.rawDate && s.rawDate.slice(0, 10) === todayIso).length;
+  const pendingLike = statuses.filter((s) => /pending/i.test(s.status)).length;
+
   const showToast = (msg) => {
     setToast({ visible: true, msg });
     setTimeout(() => setToast({ visible: false, msg: "" }), 3000);
   };
 
-  /* filtered */
   const q = statusSearch.toLowerCase();
-  const filteredStatuses = statuses.filter(s =>
-    s.type.toLowerCase().includes(q) || s.date.toLowerCase().includes(q) ||
-    s.status.toLowerCase().includes(q) || String(s.guest).includes(q)
-  );
-  const vq = venueSearch.toLowerCase();
-  const filteredVenues = venues.filter(v =>
-    v.eventNum.toLowerCase().includes(vq) || v.package.toLowerCase().includes(vq) ||
-    v.type.toLowerCase().includes(vq) || v.limit.toLowerCase().includes(vq)
+  const filteredStatuses = statuses.filter(
+    (s) =>
+      s.type.toLowerCase().includes(q) ||
+      s.date.toLowerCase().includes(q) ||
+      s.status.toLowerCase().includes(q) ||
+      String(s.guest).includes(q),
   );
 
-  /* modal handlers */
+  const vq = venueSearch.toLowerCase();
+  const filteredVenues = venues.filter((v) => {
+    const name = String(v.venueName || v.name || v.package || "").toLowerCase();
+    const pkg = String(v.package || "").toLowerCase();
+    const en = String(v.eventNum || "").toLowerCase();
+    const lim = String(v.limit || "").toLowerCase();
+    const st = String(v.status || "").toLowerCase();
+    return name.includes(vq) || pkg.includes(vq) || en.includes(vq) || lim.includes(vq) || st.includes(vq);
+  });
+
   const openAdd = () => {
-    setEditIdx(-1);
-    setForm(EMPTY_FORM);
+    setFormErr("");
+    setEditingVenueId(null);
+    setForm({ ...EMPTY_FORM });
     setModalVisible(true);
   };
-  const openEdit = (idx) => {
-    const v = venues[idx];
-    setEditIdx(idx);
+
+  const openEdit = (v) => {
+    if (!v?.id) return;
+    setFormErr("");
+    setEditingVenueId(String(v.id));
+    const feat = mapVenueFeaturesToForm(v.features);
     setForm({
-      eventNum: v.eventNum, package: v.package, limit: v.limit,
-      price: v.price.replace("₱", ""), description: v.description || "",
-      featSpeaker: v.features.includes("Speaker"),
-      featChairs: v.features.includes("30 Chairs"),
-      featTv: v.features.includes("Smart TV"),
-      featOther: v.features.filter(f => !["Speaker","30 Chairs","Smart TV"].includes(f)).join(", "),
-      hkJanah: v.housekeeping.includes("Janah Cultura"),
-      hkJujenn: v.housekeeping.includes("Jujenn Nabo"),
-      hkJoanah: v.housekeeping.includes("Joanah Cultura"),
-      image: v.image || "",
+      package: String(v.package || v.venueName || v.name || "").trim(),
+      limit: String(v.limit || (v.capacity != null ? `${v.capacity} guests` : "")),
+      price: v.price != null && Number.isFinite(Number(v.price)) ? String(v.price) : "",
+      status: EVENT_VENUE_STATUSES.includes(String(v.status)) ? String(v.status) : "available",
+      eventNum: String(v.eventNum || ""),
+      featSound: feat.featSound,
+      featStage: feat.featStage,
+      featAv: feat.featAv,
+      featCatering: feat.featCatering,
+      featOther: feat.featOther,
+      description: String(v.description || ""),
+      image: String(v.imageUrl || v.image || ""),
     });
     setModalVisible(true);
   };
-  const saveVenue = () => {
-    if (!form.eventNum || !form.package || !form.limit || !form.price) return;
-    const features = [
-      form.featSpeaker && "Speaker",
-      form.featChairs  && "30 Chairs",
-      form.featTv      && "Smart TV",
-      form.featOther   && form.featOther,
-    ].filter(Boolean);
-    const housekeeping = [
-      form.hkJanah  && "Janah Cultura",
-      form.hkJujenn && "Jujenn Nabo",
-      form.hkJoanah && "Joanah Cultura",
-    ].filter(Boolean);
-    const priceStr = form.price.startsWith("₱") ? form.price : `₱${form.price}`;
-    const rec = { eventNum: form.eventNum, package: form.package, type: "Event",
-      limit: form.limit, price: priceStr, features, housekeeping,
-      description: form.description, image: form.image };
-    if (editIdx === -1) {
-      setVenues(v => [...v, rec]);
-      showToast("Event venue added successfully!");
-    } else {
-      setVenues(v => v.map((item, i) => i === editIdx ? rec : item));
-      showToast("Event venue updated successfully!");
+
+  const saveVenue = async () => {
+    setFormErr("");
+    const pkg = String(form.package || "").trim();
+    const cap = capacityFromLimitText(form.limit);
+    if (!pkg) {
+      setFormErr("Package is required.");
+      return;
     }
-    setModalVisible(false);
+    if (!Number.isInteger(cap) || cap < 1) {
+      setFormErr('Limit (guests): include a number (e.g. "300" or "200-300 guests").');
+      return;
+    }
+    const priceRaw = String(form.price || "").trim();
+    if (!priceRaw) {
+      setFormErr("Price is required.");
+      return;
+    }
+
+    const payload = {
+      venueName: pkg,
+      package: pkg,
+      capacity: cap,
+      price: priceRaw,
+      status: form.status,
+      description: String(form.description || "").trim(),
+      imageUrl: String(form.image || "").trim(),
+      features: featuresFromVenueForm(form),
+    };
+    if (String(form.eventNum || "").trim()) payload.eventNum = String(form.eventNum).trim();
+    const lim = String(form.limit || "").trim();
+    if (lim) payload.limit = lim;
+
+    setSavingVenue(true);
+    try {
+      if (editingVenueId) {
+        await updateEventVenueAdmin(editingVenueId, payload);
+        showToast("Venue updated.");
+      } else {
+        await createEventVenueAdmin(payload);
+        showToast("Venue created.");
+      }
+      setModalVisible(false);
+      setEditingVenueId(null);
+      setForm({ ...EMPTY_FORM });
+      await loadVenues();
+    } catch (e) {
+      setFormErr(e.message || "Save failed.");
+    } finally {
+      setSavingVenue(false);
+    }
   };
 
-  /* delete */
-  const closeDelete = () => setDeleteIdx(-1);
-  const confirmDelete = () => {
-    setVenues(v => v.filter((_, i) => i !== deleteIdx));
-    closeDelete();
-    showToast("Event venue deleted.");
+  const closeDelete = () => setDeleteTarget(null);
+
+  const confirmDelete = async () => {
+    if (!deleteTarget?.id) return;
+    try {
+      await deleteEventVenueAdmin(deleteTarget.id);
+      showToast("Venue deleted.");
+      closeDelete();
+      await loadVenues();
+    } catch (e) {
+      window.alert(e.message || "Delete failed.");
+    }
   };
 
   const STATS = [
-    { label: "Reservation for Today", StatI: StatIconCal, value: statToday },
-    { label: "Total Reservations", StatI: StatIconDoc, value: statuses.length },
-    { label: "Check-outs Today", StatI: StatIconCheckout, value: 0 },
-    { label: "Balance", StatI: StatIconDollar, value: 0 },
+    { label: "Event bookings today", StatI: StatIconCal, value: bookingsLoading ? "…" : statToday },
+    { label: "Total event bookings", StatI: StatIconDoc, value: bookingsLoading ? "…" : statuses.length },
+    { label: "Pending / review", StatI: StatIconCheckout, value: bookingsLoading ? "…" : pendingLike },
+    { label: "Venues in catalog", StatI: StatIconDollar, value: venuesLoading ? "…" : venues.length },
   ];
 
   return (
@@ -441,7 +671,12 @@ export default function EventManage() {
           </div>
           <AdminTopbarActions
             notifications={[
-              { id: "ev-1", msg: "Event venues sync from the API when MongoDB is connected.", time: "Admin", read: true },
+              {
+                id: "ev-1",
+                msg: "Venues: GET/POST/PUT/DELETE /api/eventvenues (admin). Catalog for staff remains GET /api/event-venues.",
+                time: "Admin",
+                read: true,
+              },
             ]}
             onRequestLogout={requestLogout}
           />
@@ -450,7 +685,10 @@ export default function EventManage() {
         <main className="content">
           <div className="rm-dashboard-header">
             <div className="rm-dashboard-title">Event Management Dashboard</div>
-            <div className="rm-dashboard-sub">Manage your hotel events, reservations, and availability.</div>
+            <div className="rm-dashboard-sub">
+              Event venues are stored in MongoDB collection <code>eventvenues</code>. Reservations list loads from
+              bookings (type event).
+            </div>
           </div>
 
           <div className="rm-stats-row rm-stats-row--events">
@@ -488,6 +726,7 @@ export default function EventManage() {
 
           {tab === "status" && (
             <div id="panelEventStatus" className="rm-panel">
+              {bookingsLoadErr ? <p className="rm-empty" style={{ marginBottom: 12 }}>{bookingsLoadErr}</p> : null}
               <div className="rm-top-row">
                 <div className="rm-search-wrap">
                   <IconSearchField />
@@ -505,23 +744,31 @@ export default function EventManage() {
                 <table className="rm-table">
                   <thead>
                     <tr>
-                      <th>Type</th>
+                      <th>Venue / title</th>
                       <th>Date</th>
                       <th>Time</th>
-                      <th>Guest</th>
-                      <th>Total Amount</th>
+                      <th>Guests</th>
+                      <th>Total</th>
                       <th>Downpayment</th>
                       <th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStatuses.length === 0 ? (
+                    {bookingsLoading ? (
                       <tr>
-                        <td colSpan={7} className="rm-empty">No reservations found.</td>
+                        <td colSpan={7} className="rm-empty">
+                          Loading event bookings…
+                        </td>
+                      </tr>
+                    ) : filteredStatuses.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="rm-empty">
+                          No event reservations found.
+                        </td>
                       </tr>
                     ) : (
-                      filteredStatuses.map((s, i) => (
-                        <tr key={i}>
+                      filteredStatuses.map((s) => (
+                        <tr key={s.id || `${s.type}-${s.date}`}>
                           <td>{s.type}</td>
                           <td>{s.date}</td>
                           <td>{s.time}</td>
@@ -529,7 +776,7 @@ export default function EventManage() {
                           <td>{s.total}</td>
                           <td>{s.downpayment}</td>
                           <td>
-                            <span className={`rm-badge badge-${s.status.toLowerCase()}`}>{s.status}</span>
+                            <span className="rm-badge">{s.status}</span>
                           </td>
                         </tr>
                       ))
@@ -542,74 +789,82 @@ export default function EventManage() {
 
           {tab === "venue" && (
             <div id="panelEventVenue" className="rm-panel">
+              {venuesError ? <p className="rm-empty" style={{ marginBottom: 12 }}>{venuesError}</p> : null}
               <div className="rm-top-row">
                 <div className="rm-search-wrap">
                   <IconSearchField />
                   <input
                     type="text"
                     className="rm-search-input"
-                    placeholder="Search event venue..."
+                    placeholder="Search venues…"
                     value={venueSearch}
                     onChange={(e) => setVenueSearch(e.target.value)}
                   />
                 </div>
-                <button type="button" className="rm-add-btn" onClick={openAdd}>
+                <button type="button" className="rm-add-btn" onClick={openAdd} disabled={venuesLoading}>
                   <Icon.Plus /> Add Event Venue
                 </button>
               </div>
-              <div className="rm-section-label">Manage Event Venues</div>
+              <div className="rm-section-label">Manage Event Venues (database)</div>
               <div className="rm-table-wrap">
                 <table className="rm-table">
-                  <colgroup>
-                    <col />
-                    <col />
-                    <col />
-                    <col />
-                    <col />
-                    <col />
-                    <col className="rm-col--action" />
-                  </colgroup>
                   <thead>
                     <tr>
-                      <th>Event</th>
-                      <th>Number</th>
-                      <th>Package</th>
-                      <th>Type</th>
-                      <th>Limit</th>
+                      <th>Image</th>
+                      <th>Venue</th>
+                      <th>Capacity</th>
                       <th>Price</th>
+                      <th>Status</th>
+                      <th>Reserved</th>
                       <th className="rm-th-action">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredVenues.length === 0 ? (
+                    {venuesLoading ? (
                       <tr>
-                        <td colSpan={7} className="rm-empty">No venues found.</td>
+                        <td colSpan={7} className="rm-empty">
+                          Loading venues…
+                        </td>
+                      </tr>
+                    ) : filteredVenues.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="rm-empty">
+                          No venues found.
+                        </td>
                       </tr>
                     ) : (
                       filteredVenues.map((v) => {
-                        const idx = venues.indexOf(v);
+                        const img = v.imageUrl || v.image;
+                        const label = v.venueName || v.name || v.package || "—";
                         return (
-                          <tr key={idx}>
+                          <tr key={String(v.id)}>
                             <td>
-                              {v.image ? (
-                                <img src={v.image} className="rm-thumb" alt={v.package} />
+                              {img ? (
+                                <img src={img} className="rm-thumb" alt="" />
                               ) : (
                                 <div className="rm-thumb-empty">
                                   <Icon.Image />
                                 </div>
                               )}
                             </td>
-                            <td>{v.eventNum}</td>
-                            <td>{v.package}</td>
-                            <td>{v.type}</td>
-                            <td>{v.limit}</td>
-                            <td>{v.price}</td>
+                            <td>{label}</td>
+                            <td>{v.capacity != null ? v.capacity : "—"}</td>
+                            <td>{fmtPeso(v.price)}</td>
+                            <td>
+                              <span className="rm-badge">{String(v.status || "").replace(/_/g, " ")}</span>
+                            </td>
+                            <td>{v.reserved != null ? v.reserved : 0}</td>
                             <td className="action-cell rm-td-action">
                               <span className="rm-action-btns">
-                                <button type="button" className="icon-action edit-btn" title="Edit" onClick={() => openEdit(idx)}>
+                                <button type="button" className="icon-action edit-btn" title="Edit" onClick={() => openEdit(v)}>
                                   <Icon.Edit />
                                 </button>
-                                <button type="button" className="icon-action delete-btn" title="Delete" onClick={() => setDeleteIdx(idx)}>
+                                <button
+                                  type="button"
+                                  className="icon-action delete-btn"
+                                  title="Delete"
+                                  onClick={() => setDeleteTarget(v)}
+                                >
                                   <Icon.Delete />
                                 </button>
                               </span>
@@ -628,15 +883,22 @@ export default function EventManage() {
 
       <VenueModal
         visible={modalVisible}
-        editIdx={editIdx}
+        isEdit={Boolean(editingVenueId)}
         form={form}
         setForm={setForm}
-        onClose={() => setModalVisible(false)}
+        formErr={formErr}
+        saving={savingVenue}
+        onClose={() => {
+          if (savingVenue) return;
+          setModalVisible(false);
+          setEditingVenueId(null);
+          setForm({ ...EMPTY_FORM });
+        }}
         onSave={saveVenue}
-        onClear={() => setForm(EMPTY_FORM)}
+        onClear={() => setForm({ ...EMPTY_FORM })}
       />
 
-      {deleteIdx > -1 && (
+      {deleteTarget ? (
         <div
           className="rm-confirm-backdrop active"
           onClick={(e) => {
@@ -650,19 +912,22 @@ export default function EventManage() {
               </svg>
               <span className="rm-confirm-exclaim">!</span>
             </div>
-            <h3 className="rm-confirm-title">Delete Event Venue?</h3>
-            <p className="rm-confirm-sub">This action cannot be undone.</p>
+            <h3 className="rm-confirm-title">Delete event venue?</h3>
+            <p className="rm-confirm-sub">
+              Delete <strong>{deleteTarget.venueName || deleteTarget.name || deleteTarget.package}</strong>? Cannot delete if reserved slots
+              &gt; 0.
+            </p>
             <div className="rm-confirm-btns">
               <button type="button" className="rm-btn-cancel-confirm" onClick={closeDelete}>
                 Cancel
               </button>
-              <button type="button" className="rm-btn-delete-confirm" onClick={confirmDelete}>
+              <button type="button" className="rm-btn-delete-confirm" onClick={() => void confirmDelete()}>
                 Delete
               </button>
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       {toast.visible && (
         <div className="rm-toast active">
@@ -671,11 +936,7 @@ export default function EventManage() {
         </div>
       )}
 
-      <LogoutConfirmModal
-        open={logoutModalOpen}
-        onClose={closeLogoutModal}
-        onConfirm={confirmLogout}
-      />
+      <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>
   );
 }

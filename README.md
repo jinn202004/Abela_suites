@@ -26,3 +26,19 @@ If you are developing a production application, consider adding `eslint-plugin-r
 **Endpoints:** `GET /api/frontdesk/summary` (card metrics from MongoDB, same rules as bookings + billing), `GET /api/rooms` (room status table), `GET /api/event-venues` (event status table), `GET /api/frontdesk/bookings/:id` (booking modal).
 
 **Refresh:** Toolbar button + 60s auto-refresh + listeners for auth and cross-tab pings.
+
+---
+
+## Abela — ADMIN_1 Cashier / Bills (`src/admin_1/bills.jsx`)
+
+**Purpose:** Staff-facing **billing ledger** backed by MongoDB **`billings`** (joined **`bookings`** + **`guests`**). This is the ADMIN_1 “cashier” surface for viewing balances and recording payments.
+
+**Service layer:** `src/api/cashier.service.js`
+
+- `getBilling(page, limit, { type, search })` → **`GET /api/cashier/billing?page=&limit=`** (response shape matches Restaurant Menu pagination: `currentPage`, `totalPages`, `totalItems`, `data`).
+- `getBillingById(id)` → **`GET /api/billing/:id`** (full guest / booking / billing bundle).
+- `updatePayment(id, amountPaid)` → **`PUT /api/billing/:id/payment`** (`amountPaid` is the **cumulative** total paid).
+
+**Pagination UI:** Same **`rm-pagination-*`** controls as **Restaurant Menu** (previous/next, numeric pages, per-page selector).
+
+**Role behavior (UI + API):** **`cashier`** and **`admin`** can **Pay** (payment modal). **`frontdesk`** is **view-only** on payments (**403** on `PUT` if they bypass the UI). After a successful payment or on a timer while the tab is visible, the page **re-fetches** the current ledger page so totals stay accurate without loading every billing row at once.

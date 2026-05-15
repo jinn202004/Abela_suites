@@ -168,7 +168,7 @@ export default function AttendanceManagement() {
   return (
     <>
       <RailPortalShell
-        rootClassName="app-root"
+        rootClassName="app-layout admin-app-layout app-root"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav />}
       >

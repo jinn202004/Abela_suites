@@ -128,8 +128,9 @@ export function dispatchGuestBookingsRefreshPing() {
     /* ignore */
   }
   try {
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('abela-guest-bookings-ping'))
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("abela-guest-bookings-ping"));
+      window.dispatchEvent(new Event(GUEST_NOTIFICATIONS_REFRESH_EVENT));
     }
   } catch {
     /* ignore */
@@ -180,8 +181,9 @@ export async function fetchRoomAvailabilityWindow(checkIn, checkOut) {
 }
 
 /**
- * GET /api/rooms/:roomId/guest-occupancy?from=&to= — public; approved/confirmed/occupied stays for one room (no PII).
- * @returns {Promise<{ roomId: string, bookedRanges: { checkIn: string, checkOut: string }[] }>}
+ * GET /api/rooms/:roomId/guest-occupancy?from=&to= — public; blocking stays for one room (no PII).
+ * Each range may include `stayTone`: `"occupied"` (in-house) or `"reserved"` (pending / approved / confirmed).
+ * @returns {Promise<{ roomId: string, bookedRanges: { checkIn: string, checkOut: string, stayTone?: string }[] }>}
  */
 export async function fetchRoomGuestOccupancy(roomId, from, to) {
   const id = String(roomId || '').trim()
@@ -220,6 +222,26 @@ function authJsonHeaders() {
 }
 
 /**
+ * Approve/reject and similar staff actions: Vite dev often surfaces a dead API as HTTP 502 from the proxy.
+ */
+function bookingStaffActionErrorMessage(status, dataError) {
+  const fromApi = dataError != null && String(dataError).trim() ? String(dataError).trim() : ''
+  if (fromApi) return fromApi
+  if (status === 502 || status === 503 || status === 504) {
+    const hasCustomBase = Boolean(String(import.meta.env.VITE_API_BASE_URL || '').trim())
+    if (hasCustomBase) {
+      return `The API returned ${status}. Check VITE_API_BASE_URL and that the backend process is running and reachable.`
+    }
+    return (
+      `The hotel API could not be reached (${status}). ` +
+      `For local development: in a separate terminal run “cd be/abela-be && npm run dev” so the server listens on port 5000 ` +
+      `(the Vite dev server proxies /api to http://localhost:5000).`
+    )
+  }
+  return `Request failed (${status}).`
+}
+
+/**
  * GET /api/event-venues — Bearer + frontdesk, housekeeping, or admin (`be/abela-be`).
  * @returns {Promise<Array<Record<string, unknown>>>}
  */
@@ -254,6 +276,34 @@ export async function createRoomBackend(body) {
 }
 
 /**
+ * POST /api/rooms/upload — admin; multipart field `image`. Server writes to S3 under `rooms/` (same bucket as menu).
+ * @returns {Promise<{ publicUrl: string, key: string, contentType: string, contentLength: number }>}
+ */
+export async function uploadRoomImageDirectBackend(file) {
+  const token = getStoredAuthToken()
+  if (!token) {
+    const err = new Error('Not signed in')
+    err.code = 'NO_TOKEN'
+    throw err
+  }
+  const fd = new FormData()
+  fd.append('image', file, file.name || 'image')
+  const res = await fetch(backendUrl('/api/rooms/upload'), {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    if (data.code) err.code = data.code
+    throw err
+  }
+  return data
+}
+
+/**
  * PATCH /api/rooms/:id
  * @param {string} id
  * @param {Record<string, unknown>} body — partial room fields
@@ -276,7 +326,7 @@ export async function updateRoomBackend(id, body) {
 /**
  * PATCH /api/rooms/:id/housekeeping-status — front desk or admin only.
  * @param {string} roomId
- * @param {'needs_cleaning'|'ready'} status
+ * @param {'needs_cleaning'|'ready'|'available'} status
  */
 export async function patchRoomHousekeepingStatusBackend(roomId, status) {
   const res = await fetch(
@@ -309,6 +359,21 @@ export async function deleteRoomBackend(id) {
     throw err
   }
   return data
+}
+
+/**
+ * GET /api/bookings/event-calendar — public; all blocking event bookings for venue date pickers.
+ * (Guest GET /api/bookings is scoped to the signed-in user only, so calendars must use this.)
+ */
+export async function fetchGuestEventCalendarBookings() {
+  const res = await fetch(backendUrl('/api/bookings/event-calendar'))
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return Array.isArray(data.bookings) ? data.bookings : []
 }
 
 /**
@@ -419,8 +484,18 @@ export function bookingSaveAlertMessage(err) {
   if (status === 403) {
     return 'This account is not allowed to create that booking. Sign in with a guest account or contact the hotel.'
   }
+  /** Vite dev proxy returns 502 when nothing answers on localhost:5000. */
+  if (status === 502 || status === 503) {
+    return (
+      'Could not reach the hotel API (bad gateway). The frontend proxies /api to port 5000. ' +
+      'In a separate terminal, go to folder be/abela-be and run: npm run dev ' +
+      '(leave it running). Or from fe/abela-fe run: npm run dev:with-api to start API + Vite together. ' +
+      'Then submit your reservation again.'
+    )
+  }
   if (status >= 500) {
-    if (msg && msg.trim() && msg !== 'Internal server error') {
+    const genericHttp = /^HTTP \d{3}$/i.test(String(msg || '').trim())
+    if (msg && msg.trim() && msg !== 'Internal server error' && !genericHttp) {
       return msg
     }
     return 'The server had an error saving your booking. Check the backend terminal and MongoDB connection, then try again.'
@@ -544,14 +619,25 @@ export async function markAllNotificationsReadBackend() {
 
 /** PUT /api/bookings/:id/approve — Bearer + frontdesk or admin */
 export async function approveBookingBackend(id) {
-  const res = await fetch(backendUrl(`/api/bookings/${encodeURIComponent(id)}/approve`), {
-    method: 'PUT',
-    headers: authJsonHeaders(),
-    body: JSON.stringify({}),
-  })
+  const url = backendUrl(`/api/bookings/${encodeURIComponent(id)}/approve`)
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'PUT',
+      headers: authJsonHeaders(),
+      body: JSON.stringify({}),
+    })
+  } catch (e) {
+    const err = new Error(
+      'Network error: could not reach the hotel API. In local dev, start the backend with “cd be/abela-be && npm run dev” (default port 5000).',
+    )
+    err.status = 0
+    err.cause = e
+    throw err
+  }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = new Error(data.error || `HTTP ${res.status}`)
+    const err = new Error(bookingStaffActionErrorMessage(res.status, data.error))
     err.status = res.status
     throw err
   }
@@ -560,14 +646,25 @@ export async function approveBookingBackend(id) {
 
 /** PUT /api/bookings/:id/reject — optional body `{ reason }` */
 export async function rejectBookingBackend(id, reason) {
-  const res = await fetch(backendUrl(`/api/bookings/${encodeURIComponent(id)}/reject`), {
-    method: 'PUT',
-    headers: authJsonHeaders(),
-    body: JSON.stringify(reason != null && reason !== '' ? { reason: String(reason) } : {}),
-  })
+  const url = backendUrl(`/api/bookings/${encodeURIComponent(id)}/reject`)
+  let res
+  try {
+    res = await fetch(url, {
+      method: 'PUT',
+      headers: authJsonHeaders(),
+      body: JSON.stringify(reason != null && reason !== '' ? { reason: String(reason) } : {}),
+    })
+  } catch (e) {
+    const err = new Error(
+      'Network error: could not reach the hotel API. In local dev, start the backend with “cd be/abela-be && npm run dev” (default port 5000).',
+    )
+    err.status = 0
+    err.cause = e
+    throw err
+  }
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = new Error(data.error || `HTTP ${res.status}`)
+    const err = new Error(bookingStaffActionErrorMessage(res.status, data.error))
     err.status = res.status
     throw err
   }
@@ -626,7 +723,7 @@ export async function patchBookingBackend(id, body) {
   })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    const err = new Error(data.error || `HTTP ${res.status}`)
+    const err = new Error(bookingStaffActionErrorMessage(res.status, data.error))
     err.status = res.status
     throw err
   }
@@ -717,6 +814,24 @@ export async function putHousekeepingTaskStatusBackend(taskId, status) {
     dispatchFrontdeskNotificationsRefresh()
   }
   return data.task
+}
+
+/**
+ * DELETE /api/housekeeping/tasks/:id — Bearer; housekeeping or admin
+ */
+export async function deleteHousekeepingTaskBackend(taskId) {
+  const res = await fetch(backendUrl(`/api/housekeeping/tasks/${encodeURIComponent(taskId)}`), {
+    method: 'DELETE',
+    headers: authJsonHeaders(),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  dispatchHousekeepingTasksRefresh()
+  return data
 }
 
 /** GET /api/guests/me — Bearer; hotel guest profile linked to the user */

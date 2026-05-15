@@ -1,0 +1,1072 @@
+/* Scoped guest-room booking look for front desk room walk-in only.
+   Root class must wrap the walk-in modal subtree (no global resets). */
+.walkin-room-booking-root {
+  --gold: #b8922a;
+  --gold-light: #c9a84c;
+  --gold-dark: #9a7520;
+  --text-dark: #3a2e1e;
+  --text-mid: #6b5a3e;
+  --text-light: #9a8060;
+}
+
+@keyframes walkinRoomModalIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.walkin-room-booking-root .modal-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 10050;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(16px, 3vh, 40px) 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.walkin-room-booking-root .modal-backdrop.active {
+  display: flex;
+}
+
+.walkin-room-booking-root .modal {
+  background: #fdf8f0;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 700px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  animation: walkinRoomModalIn 0.28s ease both;
+  min-height: 0;
+}
+.walkin-room-booking-root .modal.modal--booking {
+  max-width: min(100%, 720px);
+  max-height: min(92vh, 880px);
+  border: 1px solid rgba(212, 185, 122, 0.35);
+  overflow: hidden;
+}
+.walkin-room-booking-root .modal.payment-modal {
+  max-width: 700px !important;
+  width: 700px !important;
+}
+
+.walkin-room-booking-root .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 24px;
+  background: #fdf8f0;
+  border-bottom: 1px solid #e8dcc8;
+  border-radius: 12px 12px 0 0;
+  flex-shrink: 0;
+}
+.walkin-room-booking-root .modal-header--booking {
+  padding: 18px 24px 16px;
+}
+.walkin-room-booking-root .modal-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--gold);
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.walkin-room-booking-root .modal-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color: var(--text-mid);
+  cursor: pointer;
+  padding: 6px 8px;
+  border-radius: 8px;
+  line-height: 1;
+  transition: color 0.2s, background 0.2s;
+  flex-shrink: 0;
+}
+.walkin-room-booking-root .modal-close:hover {
+  color: var(--gold);
+  background: rgba(184, 146, 42, 0.08);
+}
+
+.walkin-room-booking-root .modal-body {
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #fdf8f0;
+  border-radius: 0 0 12px 12px;
+  min-height: 0;
+}
+.walkin-room-booking-root .modal-body--booking {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  padding: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(184, 146, 42, 0.45) rgba(232, 220, 200, 0.35);
+}
+.walkin-room-booking-root .modal-body--booking::-webkit-scrollbar {
+  width: 8px;
+}
+.walkin-room-booking-root .modal-body--booking::-webkit-scrollbar-track {
+  background: rgba(232, 220, 200, 0.35);
+  border-radius: 0 0 10px 0;
+}
+.walkin-room-booking-root .modal-body--booking::-webkit-scrollbar-thumb {
+  background: rgba(184, 146, 42, 0.4);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.walkin-room-booking-root .booking-form {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 24px 28px 28px;
+}
+
+.walkin-room-booking-root .booking-form .form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  align-items: start;
+}
+.walkin-room-booking-root .booking-form .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.walkin-room-booking-root .booking-form .form-group label,
+.walkin-room-booking-root .booking-form .form-label-static {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-mid);
+  line-height: 1.3;
+}
+.walkin-room-booking-root .booking-form .form-group.full-width {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.walkin-room-booking-root .booking-form .form-group input[type="text"],
+.walkin-room-booking-root .booking-form .form-group input[type="email"],
+.walkin-room-booking-root .booking-form .form-group input[type="date"],
+.walkin-room-booking-root .booking-form .form-group input[type="number"],
+.walkin-room-booking-root .booking-form .form-group select {
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 8px;
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-dark);
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+.walkin-room-booking-root .booking-form .form-group textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 8px;
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-dark);
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  resize: vertical;
+  box-sizing: border-box;
+  line-height: 1.45;
+}
+.walkin-room-booking-root .booking-form .form-group input:focus,
+.walkin-room-booking-root .booking-form .form-group textarea:focus,
+.walkin-room-booking-root .booking-form .form-group select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.12);
+}
+
+.walkin-room-booking-root .walkin-load-hint {
+  margin: 0 0 8px;
+  font-family: "Roboto", sans-serif;
+  font-size: 12px;
+  color: var(--text-mid);
+  line-height: 1.45;
+}
+
+.walkin-room-booking-root .walkin-cal-server-hint {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  font-family: "Roboto", sans-serif;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-dark);
+  background: rgba(184, 146, 42, 0.08);
+  border: 1px solid rgba(212, 196, 168, 0.85);
+  border-radius: 8px;
+}
+.walkin-room-booking-root .walkin-cal-server-hint strong {
+  color: var(--gold-dark);
+  font-weight: 700;
+}
+
+.walkin-room-booking-root .booking-cal-legend-help {
+  margin: 10px 0 0;
+  padding: 0;
+  font-family: "Roboto", sans-serif;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-mid);
+  max-width: 52ch;
+}
+.walkin-room-booking-root .booking-cal-legend-help strong {
+  color: var(--text-dark);
+  font-weight: 700;
+}
+
+.walkin-room-booking-root .booking-schedule-note {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-mid);
+  background: rgba(184, 146, 42, 0.08);
+  border: 1px solid rgba(212, 196, 168, 0.95);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 0;
+}
+.walkin-room-booking-root .booking-schedule-note strong {
+  color: var(--gold-dark);
+  font-weight: 700;
+}
+
+.walkin-room-booking-root .upload-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 47px;
+  border: 1.5px dashed #d4c4a8;
+  border-radius: 5px;
+  background: #ffffff;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.2s, background 0.2s;
+  position: relative;
+}
+.walkin-room-booking-root .upload-box:hover {
+  border-color: var(--gold);
+  background: #fdf5e6;
+}
+.walkin-room-booking-root .upload-box input[type="file"] {
+  display: none;
+}
+.walkin-room-booking-root .upload-placeholder {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  color: var(--text-light);
+  font-size: 13px;
+  font-family: "Roboto", sans-serif;
+}
+.walkin-room-booking-root .upload-preview {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: 200px;
+  min-height: 72px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 4px;
+  flex: 1;
+}
+
+.walkin-room-booking-root .upload-box.upload-box--booking-id {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  align-self: flex-start;
+  flex-shrink: 0;
+  min-height: 44px;
+  height: 44px;
+  max-height: 44px;
+  padding: 0 14px;
+  border: 1px solid #c9b896;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, #faf8f4 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75);
+  box-sizing: border-box;
+  cursor: pointer;
+}
+.walkin-room-booking-root .upload-box.upload-box--booking-id:hover {
+  border-color: var(--gold);
+  background: linear-gradient(180deg, #ffffff 0%, #f5f0e6 100%);
+}
+.walkin-room-booking-root .upload-box.upload-box--booking-id:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.12);
+}
+.walkin-room-booking-root .upload-box.upload-box--booking-id input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+  display: block;
+  font-size: 0;
+}
+.walkin-room-booking-root .upload-box.upload-box--booking-id .upload-placeholder {
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  pointer-events: none;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--text-mid);
+}
+.walkin-room-booking-root .upload-box.upload-box--booking-id .upload-placeholder svg {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--gold);
+  opacity: 0.92;
+}
+.walkin-room-booking-root .upload-box.upload-box--booking-id:has(.upload-preview) {
+  height: auto;
+  min-height: 0;
+  max-height: 120px;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 10px;
+}
+.walkin-room-booking-root .upload-box.upload-box--booking-id .upload-preview {
+  position: relative;
+  z-index: 0;
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 100px;
+  min-height: 0;
+  object-fit: contain;
+  object-position: center;
+  flex: 0 1 auto;
+  pointer-events: none;
+  border-radius: 4px;
+}
+
+.walkin-room-booking-root .form-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 18px;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 10px;
+  background: #ffffff;
+}
+.walkin-room-booking-root .form-section--textarea {
+  gap: 8px;
+  padding-bottom: 14px;
+}
+.walkin-room-booking-root .form-section__label {
+  font-family: "Montserrat", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+.walkin-room-booking-root .form-section__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gold);
+}
+.walkin-room-booking-root .form-section__head svg {
+  flex-shrink: 0;
+  color: var(--gold);
+}
+.walkin-room-booking-root .form-section__title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+}
+.walkin-room-booking-root .form-section__desc {
+  margin: 0;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  color: var(--text-mid);
+  line-height: 1.45;
+}
+.walkin-room-booking-root .form-section--payment .payment-options {
+  margin-top: 4px;
+}
+
+.walkin-room-booking-root .payment-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.walkin-room-booking-root .payment-card {
+  border: 2px solid #d4c4a8;
+  border-radius: 8px;
+  background: #f0ebe0;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.walkin-room-booking-root .payment-card input[type="radio"] {
+  display: none;
+}
+.walkin-room-booking-root .payment-card.selected {
+  border-color: #b0b8d4;
+  background: #e8ecf5;
+}
+.walkin-room-booking-root .payment-card-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 20px 14px;
+  gap: 6px;
+}
+.walkin-room-booking-root .payment-card-inner strong {
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+.walkin-room-booking-root .payment-card-inner span {
+  font-family: "Roboto", sans-serif;
+  font-size: 11.5px;
+  color: var(--text-mid);
+}
+.walkin-room-booking-root .payment-gcash-icon-wrap {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.walkin-room-booking-root .payment-card.selected .payment-gcash-icon-wrap {
+  box-shadow: 0 1px 3px rgba(0, 45, 156, 0.12);
+}
+.walkin-room-booking-root .payment-logo-gcash {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  flex-shrink: 0;
+}
+
+.walkin-room-booking-root .terms-block,
+.walkin-room-booking-root .agreements-block {
+  border: 1.5px solid #d4c4a8;
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.walkin-room-booking-root .terms-title,
+.walkin-room-booking-root .agreements-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold);
+}
+.walkin-room-booking-root .terms-body {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  color: var(--text-dark);
+  line-height: 1.65;
+  max-height: 130px;
+  overflow-y: auto;
+  border: 1px solid #e8dcc8;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.walkin-room-booking-root .terms-body ol {
+  padding-left: 16px;
+}
+.walkin-room-booking-root .terms-body ol li {
+  margin-bottom: 6px;
+}
+.walkin-room-booking-root .terms-body ul {
+  padding-left: 14px;
+  margin-top: 4px;
+}
+.walkin-room-booking-root .terms-body ul li {
+  margin-bottom: 3px;
+}
+.walkin-room-booking-root .terms-body strong {
+  color: var(--gold);
+}
+
+.walkin-room-booking-root .checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  color: var(--text-dark);
+  cursor: pointer;
+  user-select: none;
+}
+.walkin-room-booking-root .checkbox-label input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  accent-color: var(--gold);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.walkin-room-booking-root .checkbox-label a {
+  color: var(--gold);
+  text-decoration: none;
+  font-weight: 600;
+}
+.walkin-room-booking-root .checkbox-label a:hover {
+  text-decoration: underline;
+}
+.walkin-room-booking-root .checkbox-label.check-error {
+  color: #c0392b;
+}
+.walkin-room-booking-root .checkbox-label.check-error input[type="checkbox"] {
+  outline: 2px solid #e74c3c;
+  outline-offset: 1px;
+  border-radius: 2px;
+}
+
+.walkin-room-booking-root .required {
+  color: #c0392b;
+  font-size: 13px;
+  margin-left: 2px;
+}
+.walkin-room-booking-root .field-error {
+  color: #c0392b;
+  font-family: "Roboto", sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  min-height: 16px;
+  display: block;
+  margin-top: 2px;
+}
+.walkin-room-booking-root .input-error {
+  border-color: #c0392b !important;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12) !important;
+}
+.walkin-room-booking-root .box-error {
+  border-color: #c0392b !important;
+  background: rgba(192, 57, 43, 0.04) !important;
+}
+
+.walkin-room-booking-root .booking-review-summary {
+  margin-top: 8px;
+  padding: 14px 16px;
+  background: #faf8f4;
+  border: 1px solid #ebe2d4;
+  border-radius: 8px;
+  text-align: left;
+}
+.walkin-room-booking-root .booking-review-summary__title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold-dark);
+  margin: 0 0 10px;
+}
+.walkin-room-booking-root .booking-review-summary__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dark);
+}
+.walkin-room-booking-root .booking-review-summary__list li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  justify-content: space-between;
+  border-bottom: 1px solid #ebe5dc;
+  padding-bottom: 6px;
+}
+.walkin-room-booking-root .booking-review-summary__list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+.walkin-room-booking-root .booking-review-summary__k {
+  color: var(--text-mid);
+  font-weight: 500;
+}
+.walkin-room-booking-root .booking-review-summary__v {
+  font-weight: 600;
+  text-align: right;
+  max-width: 65%;
+}
+.walkin-room-booking-root .booking-review-summary__v--muted {
+  font-weight: 500;
+  color: var(--text-mid);
+  font-size: 12px;
+}
+
+.walkin-room-booking-root .booking-gcash-draft-note {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  background: #e8f6ee;
+  border: 1px solid #b8dfc8;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #1e5a33;
+}
+
+.walkin-room-booking-root .modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 4px;
+  margin-top: 4px;
+  border-top: 1px solid #e8dcc8;
+  padding-top: 20px;
+}
+.walkin-room-booking-root .btn-clear {
+  padding: 10px 32px;
+  background: transparent;
+  color: var(--text-dark);
+  border: 1.5px solid #d4c4a8;
+  border-radius: 6px;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.walkin-room-booking-root .btn-clear:hover {
+  border-color: var(--gold);
+}
+.walkin-room-booking-root .btn-submit-reservation {
+  padding: 10px 28px;
+  background: var(--gold-dark);
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.walkin-room-booking-root .btn-submit-reservation:hover {
+  background: var(--gold);
+}
+
+/* GCash payment modal (guest-room side layout) */
+.walkin-room-booking-root .payment-modal-body {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px;
+  padding: 20px 32px 28px;
+  overflow-y: auto;
+}
+.walkin-room-booking-root .payment-modal-lead {
+  margin: 0;
+  padding: 0 0 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-mid);
+  text-align: left;
+  border-bottom: 1px solid #ebe2d4;
+}
+.walkin-room-booking-root .payment-modal-columns {
+  display: flex;
+  flex-direction: row;
+  gap: 28px;
+  align-items: flex-start;
+}
+.walkin-room-booking-root .payment-qr-side {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 230px;
+}
+.walkin-room-booking-root .payment-qr-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.walkin-room-booking-root .payment-qr-brand .qr-name {
+  margin-top: 0;
+}
+.walkin-room-booking-root .qr-payment-frame {
+  width: 100%;
+  max-width: 220px;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid #e8dcc8;
+  background: #ffffff;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+.walkin-room-booking-root .qr-payment-frame--empty {
+  background: #faf8f4;
+}
+.walkin-room-booking-root .qr-img.qr-img-payment {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+  padding: 12px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0;
+  display: block;
+  background: #ffffff;
+}
+.walkin-room-booking-root .qr-payment-placeholder {
+  min-height: 200px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+.walkin-room-booking-root .qr-payment-placeholder-label {
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  color: var(--text-mid);
+  font-weight: 500;
+}
+.walkin-room-booking-root .qr-name {
+  font-family: "Montserrat", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-top: 6px;
+  text-align: center;
+}
+.walkin-room-booking-root .qr-handle {
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-mid);
+  text-align: center;
+}
+.walkin-room-booking-root .payment-form-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.walkin-room-booking-root .payment-form-side .form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.walkin-room-booking-root .payment-form-side .form-group label {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-mid);
+}
+.walkin-room-booking-root .payment-form-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 12px;
+  text-align: center;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 6px;
+  padding: 10px;
+  background: #fdf8f0;
+}
+.walkin-room-booking-root .payment-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+}
+.walkin-room-booking-root .payment-form-side .form-group input[type="text"],
+.walkin-room-booking-root .payment-form-side .form-group input[type="date"] {
+  padding: 11px 13px;
+  font-size: 14px;
+  height: 47px;
+  width: 100%;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+.walkin-room-booking-root .proof-upload {
+  min-height: 110px;
+  flex-direction: column;
+  gap: 6px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 1.5px dashed #d4c4a8;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  overflow: hidden;
+}
+.walkin-room-booking-root .proof-upload:hover {
+  border-color: var(--gold);
+  background: #fdf5e6;
+}
+.walkin-room-booking-root .proof-upload:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.12);
+}
+.walkin-room-booking-root .proof-upload:has(.upload-preview) {
+  min-height: 180px;
+}
+.walkin-room-booking-root .proof-upload .upload-placeholder {
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  color: var(--text-light);
+  font-size: 13px;
+  padding: 18px;
+  pointer-events: none;
+  position: relative;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+}
+.walkin-room-booking-root .proof-upload .upload-preview {
+  max-height: 220px;
+  min-height: 100px;
+  pointer-events: none;
+  position: relative;
+  z-index: 0;
+  object-fit: contain;
+}
+.walkin-room-booking-root .proof-upload input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+  display: block;
+  font-size: 0;
+}
+.walkin-room-booking-root .payment-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+.walkin-room-booking-root .payment-form-actions .btn-clear,
+.walkin-room-booking-root .payment-form-actions .btn-submit-reservation {
+  padding: 11px 32px;
+  font-size: 14px;
+}
+
+/* Walk-in room booking: guest-style stay calendars (DayPicker + FD legend), scoped */
+.walkin-room-booking-root .booking-form .form-row--stay-calendars {
+  align-items: start;
+}
+.walkin-room-booking-root .booking-form .form-row--stay-calendars .booking-cal-unavailable-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 12px;
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dark);
+  background: rgba(184, 146, 42, 0.1);
+  border: 1px solid rgba(212, 196, 168, 0.95);
+  border-radius: 8px;
+}
+.walkin-room-booking-root .booking-form .form-row--stay-calendars .booking-cal-unavailable-hint strong {
+  color: var(--gold-dark);
+  font-weight: 700;
+}
+.walkin-room-booking-root .booking-day-picker-wrap {
+  border: 1.5px solid #d4c4a8;
+  border-radius: 10px;
+  padding: 10px 8px 12px;
+  background: #ffffff;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.walkin-room-booking-root .booking-day-picker-wrap--error {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.1);
+}
+.walkin-room-booking-root .booking-form .booking-day-picker.rdp-root {
+  --rdp-accent-color: #b8922a;
+  --rdp-accent-background-color: rgba(184, 146, 42, 0.14);
+  --rdp-day-height: 34px;
+  --rdp-day-width: 34px;
+  --rdp-day_button-height: 32px;
+  --rdp-day_button-width: 32px;
+  --rdp-day_button-border-radius: 8px;
+  margin: 0 auto;
+}
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  cursor: default;
+  box-sizing: border-box;
+}
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  width: 100%;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+.walkin-room-booking-root .booking-day-picker-wrap--checkout-locked {
+  opacity: 0.78;
+  border-style: dashed;
+}
+.walkin-room-booking-root .booking-checkout-locked-label {
+  font-family: "Roboto", sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-mid);
+}
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell--reserved .rdp-day_button {
+  color: #4a3d08 !important;
+}
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell--occupied .rdp-day_button {
+  color: #fff !important;
+}
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell.rdp-disabled:not(.rdp-selected) {
+  opacity: 1 !important;
+}
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell.rdp-disabled .rdp-day_button:disabled {
+  opacity: 1 !important;
+  cursor: default !important;
+}
+.walkin-room-booking-root .booking-form-fd-cal-legend {
+  margin: 4px 0 0;
+}
+.walkin-room-booking-root .booking-form-fd-cal-legend .fd-cal-legend {
+  margin-top: 10px;
+}
+.walkin-room-booking-root .booking-form-fd-cal-legend + .booking-schedule-note {
+  margin-top: 12px;
+}
+.walkin-room-booking-root .booking-cal-hint {
+  display: block;
+  font-family: "Roboto", sans-serif;
+  font-size: 11.5px;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+.walkin-room-booking-root .booking-occupancy-warn {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .walkin-room-booking-root .booking-form {
+    padding: 20px 18px 22px;
+    gap: 18px;
+  }
+  .walkin-room-booking-root .booking-form .form-row {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .walkin-room-booking-root .booking-form .form-row--stay-calendars {
+    grid-template-columns: 1fr;
+  }
+  .walkin-room-booking-root .payment-options {
+    grid-template-columns: 1fr;
+  }
+  .walkin-room-booking-root .payment-modal-columns {
+    flex-direction: column;
+  }
+  .walkin-room-booking-root .payment-qr-side {
+    width: 100%;
+  }
+  .walkin-room-booking-root .modal.payment-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

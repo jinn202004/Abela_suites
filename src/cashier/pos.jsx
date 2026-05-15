@@ -3,19 +3,19 @@ import { createPortal } from "react-dom";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import { openPdfPrintOrDownload } from "../utils/pdfClientExport";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useCashierSidebarLayout } from "./useCashierSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import CashierSidebarToggle from "./CashierSidebarToggle";
 import { fetchMenuPageBackend, fetchCategoriesBackend, fetchMenuItemByIdBackend } from "../api/menuApi";
 import {
   createRestaurantOrderBackend,
+  fetchRestaurantOrdersBackend,
   patchRestaurantOrderPaymentBackend,
   patchRestaurantOrderStatusBackend,
 } from "../api/restaurantOrdersApi";
@@ -28,6 +28,33 @@ import { getPosWalkInGuestEmail } from "./posWalkInGuest";
 /** Preferred tab order (matches admin seed categories); extras are appended alphabetically. */
 const DEFAULT_CATEGORY_ORDER = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
 const MENU_AUTO_REFRESH_MS = 10000;
+/** Refresh POS dashboard totals (orders + sales from API; menu count from catalog). */
+const POS_STATS_REFRESH_MS = 25000;
+
+/** Local calendar YYYY-MM-DD (browser TZ) — "today" matches the cashier wall clock. */
+function localYmdFromDate(d) {
+  if (!(d instanceof Date) || Number.isNaN(d.getTime())) return "";
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+/** Derive today's order count and collected sales from GET /api/restaurant-orders (newest 200). */
+function aggregatePosTodayFromOrders(orders, todayYmd) {
+  const list = Array.isArray(orders) ? orders : [];
+  let ordersToday = 0;
+  let salesToday = 0;
+  for (const o of list) {
+    const raw = o?.orderDate;
+    const dt = raw ? new Date(raw) : null;
+    if (!dt || Number.isNaN(dt.getTime())) continue;
+    if (localYmdFromDate(dt) !== todayYmd) continue;
+    ordersToday += 1;
+    salesToday += Number(o?.amountPaid ?? 0) || 0;
+  }
+  return { ordersToday, salesToday };
+}
 
 /** Same windowed page numbers as Restaurant Menu (`resto.jsx`). */
 function visibleMenuPageNumbers(currentPage, totalPages) {
@@ -80,7 +107,11 @@ function menuItemToPosDish(m, categoriesRows = []) {
   const categoryNameFromRef =
     categoryRefId && Array.isArray(categoriesRows)
       ? String(
-          categoriesRows.find((c) => String(categoryRowId(c) ?? "") === categoryRefId)?.name || "",
+          categoriesRows.find((c) => String(categoryRowId(c) ?? "") === categoryRefId)?.name ||
+            categoriesRows.find(
+              (c) => String(c?.name ?? "").trim().toLowerCase() === categoryRefId.toLowerCase(),
+            )?.name ||
+            "",
         ).trim()
       : "";
   let categoryName =
@@ -163,6 +194,30 @@ const CashIcon = () => (
     <rect x="2" y="7" width="20" height="14" rx="2"/><circle cx="12" cy="14" r="2"/>
   </svg>
 );
+const PosStatCalIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <line x1="16" y1="2" x2="16" y2="6" />
+    <line x1="8" y1="2" x2="8" y2="6" />
+    <line x1="3" y1="10" x2="21" y2="10" />
+  </svg>
+);
+const PosStatReceiptIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="8" y1="13" x2="16" y2="13" />
+    <line x1="8" y1="17" x2="14" y2="17" />
+  </svg>
+);
+const PosStatMenuIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
+    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+    <line x1="8" y1="7" x2="16" y2="7" />
+    <line x1="8" y1="11" x2="14" y2="11" />
+  </svg>
+);
 // ── Helpers ────────────────────────────────────────────────────────────
 function generateInvoiceNumber() {
   const now  = new Date();
@@ -239,7 +294,7 @@ function downloadPosReceiptPdf({ orderedItems, discountRate, discountLabel, paym
   doc.text(`Total: ${fmtPdf(total)}`, margin, y);
 
   const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-  doc.save(`Abela_POS_Receipt_${stamp}.pdf`);
+  openPdfPrintOrDownload(doc, `Abela_POS_Receipt_${stamp}.pdf`);
 }
 
 // ── GCash Modal ────────────────────────────────────────────────────────
@@ -454,6 +509,14 @@ export default function POS() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [totalMenuItems, setTotalMenuItems] = useState(0);
+  /** Live totals: restaurant orders API + menu catalog (available dishes). */
+  const [posStats, setPosStats] = useState({
+    ordersToday: 0,
+    salesToday: 0,
+    menuDishesTotal: 0,
+    loading: true,
+    error: "",
+  });
   const [orderedItems, setOrderedItems] = useState([]);
   const [discountRate, setDiscountRate] = useState(0);
   const [paymentMethod,setPaymentMethod]= useState("Cash");
@@ -466,8 +529,6 @@ export default function POS() {
   const [lastReceiptSnapshot, setLastReceiptSnapshot] = useState(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [promptMessage, setPromptMessage] = useState("");
-  const [notifOpen,    setNotifOpen]    = useState(false);
-  const [userOpen,     setUserOpen]     = useState(false);
   const {
     collapsed: sidebarCollapsed,
     isMobile,
@@ -480,8 +541,6 @@ export default function POS() {
     logoWrapStyle,
     logoImgStyle,
   } = useCashierSidebarLayout();
-  const notifRef = useRef(null);
-  const userRef = useRef(null);
   const menuPageFetchGenRef = useRef(0);
 
   /** Loads category tabs from API (and optional focus dish). Dish rows load via paginated GET /api/menu when category changes — same pattern as Restaurant Menu. */
@@ -529,6 +588,60 @@ export default function POS() {
       navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } }),
   });
 
+  const loadPosStats = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true;
+    const todayYmd = localYmdFromDate(new Date());
+    if (!silent) {
+      setPosStats((s) => ({ ...s, loading: true, error: "" }));
+    }
+    try {
+      const [orders, menuPage] = await Promise.all([
+        fetchRestaurantOrdersBackend().catch(() => []),
+        fetchMenuPageBackend(1, 1, { availability: "available" }).catch(() => ({ totalItems: 0 })),
+      ]);
+      const { ordersToday, salesToday } = aggregatePosTodayFromOrders(orders, todayYmd);
+      const menuDishesTotal = Number(menuPage?.totalItems);
+      setPosStats({
+        ordersToday,
+        salesToday,
+        menuDishesTotal: Number.isFinite(menuDishesTotal) && menuDishesTotal >= 0 ? menuDishesTotal : 0,
+        loading: false,
+        error: "",
+      });
+    } catch (e) {
+      if (e?.code === "NO_TOKEN") {
+        setPosStats({
+          ordersToday: 0,
+          salesToday: 0,
+          menuDishesTotal: 0,
+          loading: false,
+          error: "",
+        });
+        return;
+      }
+      setPosStats((s) => ({
+        ...s,
+        loading: false,
+        error: e?.message || "Could not load dashboard totals.",
+      }));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPosStats();
+  }, [loadPosStats]);
+
+  useEffect(() => {
+    const onTok = () => void loadPosStats();
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+    return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+  }, [loadPosStats]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => void loadPosStats({ silent: true }), POS_STATS_REFRESH_MS);
+    return () => window.clearInterval(id);
+  }, [loadPosStats]);
+
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
     return () => window.clearTimeout(t);
@@ -538,7 +651,7 @@ export default function POS() {
     if (menuLoading) return undefined;
 
     const catRow = menuCategories.find((c) => String(c?.name ?? "").trim() === String(category ?? "").trim());
-    const categoryId = categoryRowId(catRow);
+    const filterName = String(catRow?.name ?? category ?? "").trim();
 
     let cancelled = false;
     const ac = new AbortController();
@@ -552,7 +665,7 @@ export default function POS() {
           currentPage,
           menuLimit,
           {
-            categoryId,
+            category: filterName,
             availability: "available",
             search: debouncedSearch || undefined,
           },
@@ -617,16 +730,6 @@ export default function POS() {
   useEffect(() => {
     setCurrentPage(1);
   }, [menuLimit]);
-
-  // Close dropdowns on outside click
-  useEffect(() => {
-    function handler(e) {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current  && !userRef.current.contains(e.target))  setUserOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
 
   const safePage = Math.min(Math.max(1, currentPage), totalPages);
 
@@ -734,6 +837,7 @@ export default function POS() {
       await patchRestaurantOrderStatusBackend(orderId, "completed");
 
       await reloadRestaurantOrders();
+      void loadPosStats({ silent: true });
 
       const snapshot = {
         orderedItems: orderedItems.map((i) => ({
@@ -823,51 +927,68 @@ export default function POS() {
             />
             <span className="breadcrumb-title">Point of Sales</span>
           </div>
-          <div className="topbar-actions">
-
-            {/* Bell */}
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => !v);
-                setUserOpen(false);
-              }}
-              onItemClick={handleNotifItemClick}
-              notifications={bellNotifications}
-              bellIconClassName="topbar-icon"
-              dot={hasUnreadBell ? "active" : "muted"}
-            />
-
-            {/* User */}
-            <div
-              className="icon-btn"
-              ref={userRef}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUserOpen((v) => !v);
-                setNotifOpen(false);
-              }}
-            >
-              <TopbarUserIcon className="topbar-icon" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                &#9662;
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.cashier.profilePath}
-                onCloseMenus={() => { setNotifOpen(false); setUserOpen(false); }}
-                onLogout={() => { setNotifOpen(false); setUserOpen(false); requestLogout(); }}
-              />
-            </div>
-          </div>
+          <StaffTopbarActions
+            roleKey="cashier"
+            notifications={bellNotifications}
+            dot={hasUnreadBell ? "active" : "muted"}
+            onNotificationItemClick={handleNotifItemClick}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         {/* ── PAGE CONTENT ── */}
         <main className="content">
-          <div className="pos-layout">
+          <div className="pos-main-stack">
+            <section className="pos-dash-stats" aria-label="POS dashboard summary">
+              <div className="pos-dash-stats__head">
+                <h1 className="pos-dash-stats__title">Cashier Dashboard</h1>
+                <p className="pos-dash-stats__sub">
+                  Totals from saved restaurant orders and the live menu catalog (refreshes automatically).
+                </p>
+              </div>
+              {posStats.error ? (
+                <p className="pos-dash-stats__warn" role="status">
+                  {posStats.error}
+                </p>
+              ) : null}
+              <div className="pos-dash-stats__grid">
+                <article className="pos-dash-stat-card">
+                  <div className="pos-dash-stat-card__label pos-dash-stat-card__label--orders">
+                    <PosStatCalIcon />
+                    <span>Total Orders Today</span>
+                  </div>
+                  <p className="pos-dash-stat-card__value">
+                    {posStats.loading ? "…" : String(posStats.ordersToday)}
+                  </p>
+                </article>
+                <article className="pos-dash-stat-card">
+                  <div className="pos-dash-stat-card__label pos-dash-stat-card__label--sales">
+                    <PosStatReceiptIcon />
+                    <span>Total Sales Today</span>
+                  </div>
+                  <p className="pos-dash-stat-card__value pos-dash-stat-card__value--money">
+                    {posStats.loading
+                      ? "…"
+                      : "₱" +
+                        Number(posStats.salesToday || 0).toLocaleString("en-PH", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                  </p>
+                </article>
+                <article className="pos-dash-stat-card">
+                  <div className="pos-dash-stat-card__label pos-dash-stat-card__label--menu">
+                    <PosStatMenuIcon />
+                    <span>Total Dishes in Menu</span>
+                  </div>
+                  <p className="pos-dash-stat-card__value">
+                    {posStats.loading ? "…" : String(posStats.menuDishesTotal)}
+                  </p>
+                </article>
+              </div>
+            </section>
+
+            <div className="pos-layout">
 
             {/* ── LEFT: Menu Panel ── */}
             <div className="menu-panel">
@@ -1120,6 +1241,7 @@ export default function POS() {
               </button>
             </div>
 
+          </div>
           </div>
         </main>
       </RailPortalShell>

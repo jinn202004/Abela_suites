@@ -20,6 +20,11 @@ export function formatLocalYmd(d) {
   return `${y}-${mo}-${day}`;
 }
 
+/** Today's date in the user's local timezone (YYYY-MM-DD). Prefer over `toISOString().slice(0,10)` for pickers. */
+export function formatLocalTodayYmd() {
+  return formatLocalYmd(new Date());
+}
+
 /** Add n calendar days in local time (n may be negative). */
 export function addLocalDays(ymd, n) {
   const d = parseLocalYmd(ymd);
@@ -51,4 +56,35 @@ export function blockedCheckInSetFromRanges(ranges) {
     }
   }
   return set;
+}
+
+/**
+ * Split booked nights for calendar styling: in-house (occupied) vs reserved (pending / approved / confirmed).
+ * Aligns with front desk dashboard tones. If a night falls in overlapping ranges, occupied wins.
+ * @param {Array<{ checkIn: string, checkOut: string, stayTone?: string }>} ranges
+ * @returns {{ occupiedNightSet: Set<string>, reservedNightSet: Set<string> }}
+ */
+export function splitGuestStayNightsByTone(ranges) {
+  const occupiedNightSet = new Set();
+  const reservedNightSet = new Set();
+  if (!Array.isArray(ranges)) return { occupiedNightSet, reservedNightSet };
+  for (const b of ranges) {
+    if (!b) continue;
+    const tone =
+      String(b?.stayTone ?? b?.calendarTone ?? "").trim().toLowerCase() === "occupied"
+        ? "occupied"
+        : "reserved";
+    const nights = blockedCheckInSetFromRanges([b]);
+    if (tone === "occupied") {
+      nights.forEach((d) => {
+        occupiedNightSet.add(d);
+        reservedNightSet.delete(d);
+      });
+    } else {
+      nights.forEach((d) => {
+        if (!occupiedNightSet.has(d)) reservedNightSet.add(d);
+      });
+    }
+  }
+  return { occupiedNightSet, reservedNightSet };
 }

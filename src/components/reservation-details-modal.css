@@ -1,0 +1,378 @@
+/* Shared “Reservation Details” layout — scope with .rdm on modal body */
+
+.rdm {
+  --rdm-radius: 12px;
+  --rdm-shadow: 0 2px 12px rgba(58, 46, 30, 0.08);
+  --rdm-border: 1px solid rgba(212, 185, 122, 0.45);
+  --rdm-gold: #b8922a;
+  --rdm-gold-soft: rgba(184, 146, 42, 0.12);
+  --rdm-text: #3a2e1e;
+  --rdm-text-mid: #6b5a3e;
+  --rdm-bg: #fffdf9;
+  color: var(--rdm-text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.rdm-loading {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--rdm-text-mid);
+}
+
+.rdm-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.rdm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border: var(--rdm-border);
+  background: #fff;
+  box-shadow: var(--rdm-shadow);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.rdm-pill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(58, 46, 30, 0.1);
+}
+
+.rdm-pill--booking {
+  border-color: rgba(184, 146, 42, 0.55);
+  background: linear-gradient(135deg, #fff, var(--rdm-gold-soft));
+}
+
+.rdm-pill--payment {
+  border-color: rgba(39, 174, 96, 0.35);
+  background: linear-gradient(135deg, #fff, rgba(39, 174, 96, 0.08));
+}
+
+.rdm-pill--balance {
+  border-color: rgba(231, 76, 60, 0.35);
+  background: linear-gradient(135deg, #fff, rgba(231, 76, 60, 0.06));
+}
+
+.rdm-pill__k {
+  color: var(--rdm-text-mid);
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 10px;
+}
+
+.rdm-pill__v {
+  color: var(--rdm-text);
+}
+
+.rdm-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 720px) {
+  .rdm-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rdm-card {
+  background: var(--rdm-bg);
+  border: var(--rdm-border);
+  border-radius: var(--rdm-radius);
+  padding: 14px 16px;
+  box-shadow: var(--rdm-shadow);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.rdm-card:hover {
+  border-color: rgba(184, 146, 42, 0.55);
+  box-shadow: 0 4px 18px rgba(58, 46, 30, 0.1);
+}
+
+.rdm-card--span2 {
+  grid-column: 1 / -1;
+}
+
+.rdm-card__title {
+  font-family: Montserrat, system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rdm-gold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 0 0 10px;
+}
+
+.rdm-card__sub {
+  margin: -6px 0 10px;
+  font-size: 12px;
+  color: var(--rdm-text-mid);
+}
+
+.rdm-dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+@media (max-width: 520px) {
+  .rdm-dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rdm-dl__full {
+  grid-column: 1 / -1;
+}
+
+.rdm-dt {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rdm-text-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 2px;
+}
+
+.rdm-dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rdm-text);
+  word-break: break-word;
+}
+
+.rdm-dd--muted {
+  font-weight: 500;
+  color: var(--rdm-text-mid);
+}
+
+/* Billing summary — single card */
+.rdm-billing {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .rdm-billing {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .rdm-billing {
+    grid-template-columns: 1fr;
+  }
+}
+
+.rdm-billing__cell {
+  padding: 12px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(212, 185, 122, 0.35);
+}
+
+.rdm-billing__cell--highlight {
+  border-color: rgba(231, 76, 60, 0.45);
+  background: linear-gradient(180deg, #fff, rgba(231, 76, 60, 0.05));
+}
+
+.rdm-billing__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--rdm-text-mid);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 4px;
+}
+
+.rdm-billing__value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--rdm-text);
+}
+
+.rdm-billing__cell--highlight .rdm-billing__value {
+  color: #c0392b;
+}
+
+.rdm-bill-hint {
+  margin: 12px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--rdm-text-muted, #6b5c4a);
+}
+
+/* Itemized add-on lines parsed from `additionalRequests` (staff Add charges). */
+.rdm-charge-lines {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(154, 128, 96, 0.28);
+}
+
+.rdm-charge-lines__title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--rdm-text-mid, #5c4f3d);
+  margin-bottom: 10px;
+}
+
+.rdm-charge-lines__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.rdm-charge-lines__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(154, 128, 96, 0.15);
+  font-size: 14px;
+}
+
+.rdm-charge-lines__row:last-of-type {
+  border-bottom: none;
+}
+
+.rdm-charge-lines__name {
+  color: var(--rdm-text, #2b2419);
+  flex: 1;
+  min-width: 0;
+}
+
+.rdm-charge-lines__amt {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--rdm-text, #2b2419);
+  white-space: nowrap;
+}
+
+.rdm-charge-lines__footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(154, 128, 96, 0.28);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rdm-text-mid, #5c4f3d);
+}
+
+.rdm-charge-lines__footer span:last-child {
+  font-variant-numeric: tabular-nums;
+  color: var(--rdm-text, #2b2419);
+}
+
+/* ID + proof images */
+.rdm-media-frame {
+  margin-top: 8px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f0ebe0;
+  border: 1px dashed rgba(154, 128, 96, 0.45);
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rdm-media-frame--tall {
+  min-height: 180px;
+}
+
+.rdm-media-img {
+  width: 100%;
+  max-height: 220px;
+  object-fit: contain;
+  display: block;
+  background: #e8dcc8;
+}
+
+.rdm-media-placeholder {
+  padding: 20px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--rdm-text-mid);
+}
+
+.rdm-proof-frame {
+  margin-top: 4px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f7f4ee;
+  border: 1px solid rgba(212, 185, 122, 0.5);
+  min-height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rdm-proof-frame--has-img {
+  border-style: solid;
+}
+
+.rdm-proof-img {
+  width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+  display: block;
+  background: #fff;
+}
+
+.rdm-proof-placeholder {
+  padding: 28px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--rdm-text-mid);
+  font-weight: 500;
+}
+
+.rdm-row-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 720px) {
+  .rdm-row-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Guest “Reservation Details” shell (home.jsx) */
+.rdm-shell-panel.guest-reservation-details.abel-modal-panel {
+  width: 100%;
+  max-width: min(760px, calc(100vw - 24px));
+}
+
+.rdm-shell-body.abel-modal-body.modal-body--details-scroll {
+  padding: 12px 16px 18px;
+}
+
+@media (max-width: 600px) {
+  .rdm-shell-body.abel-modal-body.modal-body--details-scroll {
+    padding: 10px 12px 14px;
+  }
+}

@@ -463,7 +463,7 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <RailPortalShell mainStyle={mainStyle} sidebar={<AdminSidebarNav />}>
+      <RailPortalShell rootClassName="app-layout admin-app-layout" mainStyle={mainStyle} sidebar={<AdminSidebarNav />}>
 
         {/* ── TOPBAR ── */}
         <header className="topbar">

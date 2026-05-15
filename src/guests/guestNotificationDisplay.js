@@ -12,9 +12,15 @@ export function buildGuestNotificationDetailLines(n) {
       ? "Decision: Approved"
       : n.type === "booking_rejected"
         ? "Decision: Rejected"
-        : n.type
-          ? `Type: ${String(n.type).replace(/_/g, " ")}`
-          : "";
+        : n.type === "booking_cancelled"
+          ? "Booking cancelled"
+          : n.type === "booking_checked_in"
+            ? "Checked in"
+            : n.type === "booking_checked_out"
+              ? "Checked out"
+              : n.type
+              ? `Type: ${String(n.type).replace(/_/g, " ")}`
+              : "";
   if (typeLabel) lines.push(typeLabel);
 
   if (n.bookingId) lines.push(`Booking ID: ${n.bookingId}`);
@@ -55,6 +61,9 @@ export function buildGuestNotificationDetailLines(n) {
     if (b.additionalRequests) lines.push(`Special requests: ${b.additionalRequests}`);
     if (String(n.type) === "booking_rejected" && b.declineReason) {
       lines.push(`Decline reason: ${b.declineReason}`);
+    }
+    if (String(n.type) === "booking_cancelled" && b.cancellationReason) {
+      lines.push(`Cancellation reason: ${b.cancellationReason}`);
     }
   }
 

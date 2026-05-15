@@ -22,9 +22,10 @@ export function formatCleaningTaskMessage(t) {
     const who = guest ? ` · ${guest}` : "";
     return `Room ${rm} · ${label}${who}${suffix}`;
   }
-  const name = String((t.eventVenue && t.eventVenue.name) || "Venue").trim();
-  const num = String((t.eventVenue && t.eventVenue.eventNum) || "").trim();
-  return num ? `Venue ${name} (${num})${suffix}` : `Venue ${name}${suffix}`;
+  const ev = t.eventVenue;
+  const label = String((ev && ev.package) || (ev && ev.name) || "").trim() || "Venue";
+  const num = String((ev && ev.eventNum) || "").trim();
+  return num ? `Venue ${label} (${num})${suffix}` : `Venue ${label}${suffix}`;
 }
 
 /**
@@ -63,12 +64,12 @@ export function useHousekeepingCleaningNotifications() {
       const data = await markAllHousekeepingNotificationsReadBackend();
       setInbox(Array.isArray(data.notifications) ? data.notifications : []);
     } catch {
-      await load({ reconcile: true });
+      await load({ reconcile: false });
     }
   }, [load]);
 
   useEffect(() => {
-    load({ reconcile: true });
+    load({ reconcile: false });
   }, [load]);
 
   useEffect(() => {
@@ -84,10 +85,10 @@ export function useHousekeepingCleaningNotifications() {
       lastFocusLoad = now;
       load();
     };
-    const onRefresh = () => load({ reconcile: true });
-    const onInboxRefresh = () => load({ reconcile: true });
+    const onRefresh = () => load({ reconcile: false });
+    const onInboxRefresh = () => load({ reconcile: false });
     const onStorage = (e) => {
-      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) load({ reconcile: true });
+      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) load({ reconcile: false });
     };
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onRefresh);
     window.addEventListener(HOUSEKEEPING_INBOX_REFRESH_EVENT, onInboxRefresh);

@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
+import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
 import AdminSidebarNav from "../admin_1/AdminSidebarNav";
@@ -541,7 +542,7 @@ function AdminAccountSettings() {
   return (
     <>
       <RailPortalShell
-        rootClassName="settings-page"
+        rootClassName="app-layout admin-app-layout settings-page"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav logoSrc="/images/logo.png" />}
       >
@@ -706,6 +707,7 @@ function CashierAccountSettings() {
   const { topbarProfile, refreshTopbarProfile } = useTopbarUserProfile("cashier");
   const core = useAccountSettingsCore("cashier", { refreshTopbarProfile });
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
+  const staffTopbarRef = useRef(null);
   const { bellNotifications, hasUnreadBell, handleNotifItemClick } = useCashierUnifiedBell({
     displayName: topbarProfile?.name || TOPBAR.cashier.profile.name,
     onOrderNotificationClick: (n) =>
@@ -713,8 +715,6 @@ function CashierAccountSettings() {
     onMenuNotificationRead: (n) =>
       navigate("/cashier", { state: { focusMenuItemId: n.menuItemId, fromNotification: true } }),
   });
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
   const {
     collapsed: sidebarCollapsed,
     isMobile,
@@ -728,17 +728,6 @@ function CashierAccountSettings() {
     logoImgStyle,
   } = useCashierSidebarLayout();
 
-  const toggleNotif = (e) => {
-    e.stopPropagation();
-    setNotifOpen((o) => !o);
-    setUserOpen(false);
-  };
-  const toggleUser = (e) => {
-    e.stopPropagation();
-    setUserOpen((o) => !o);
-    setNotifOpen(false);
-  };
-
   return (
     <>
       {isMobile && mobileSidebarOpen && (
@@ -750,8 +739,7 @@ function CashierAccountSettings() {
         mainStyle={mainStyle}
         rootProps={{
           onClick: () => {
-            setNotifOpen(false);
-            setUserOpen(false);
+            staffTopbarRef.current?.hideMenusOnly?.();
           },
         }}
         sidebar={
@@ -793,41 +781,20 @@ function CashierAccountSettings() {
             />
             <span className="breadcrumb-title">Settings</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              isOpen={notifOpen}
-              onBellClick={toggleNotif}
-              onItemClick={handleNotifItemClick}
-              notifications={bellNotifications}
-              bellIconClassName="topbar-icon"
-              dot={hasUnreadBell ? "active" : "muted"}
-            />
-            <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarUserIcon className="topbar-icon" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                ▾
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={{
-                  ...topbarProfile,
-                  name: core.profileHeading || topbarProfile.name,
-                  email: core.displayEmail || topbarProfile.email,
-                  contact: core.displayPhone || topbarProfile.contact,
-                }}
-                profilePath={TOPBAR.cashier.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <StaffTopbarActions
+            ref={staffTopbarRef}
+            roleKey="cashier"
+            notifications={bellNotifications}
+            dot={hasUnreadBell ? "active" : "muted"}
+            onNotificationItemClick={handleNotifItemClick}
+            onRequestLogout={requestLogout}
+            dropdownProfile={{
+              ...topbarProfile,
+              name: core.profileHeading || topbarProfile.name,
+              email: core.displayEmail || topbarProfile.email,
+              contact: core.displayPhone || topbarProfile.contact,
+            }}
+          />
         </header>
         <SettingsPageBody core={core} showBackArrow={false} />
       </RailPortalShell>

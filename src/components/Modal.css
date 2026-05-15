@@ -3,7 +3,7 @@
 .modal-overlay.abel-modal--top {
   align-items: flex-start;
   justify-content: center;
-  padding: 60px 16px 32px;
+  padding: 32px 16px 28px;
 }
 
 .modal-overlay.abel-modal--center {
@@ -16,6 +16,16 @@
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   backdrop-filter: blur(2px);
+  animation: abel-modal-overlay-in 0.22s ease both;
+}
+
+@keyframes abel-modal-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-box.abel-modal-panel {

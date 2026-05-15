@@ -15,9 +15,33 @@ function authJsonHeaders() {
   };
 }
 
+/**
+ * GET /api/menu/admin-bootstrap — admin only.
+ * Returns `{ categories, selectedCategoryId, selectedCategoryName, menuPage }` for first paint.
+ */
+export async function fetchRestaurantMenuAdminBootstrap(params = {}) {
+  const { signal, ...query } = params || {};
+  const q = new URLSearchParams();
+  if (query.limit != null) q.set("limit", String(query.limit));
+  if (query.search) q.set("search", String(query.search).trim());
+  const suffix = q.toString() ? `?${q.toString()}` : "";
+  const res = await fetch(backendUrl(`/api/menu/admin-bootstrap${suffix}`), {
+    headers: authJsonHeaders(),
+    signal,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
 /** GET /api/menu — admin or cashier (full list; no pagination params). */
 export async function fetchMenuItemsBackend(params = {}) {
   const q = new URLSearchParams();
+  if (params.category) q.set("category", String(params.category).trim());
   if (params.categoryId) q.set("categoryId", params.categoryId);
   if (params.availability) q.set("availability", params.availability);
   if (params.search) q.set("search", String(params.search).trim());
@@ -43,6 +67,7 @@ export async function fetchMenuPageBackend(page = 1, limit = 10, params = {}) {
   const q = new URLSearchParams();
   q.set("page", String(pageNum));
   q.set("limit", String(limitNum));
+  if (query.category) q.set("category", String(query.category).trim());
   if (query.categoryId) q.set("categoryId", query.categoryId);
   if (query.availability) q.set("availability", query.availability);
   if (query.search) q.set("search", String(query.search).trim());
@@ -108,6 +133,54 @@ export async function dedupeMenuItemsBackend() {
   if (!res.ok) {
     const err = new Error(data.error || `HTTP ${res.status}`);
     err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+/**
+ * POST /api/menu/upload — admin; multipart field `image`. Server writes to S3 (no browser PUT / no S3 CORS for PUT).
+ * Returns `{ publicUrl, key, contentType, contentLength }`.
+ */
+export async function uploadMenuImageDirectBackend(file) {
+  const token = getStoredAuthToken();
+  if (!token) {
+    const err = new Error("Not signed in");
+    err.code = "NO_TOKEN";
+    throw err;
+  }
+  const fd = new FormData();
+  fd.append("image", file, file.name || "image");
+  const res = await fetch(backendUrl("/api/menu/upload"), {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: fd,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    if (data.code) err.code = data.code;
+    throw err;
+  }
+  return data;
+}
+
+/**
+ * POST /api/menu/upload/presign — admin; body `{ contentType, contentLength }`.
+ * Returns `{ uploadUrl, publicUrl, key, contentType, contentLength }` for a browser PUT to S3.
+ */
+export async function presignMenuImageUploadBackend(body) {
+  const res = await fetch(backendUrl("/api/menu/upload/presign"), {
+    method: "POST",
+    headers: authJsonHeaders(),
+    body: JSON.stringify(body || {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`);
+    err.status = res.status;
+    if (data.code) err.code = data.code;
     throw err;
   }
   return data;

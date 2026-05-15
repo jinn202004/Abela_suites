@@ -97,9 +97,10 @@ function formatDateLabel(s) {
   return Number.isNaN(d.getTime()) ? str : d.toLocaleDateString("en-PH");
 }
 
-function shortId(id) {
-  const s = id != null ? String(id) : "";
-  return s.length > 10 ? `${s.slice(0, 8)}…` : s || "—";
+/** Archive lists only stays/events that front desk marked finished (API stores `completed`). */
+function isArchiveCompletedStatus(status) {
+  const s = String(status || "").toLowerCase();
+  return s === "completed" || s === "checked-out";
 }
 
 function GuestBookingStatus({ status }) {
@@ -115,8 +116,8 @@ function GuestBookingStatus({ status }) {
   } else if (s === "cancelled") {
     label = "Cancelled";
     cls = "bh-status bh-status--rejected";
-  } else if (s === "completed") {
-    label = "Completed";
+  } else if (s === "completed" || s === "checked-out") {
+    label = "Checked out";
     cls = "bh-status bh-status--approved";
   } else if (s === "pending") {
     label = "Pending approval";
@@ -151,8 +152,6 @@ export default function BookingHistory() {
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState("");
 
-  const [idModalOpen, setIdModalOpen] = useState(false);
-  const [idModalRow, setIdModalRow] = useState(null);
   const [bookingDetailRow, setBookingDetailRow] = useState(null);
 
   const [reviewedIds, setReviewedIds] = useState(() => new Set());
@@ -221,8 +220,8 @@ export default function BookingHistory() {
       setEventVenueNumMap(buildEventVenueIdToEventNumMap(venuesArr));
       setEventVenueNameMap(buildEventVenueIdToNameMap(venuesArr));
       const arr = Array.isArray(list) ? list : [];
-      setRoomBookings(arr.filter((b) => b.type === "room"));
-      setEventBookings(arr.filter((b) => b.type === "event"));
+      setRoomBookings(arr.filter((b) => b.type === "room" && isArchiveCompletedStatus(b.status)));
+      setEventBookings(arr.filter((b) => b.type === "event" && isArchiveCompletedStatus(b.status)));
       try {
         const mine = await fetchMyReviewsBackend();
         const ids = (Array.isArray(mine) ? mine : []).map((r) => String(r.bookingId || ""));
@@ -279,17 +278,7 @@ export default function BookingHistory() {
     };
   }, [loadBookings]);
 
-  const idPhotoSrc = idModalRow ? resolveGuestIdImageSrc(idModalRow) : null;
-
-  // ── Handlers ──
-  const openIdModal = (b) => {
-    setIdModalRow(b);
-    setIdModalOpen(true);
-  };
-  const closeIdModal = () => {
-    setIdModalOpen(false);
-    setIdModalRow(null);
-  };
+  const detailIdPhotoSrc = bookingDetailRow ? resolveGuestIdImageSrc(bookingDetailRow) : null;
 
   const openReviewModal = (bookingId) => {
     setReviewBookingId(bookingId);
@@ -437,10 +426,11 @@ export default function BookingHistory() {
 
             {/* Heading */}
             <div className="bh-heading">
-              <a href="/settings" className="back-arrow">‹</a>
-              <div>
+              <div className="bh-heading-text">
                 <h2 className="bh-title">Booking History</h2>
-                <p className="bh-sub">Your reservations and the same government ID you uploaded with each booking</p>
+                <p className="bh-sub">
+                  Checked-out room stays and completed events only — open a row for full details and your government ID on file.
+                </p>
               </div>
             </div>
 
@@ -474,7 +464,6 @@ export default function BookingHistory() {
                   <table className="bh-table">
                     <thead>
                       <tr>
-                        <th>Ref</th>
                         <th>Room No.</th>
                         <th>Room</th>
                         <th>Price</th>
@@ -487,18 +476,16 @@ export default function BookingHistory() {
                     <tbody>
                       {roomBookings.length === 0 ? (
                         <tr>
-                          <td colSpan="8" style={{ textAlign: "center", color: "#9a8060", padding: "32px" }}>
-                            No room bookings yet.
+                          <td colSpan="7" style={{ textAlign: "center", color: "#9a8060", padding: "32px" }}>
+                            No checked-out room stays yet. Completed stays appear here after front desk checks you out.
                           </td>
                         </tr>
                       ) : (
                         roomBookings.map((b, idx) => {
                           const bid = b.id != null ? String(b.id) : "";
                           const done = reviewedIds.has(bid);
-                          const canReview = String(b.status || "").toLowerCase() === "completed";
                           return (
                             <tr key={bid || `room-${idx}`}>
-                              <td>{shortId(b.id)}</td>
                               <td>{formatRoomTableNumber(b, roomIdToNumber)}</td>
                               <td>{b.roomTitle || "—"}</td>
                               <td>{formatPesoAmount(b.totalAmount)}</td>
@@ -513,16 +500,16 @@ export default function BookingHistory() {
                                     type="button"
                                     className="btn-leave-review"
                                     style={{ background: "#8d7a5c", color: "#fff" }}
-                                    onClick={() => openIdModal(b)}
+                                    onClick={() => setBookingDetailRow(b)}
                                   >
-                                    View ID
+                                    View details
                                   </button>
                                   <button
                                     className="btn-leave-review"
                                     onClick={() => openReviewModal(bid)}
-                                    disabled={done || !canReview}
-                                    title={!canReview ? "Available after your stay is marked completed" : done ? "Already submitted" : "Leave a review"}
-                                    style={done || !canReview ? { background: "#aaa", cursor: "default" } : {}}
+                                    disabled={done}
+                                    title={done ? "Already submitted" : "Leave a review"}
+                                    style={done ? { background: "#aaa", cursor: "default" } : {}}
                                   >
                                     {done ? "Reviewed" : "Leave review"}
                                   </button>
@@ -543,7 +530,6 @@ export default function BookingHistory() {
                   <table className="bh-table">
                     <thead>
                       <tr>
-                        <th>Ref</th>
                         <th>Number</th>
                         <th>Event Name</th>
                         <th>Price</th>
@@ -556,18 +542,16 @@ export default function BookingHistory() {
                     <tbody>
                       {eventBookings.length === 0 ? (
                         <tr>
-                          <td colSpan="8" style={{ textAlign: "center", color: "#9a8060", padding: "32px" }}>
-                            No event bookings yet.
+                          <td colSpan="7" style={{ textAlign: "center", color: "#9a8060", padding: "32px" }}>
+                            No completed events yet. Finished events appear here after front desk marks them complete.
                           </td>
                         </tr>
                       ) : (
                         eventBookings.map((b, idx) => {
                           const bid = b.id != null ? String(b.id) : "";
                           const done = reviewedIds.has(bid);
-                          const canReview = String(b.status || "").toLowerCase() === "completed";
                           return (
                             <tr key={bid || `event-${idx}`}>
-                              <td>{shortId(b.id)}</td>
                               <td>{eventNumberColumn(b, eventVenueNumMap)}</td>
                               <td>{b.eventTitle || "—"}</td>
                               <td>{formatPesoAmount(b.totalAmount ?? b.venuePrice)}</td>
@@ -582,17 +566,17 @@ export default function BookingHistory() {
                                     type="button"
                                     className="btn-leave-review"
                                     style={{ background: "#8d7a5c", color: "#fff" }}
-                                    onClick={() => openIdModal(b)}
+                                    onClick={() => setBookingDetailRow(b)}
                                   >
-                                    View ID
+                                    View details
                                   </button>
                                   <button
                                     type="button"
                                     className="btn-leave-review"
                                     onClick={() => openReviewModal(bid)}
-                                    disabled={done || !canReview}
-                                    title={!canReview ? "Available after your event is marked completed" : done ? "Already submitted" : "Leave a review"}
-                                    style={done || !canReview ? { background: "#aaa", cursor: "default" } : {}}
+                                    disabled={done}
+                                    title={done ? "Already submitted" : "Leave a review"}
+                                    style={done ? { background: "#aaa", cursor: "default" } : {}}
                                   >
                                     {done ? "Reviewed" : "Leave review"}
                                   </button>
@@ -611,29 +595,6 @@ export default function BookingHistory() {
           </div>
         </main>
       </RailPortalShell>
-
-      {/* ── ID preview (same card as Home / frontdesk) ── */}
-      {idModalOpen && idModalRow && (
-        <div className="bh-modal-backdrop active" onClick={(e) => e.target === e.currentTarget && closeIdModal()}>
-          <div className="bh-modal">
-            <div className="bh-modal-header bh-modal-header--id-only">
-              <button type="button" className="bh-modal-close" onClick={closeIdModal} aria-label="Close">✕</button>
-            </div>
-            <div className="bh-modal-body bh-modal-body--id-card">
-              <div className="id-uploaded-card id-uploaded-card--standalone">
-                <h3 className="id-uploaded-card-title">ID Uploaded</h3>
-                <div className="id-uploaded-frame">
-                  {idPhotoSrc ? (
-                    <img src={idPhotoSrc} alt="Government ID" className="id-img" />
-                  ) : (
-                    <div className="id-placeholder">No image on file</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {bookingDetailRow && (
         <div
@@ -660,8 +621,12 @@ export default function BookingHistory() {
             </div>
             <div className="bh-modal-body">
               <div style={{ display: "grid", gap: 8 }}>
-                <div><strong>Reference:</strong> {shortId(bookingDetailRow.id)}</div>
                 <div><strong>Status:</strong> <GuestBookingStatus status={bookingDetailRow.status} /></div>
+                {String(bookingDetailRow.declineReason || "").trim() !== "" ? (
+                  <div>
+                    <strong>Rejection reason:</strong> {String(bookingDetailRow.declineReason).trim()}
+                  </div>
+                ) : null}
                 <div><strong>Guest:</strong> {bookingDetailRow.customerName || "—"}</div>
                 <div><strong>Email:</strong> {bookingDetailRow.email || "—"}</div>
                 <div><strong>Contact:</strong> {bookingDetailRow.contactNumber || "—"}</div>
@@ -675,7 +640,7 @@ export default function BookingHistory() {
                   </>
                 ) : (
                   <>
-                    <div><strong>Room:</strong> {formatRoomTableNumber(bookingDetailRow, roomIdToNumber)}</div>
+                    <div><strong>Room:</strong> {formatRoomTableNumber(bookingDetailRow, roomIdToNumber)} — {bookingDetailRow.roomTitle || "—"}</div>
                     <div><strong>Check-in:</strong> {formatDateLabel(bookingDetailRow.checkIn)}</div>
                     <div><strong>Check-out:</strong> {formatDateLabel(bookingDetailRow.checkOut)}</div>
                   </>
@@ -683,6 +648,16 @@ export default function BookingHistory() {
                 <div><strong>Total:</strong> PHP {formatPesoAmount(bookingDetailRow.totalAmount)}</div>
                 <div><strong>Payment:</strong> {bookingDetailRow.paymentMethod || "—"} ({bookingDetailRow.paymentAmount || "0"})</div>
                 <div><strong>Transaction:</strong> {bookingDetailRow.transactionId || "—"}</div>
+              </div>
+              <div className="bh-detail-id-section">
+                <h3 className="bh-detail-id-section__title">Government ID on file</h3>
+                <div className="bh-detail-id-frame">
+                  {detailIdPhotoSrc ? (
+                    <img src={detailIdPhotoSrc} alt="Government ID" className="bh-detail-id-img" decoding="async" />
+                  ) : (
+                    <div className="bh-detail-id-placeholder">No government ID image on file</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

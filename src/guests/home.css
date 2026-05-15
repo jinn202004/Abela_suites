@@ -729,11 +729,15 @@
     }
   }
 
-  /* Guest homepage modals: less top padding on small screens */
+  /* Guest homepage modals: less padding on small screens */
   @media (max-width: 600px) {
     .modal-overlay.guest-home-modal-overlay.abel-modal--top {
       padding: 12px 10px max(20px, env(safe-area-inset-bottom, 0px));
       align-items: flex-start;
+    }
+
+    .modal-overlay.guest-home-modal-overlay.abel-modal--center {
+      padding: 12px 10px max(20px, env(safe-area-inset-bottom, 0px));
     }
 
     .guest-reservation-details.abel-modal-panel {
@@ -1286,6 +1290,74 @@
     justify-content: space-between;
   }
 
+  /* Cancel reason dialog — footer is outside scrollable body (Modal `footer` prop) */
+  .modal-cancel-panel.modal-box.abel-modal-panel {
+    max-width: 460px;
+    max-height: min(92vh, 560px);
+    overflow: hidden;
+  }
+
+  .modal-cancel-panel .modal-header {
+    padding: 18px 22px 14px;
+    border-bottom: 1px solid #e8dcc8;
+  }
+
+  .modal-cancel-panel .modal-title {
+    font-size: 18px;
+    line-height: 1.3;
+    padding: 0 8px;
+  }
+
+  .modal-cancel-panel .modal-body.modal-body--cancel-reason {
+    padding: 18px 28px 12px;
+    gap: 12px;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-cancel-panel .abel-modal-footer.modal-footer {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px 28px max(20px, env(safe-area-inset-bottom, 0px));
+    margin: 0;
+    border-top: 1px solid #e8dcc8;
+    background: #fdf8f0;
+    flex-shrink: 0;
+  }
+
+  .modal-cancel-panel .abel-modal-footer .btn-clear,
+  .modal-cancel-panel .abel-modal-footer .btn-submit-cancel {
+    flex: 0 0 auto;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-cancel-panel .abel-modal-footer .btn-submit-cancel {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  @media (max-width: 420px) {
+    .modal-cancel-panel .abel-modal-footer.modal-footer {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .modal-cancel-panel .abel-modal-footer .btn-clear,
+    .modal-cancel-panel .abel-modal-footer .btn-submit-cancel {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
   .btn-cancel-booking {
     padding: 10px 28px;
     background: var(--gold-dark);
@@ -1305,20 +1377,35 @@
   }
 
   .cancel-label {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     color: var(--text-dark);
-    margin-bottom: 8px;
+    margin: 0 0 4px;
+    line-height: 1.45;
+  }
+
+  .cancel-policy-note {
+    font-size: 13px;
+    line-height: 1.5;
+    color: #5c4a30;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    background: #fff8e6;
+    border: 1px solid #e8d4a8;
+    border-radius: 8px;
   }
 
   .cancel-textarea {
     width: 100%;
-    height: 140px;
+    min-height: 120px;
+    max-height: min(42vh, 240px);
+    box-sizing: border-box;
     border: 1.5px solid #d4c4a8;
-    border-radius: 5px;
+    border-radius: 8px;
     padding: 12px 14px;
     font-family: 'Roboto', sans-serif;
     font-size: 14px;
+    line-height: 1.45;
     color: var(--text-dark);
     background: #fff;
     resize: vertical;

@@ -301,6 +301,106 @@
     padding: 18px 22px;
     overflow: hidden;
   }
+
+  /* Stack: dashboard stats + POS split (fills viewport under topbar) */
+  .cashier-pos-page .pos-main-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    flex: 1;
+    min-height: 0;
+    max-height: calc(100vh - var(--topbar-h) - 36px);
+  }
+
+  /* ── Cashier dashboard stats (Front Desk–style summary cards) ── */
+  .pos-dash-stats {
+    flex-shrink: 0;
+  }
+  .pos-dash-stats__head {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 2px;
+  }
+  .pos-dash-stats__title {
+    font-family: "Montserrat", sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--gold);
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+  }
+  .pos-dash-stats__sub {
+    font-size: 13px;
+    color: var(--text-mid);
+    margin: 0;
+    line-height: 1.45;
+  }
+  .pos-dash-stats__warn {
+    margin: 0 0 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    border-radius: var(--pos-btn-radius);
+    background: #fdecea;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+  }
+  .pos-dash-stats__grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .pos-dash-stat-card {
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    padding: 14px 16px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+  }
+  .pos-dash-stat-card__label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-family: "Roboto", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .pos-dash-stat-card__label svg {
+    flex-shrink: 0;
+  }
+  .pos-dash-stat-card__label--orders {
+    color: #e67e22;
+  }
+  .pos-dash-stat-card__label--orders svg {
+    stroke: #e67e22;
+  }
+  .pos-dash-stat-card__label--sales {
+    color: #3498db;
+  }
+  .pos-dash-stat-card__label--sales svg {
+    stroke: #3498db;
+  }
+  .pos-dash-stat-card__label--menu {
+    color: #27ae60;
+  }
+  .pos-dash-stat-card__label--menu svg {
+    stroke: #27ae60;
+  }
+  .pos-dash-stat-card__value {
+    font-family: "Montserrat", sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-dark);
+    line-height: 1.15;
+    margin: 0;
+  }
+  .pos-dash-stat-card__value--money {
+    font-size: 22px;
+    word-break: break-word;
+  }
   
   /* ============================================
      POS LAYOUT
@@ -308,7 +408,9 @@
   .pos-layout {
     display: flex;
     gap: 18px;
-    height: calc(100vh - var(--topbar-h) - 36px);
+    flex: 1;
+    min-height: 0;
+    height: auto;
   }
   
   /* ============================================
@@ -649,6 +751,9 @@
      RESPONSIVE
      ============================================ */
   @media (max-width: 900px) {
+    .pos-dash-stats__grid {
+      grid-template-columns: 1fr;
+    }
     .pos-layout {
       flex-direction: column;
       align-items: stretch;

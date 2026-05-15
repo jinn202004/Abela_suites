@@ -32,7 +32,7 @@ export async function fetchStaffList() {
 
 /**
  * POST /api/staff
- * @param {{ name: string, email: string, role: string, department: string, contact?: string, status?: string }} body
+ * @param {{ name: string, email: string, role: string, department?: string, contact?: string, status?: string }} body
  */
 export async function createStaffBackend(body) {
   const res = await fetch(backendUrl("/api/staff"), {

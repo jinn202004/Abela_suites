@@ -64,26 +64,27 @@
 .admin-settings-page .nav-item {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 16px 22px;
   text-decoration: none;
   color: #fff;
   font-family: "Montserrat", sans-serif;
   font-weight: 600;
   font-size: 13px;
-  transition: background 0.18s;
+  line-height: 1.25;
+  transition: background 0.18s ease;
 }
 
 .admin-settings-page .nav-item:hover {
   background: rgba(0, 0, 0, 0.1);
 }
 .admin-settings-page .nav-item.active {
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.22);
 }
 
 .admin-settings-page .nav-icon {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -413,7 +414,7 @@
   }
   .admin-settings-page .nav-item {
     justify-content: center;
-    padding: 14px 10px;
+    padding: 18px 10px;
   }
   .admin-settings-page .sidebar-logo-img {
     width: 44px;

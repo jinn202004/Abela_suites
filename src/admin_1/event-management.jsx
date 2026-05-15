@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link } from "react-router-dom";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
@@ -7,7 +7,13 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { fetchBookingsBackend } from "../api/guestApi";
+import { fetchBookingsBackend, HOUSEKEEPING_TASKS_REFRESH_EVENT } from "../api/guestApi";
+import {
+  adminBookingStatusBadgeClass,
+  adminVenueOpsBadgeClass,
+  formatAdminBookingStatusLabel,
+  resolveBookingRawStatus,
+} from "./adminBookingStatusDisplay";
 import {
   fetchEventVenuesAdmin,
   createEventVenueAdmin,
@@ -16,6 +22,9 @@ import {
   EVENT_VENUE_STATUSES,
 } from "../api/eventManagementApi";
 import "./event-management.css";
+
+/** Event admin tables: rows per page (client-side only; APIs unchanged). */
+const EM_TABLE_PAGE_SIZE = 10;
 
 /* ── ICONS ── */
 const Icon = {
@@ -169,17 +178,32 @@ function todayIsoDate() {
   return d.toISOString().slice(0, 10);
 }
 
-function mapEventBookingToStatusRow(b) {
+/** Title-case venue operational status for catalog table (never empty). */
+function formatCatalogVenueStatus(raw) {
+  const t = String(raw ?? "").trim().toLowerCase();
+  if (!t) return "Available";
+  return formatAdminBookingStatusLabel(t);
+}
+
+/** @param {Record<string, unknown>} b — API booking */
+/** @param {Record<string, unknown> | null | undefined} venueDoc — matched catalog row */
+function mapEventBookingToStatusRow(b, venueDoc) {
+  const venueLabel = venueDoc
+    ? String(venueDoc.venueName || venueDoc.name || venueDoc.package || "").trim()
+    : String(b.venueName || b.eventTitle || "").trim() || "Event";
+  const rawStatus = resolveBookingRawStatus(b);
   return {
     id: String(b.id || ""),
-    type: String(b.venueName || b.eventTitle || "Event").trim() || "Event",
+    type: venueLabel || "Event",
     date: String(b.eventDate || "—").trim(),
     time: String(b.timeSlot || "—").trim(),
     guest: b.expectedPax != null ? String(b.expectedPax) : String(b.customerName || "—"),
     total: String(b.totalAmount || b.venuePrice || "—").trim(),
     downpayment: String(b.paymentAmount || "—").trim(),
-    status: String(b.status || "").replace(/_/g, " ") || "—",
-    rawDate: String(b.eventDate || "").trim(),
+    status: formatAdminBookingStatusLabel(rawStatus),
+    badgeClass: adminBookingStatusBadgeClass(rawStatus),
+    rawDate: String(b.eventDate || "").trim().slice(0, 10),
+    rawStatus,
   };
 }
 
@@ -465,7 +489,7 @@ export default function EventManage() {
   const { mainStyle } = useAdminShell();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const [tab, setTab] = useState("status");
-  const [statuses, setStatuses] = useState([]);
+  const [eventBookingsRaw, setEventBookingsRaw] = useState([]);
   const [bookingsLoadErr, setBookingsLoadErr] = useState("");
   const [bookingsLoading, setBookingsLoading] = useState(true);
 
@@ -475,6 +499,8 @@ export default function EventManage() {
 
   const [statusSearch, setStatusSearch] = useState("");
   const [venueSearch, setVenueSearch] = useState("");
+  const [statusPage, setStatusPage] = useState(1);
+  const [venuePage, setVenuePage] = useState(1);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingVenueId, setEditingVenueId] = useState(null);
   const [form, setForm] = useState(() => ({ ...EMPTY_FORM }));
@@ -508,50 +534,120 @@ export default function EventManage() {
     setBookingsLoading(true);
     try {
       const list = await fetchBookingsBackend();
-      const events = (Array.isArray(list) ? list : [])
-        .filter((b) => String(b.type || "").toLowerCase() === "event")
-        .map(mapEventBookingToStatusRow);
-      setStatuses(events);
+      const events = (Array.isArray(list) ? list : []).filter(
+        (b) => String(b.type || "").toLowerCase() === "event",
+      );
+      setEventBookingsRaw(events);
     } catch (e) {
       setBookingsLoadErr(e.message || "Could not load event bookings.");
-      setStatuses([]);
+      setEventBookingsRaw([]);
     } finally {
       setBookingsLoading(false);
     }
   }, []);
+
+  const statuses = useMemo(() => {
+    const normId = (id) => String(id ?? "").trim().toLowerCase();
+    const byId = new Map(
+      venues
+        .map((v) => {
+          const k = normId(v.id);
+          return k ? [k, v] : null;
+        })
+        .filter(Boolean),
+    );
+    return eventBookingsRaw
+      .filter((b) => {
+        const vid = normId(b.eventVenueId);
+        if (!vid) return false;
+        return byId.has(vid);
+      })
+      .map((b) => mapEventBookingToStatusRow(b, byId.get(normId(b.eventVenueId))));
+  }, [eventBookingsRaw, venues]);
 
   useEffect(() => {
     void loadVenues();
     void loadEventBookings();
   }, [loadVenues, loadEventBookings]);
 
+  useEffect(() => {
+    const onHk = () => {
+      void loadVenues();
+      void loadEventBookings();
+    };
+    window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
+    const poll = window.setInterval(() => {
+      void loadVenues();
+      void loadEventBookings();
+    }, 25_000);
+    return () => {
+      window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
+      window.clearInterval(poll);
+    };
+  }, [loadVenues, loadEventBookings]);
+
   const todayIso = todayIsoDate();
   const statToday = statuses.filter((s) => s.rawDate && s.rawDate.slice(0, 10) === todayIso).length;
-  const pendingLike = statuses.filter((s) => /pending/i.test(s.status)).length;
+  const pendingLike = statuses.filter((s) => s.rawStatus === "pending").length;
+  const statusDataLoading = bookingsLoading || venuesLoading;
 
   const showToast = (msg) => {
     setToast({ visible: true, msg });
     setTimeout(() => setToast({ visible: false, msg: "" }), 3000);
   };
 
-  const q = statusSearch.toLowerCase();
-  const filteredStatuses = statuses.filter(
-    (s) =>
-      s.type.toLowerCase().includes(q) ||
-      s.date.toLowerCase().includes(q) ||
-      s.status.toLowerCase().includes(q) ||
-      String(s.guest).includes(q),
-  );
+  const filteredStatuses = useMemo(() => {
+    const q = statusSearch.toLowerCase();
+    return statuses.filter(
+      (s) =>
+        s.type.toLowerCase().includes(q) ||
+        s.date.toLowerCase().includes(q) ||
+        s.status.toLowerCase().includes(q) ||
+        String(s.guest).includes(q),
+    );
+  }, [statuses, statusSearch]);
 
-  const vq = venueSearch.toLowerCase();
-  const filteredVenues = venues.filter((v) => {
-    const name = String(v.venueName || v.name || v.package || "").toLowerCase();
-    const pkg = String(v.package || "").toLowerCase();
-    const en = String(v.eventNum || "").toLowerCase();
-    const lim = String(v.limit || "").toLowerCase();
-    const st = String(v.status || "").toLowerCase();
-    return name.includes(vq) || pkg.includes(vq) || en.includes(vq) || lim.includes(vq) || st.includes(vq);
-  });
+  const filteredVenues = useMemo(() => {
+    const vq = venueSearch.toLowerCase();
+    return venues.filter((v) => {
+      const name = String(v.venueName || v.name || v.package || "").toLowerCase();
+      const pkg = String(v.package || "").toLowerCase();
+      const en = String(v.eventNum || "").toLowerCase();
+      const lim = String(v.limit || "").toLowerCase();
+      const st = String(v.status || "").toLowerCase();
+      return name.includes(vq) || pkg.includes(vq) || en.includes(vq) || lim.includes(vq) || st.includes(vq);
+    });
+  }, [venues, venueSearch]);
+
+  const statusTotalPages = Math.max(1, Math.ceil(filteredStatuses.length / EM_TABLE_PAGE_SIZE));
+  const statusCurrentPage = Math.min(Math.max(1, statusPage), statusTotalPages);
+  const statusPageStart = (statusCurrentPage - 1) * EM_TABLE_PAGE_SIZE;
+  const pagedStatuses = filteredStatuses.slice(statusPageStart, statusPageStart + EM_TABLE_PAGE_SIZE);
+  const statusRangeFrom = filteredStatuses.length === 0 ? 0 : statusPageStart + 1;
+  const statusRangeTo = filteredStatuses.length === 0 ? 0 : statusPageStart + pagedStatuses.length;
+
+  const venueTotalPages = Math.max(1, Math.ceil(filteredVenues.length / EM_TABLE_PAGE_SIZE));
+  const venueCurrentPage = Math.min(Math.max(1, venuePage), venueTotalPages);
+  const venuePageStart = (venueCurrentPage - 1) * EM_TABLE_PAGE_SIZE;
+  const pagedVenues = filteredVenues.slice(venuePageStart, venuePageStart + EM_TABLE_PAGE_SIZE);
+  const venueRangeFrom = filteredVenues.length === 0 ? 0 : venuePageStart + 1;
+  const venueRangeTo = filteredVenues.length === 0 ? 0 : venuePageStart + pagedVenues.length;
+
+  useEffect(() => {
+    setStatusPage(1);
+  }, [statusSearch]);
+
+  useEffect(() => {
+    setVenuePage(1);
+  }, [venueSearch]);
+
+  useEffect(() => {
+    setStatusPage((p) => Math.min(Math.max(1, p), statusTotalPages));
+  }, [statusTotalPages]);
+
+  useEffect(() => {
+    setVenuePage((p) => Math.min(Math.max(1, p), venueTotalPages));
+  }, [venueTotalPages]);
 
   const openAdd = () => {
     setFormErr("");
@@ -649,16 +745,16 @@ export default function EventManage() {
   };
 
   const STATS = [
-    { label: "Event bookings today", StatI: StatIconCal, value: bookingsLoading ? "…" : statToday },
-    { label: "Total event bookings", StatI: StatIconDoc, value: bookingsLoading ? "…" : statuses.length },
-    { label: "Pending / review", StatI: StatIconCheckout, value: bookingsLoading ? "…" : pendingLike },
+    { label: "Event bookings today", StatI: StatIconCal, value: statusDataLoading ? "…" : statToday },
+    { label: "Total event bookings", StatI: StatIconDoc, value: statusDataLoading ? "…" : statuses.length },
+    { label: "Pending / review", StatI: StatIconCheckout, value: statusDataLoading ? "…" : pendingLike },
     { label: "Venues in catalog", StatI: StatIconDollar, value: venuesLoading ? "…" : venues.length },
   ];
 
   return (
     <>
       <RailPortalShell
-        rootClassName="rm-app em-event"
+        rootClassName="app-layout admin-app-layout rm-app em-event"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav logoSrc="/public/logo.png" />}
       >
@@ -754,7 +850,7 @@ export default function EventManage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {bookingsLoading ? (
+                    {statusDataLoading ? (
                       <tr>
                         <td colSpan={7} className="rm-empty">
                           Loading event bookings…
@@ -763,11 +859,11 @@ export default function EventManage() {
                     ) : filteredStatuses.length === 0 ? (
                       <tr>
                         <td colSpan={7} className="rm-empty">
-                          No event reservations found.
+                          No event status records found.
                         </td>
                       </tr>
                     ) : (
-                      filteredStatuses.map((s) => (
+                      pagedStatuses.map((s) => (
                         <tr key={s.id || `${s.type}-${s.date}`}>
                           <td>{s.type}</td>
                           <td>{s.date}</td>
@@ -776,13 +872,41 @@ export default function EventManage() {
                           <td>{s.total}</td>
                           <td>{s.downpayment}</td>
                           <td>
-                            <span className="rm-badge">{s.status}</span>
+                            <span className={`rm-badge ${s.badgeClass}`}>{s.status}</span>
                           </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
+                {!statusDataLoading && filteredStatuses.length > 0 ? (
+                  <div className="rm-pagination-bar" aria-label="Event reservation pages">
+                    <span className="rm-pagination-info">
+                      Showing {statusRangeFrom}–{statusRangeTo} of {filteredStatuses.length}
+                    </span>
+                    <div className="rm-pagination-btns">
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={statusCurrentPage <= 1}
+                        onClick={() => setStatusPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="rm-pagination-pages">
+                        Page {statusCurrentPage} of {statusTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={statusCurrentPage >= statusTotalPages}
+                        onClick={() => setStatusPage((p) => Math.min(statusTotalPages, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
@@ -833,7 +957,7 @@ export default function EventManage() {
                         </td>
                       </tr>
                     ) : (
-                      filteredVenues.map((v) => {
+                      pagedVenues.map((v) => {
                         const img = v.imageUrl || v.image;
                         const label = v.venueName || v.name || v.package || "—";
                         return (
@@ -851,7 +975,9 @@ export default function EventManage() {
                             <td>{v.capacity != null ? v.capacity : "—"}</td>
                             <td>{fmtPeso(v.price)}</td>
                             <td>
-                              <span className="rm-badge">{String(v.status || "").replace(/_/g, " ")}</span>
+                              <span className={`rm-badge ${adminVenueOpsBadgeClass(v.status)}`}>
+                                {formatCatalogVenueStatus(v.status)}
+                              </span>
                             </td>
                             <td>{v.reserved != null ? v.reserved : 0}</td>
                             <td className="action-cell rm-td-action">
@@ -875,6 +1001,34 @@ export default function EventManage() {
                     )}
                   </tbody>
                 </table>
+                {!venuesLoading && filteredVenues.length > 0 ? (
+                  <div className="rm-pagination-bar" aria-label="Event venue pages">
+                    <span className="rm-pagination-info">
+                      Showing {venueRangeFrom}–{venueRangeTo} of {filteredVenues.length}
+                    </span>
+                    <div className="rm-pagination-btns">
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={venueCurrentPage <= 1}
+                        onClick={() => setVenuePage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="rm-pagination-pages">
+                        Page {venueCurrentPage} of {venueTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={venueCurrentPage >= venueTotalPages}
+                        onClick={() => setVenuePage((p) => Math.min(venueTotalPages, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}

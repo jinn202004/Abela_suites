@@ -1,12 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useCashierSidebarLayout } from "./useCashierSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import CashierSidebarToggle from "./CashierSidebarToggle";
@@ -179,10 +177,6 @@ export default function OrderHistory() {
   const [searchQuery,   setSearchQuery]   = useState("");
   const [currentPage,   setCurrentPage]   = useState(1);
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
-  const notifRef = useRef(null);
-  const userRef = useRef(null);
 
   const {
     collapsed: sidebarCollapsed,
@@ -196,15 +190,6 @@ export default function OrderHistory() {
     logoWrapStyle,
     logoImgStyle,
   } = useCashierSidebarLayout();
-
-  useEffect(() => {
-    const onDown = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, []);
 
   useEffect(() => {
     const focusOrderId = location.state?.focusOrderId;
@@ -332,52 +317,13 @@ export default function OrderHistory() {
             <span className="breadcrumb-title">Order History</span>
           </div>
 
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => !v);
-                setUserOpen(false);
-              }}
-              onItemClick={handleNotifItemClick}
-              notifications={bellNotifications}
-              bellIconClassName="topbar-icon"
-              dot={hasUnreadBell ? "active" : "muted"}
-            />
-            <div
-              className="icon-btn"
-              ref={userRef}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUserOpen((v) => !v);
-                setNotifOpen(false);
-              }}
-            >
-              <TopbarUserIcon className="topbar-icon" />
-              <span
-                className="user-arrow"
-                style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-              >
-                &#9662;
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.cashier.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <StaffTopbarActions
+            roleKey="cashier"
+            notifications={bellNotifications}
+            dot={hasUnreadBell ? "active" : "muted"}
+            onNotificationItemClick={handleNotifItemClick}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         {/* ── PAGE CONTENT ── */}

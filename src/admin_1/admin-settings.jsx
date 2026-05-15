@@ -42,7 +42,7 @@ export default function AdminSettings() {
   return (
     <>
       <RailPortalShell
-        rootClassName="admin-settings-page"
+        rootClassName="app-layout admin-app-layout admin-settings-page"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav logoSrc="/public/logo.png" />}
       >

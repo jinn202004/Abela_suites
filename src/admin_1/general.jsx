@@ -294,7 +294,7 @@ export default function GeneralSettings() {
   return (
     <>
       <RailPortalShell
-        rootClassName="admin-general-page"
+        rootClassName="app-layout admin-app-layout admin-general-page"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav logoSrc="/images/logo.png" />}
       >

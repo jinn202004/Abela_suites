@@ -443,19 +443,14 @@
      ============================================ */
   .bh-heading {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    align-items: flex-start;
+    gap: 0;
+    margin-bottom: 4px;
   }
-  
-  .back-arrow {
-    font-size: 26px;
-    font-weight: 700;
-    color: var(--gold);
-    text-decoration: none;
-    line-height: 1;
-    transition: opacity 0.2s;
+
+  .bh-heading-text {
+    min-width: 0;
   }
-  .back-arrow:hover { opacity: 0.7; }
   
   .bh-title {
     font-family: 'Montserrat', sans-serif;
@@ -702,6 +697,44 @@
   }
   .bh-modal-body--id-card {
     padding-top: 8px;
+  }
+
+  .bh-detail-id-section {
+    margin-top: 4px;
+    padding-top: 16px;
+    border-top: 1px solid #e8dcc8;
+  }
+  .bh-detail-id-section__title {
+    font-family: "Montserrat", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold-dark);
+    margin: 0 0 10px;
+  }
+  .bh-detail-id-frame {
+    border-radius: 8px;
+    border: 1px solid #d4c4a8;
+    background: #faf8f4;
+    overflow: hidden;
+    min-height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .bh-detail-id-img {
+    display: block;
+    max-width: 100%;
+    max-height: min(50vh, 320px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  .bh-detail-id-placeholder {
+    padding: 24px 16px;
+    text-align: center;
+    color: var(--text-mid);
+    font-size: 13px;
+    line-height: 1.45;
   }
   
   /* ============================================

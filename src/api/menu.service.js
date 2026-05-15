@@ -12,7 +12,7 @@ import {
 /**
  * @param {number} page
  * @param {number} limit
- * @param {{ categoryId?: string, availability?: string, search?: string }} [filters]
+ * @param {{ category?: string, categoryId?: string, availability?: string, search?: string }} [filters]
  * @param {{ signal?: AbortSignal }} [options]
  * @returns {Promise<{ currentPage: number, totalPages: number, totalItems: number, data: object[] }>}
  */

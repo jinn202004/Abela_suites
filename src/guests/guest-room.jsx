@@ -10,14 +10,22 @@ import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { computeRoomAvailabilitySearch } from "./roomAvailabilitySearch";
 import { isRoomAvailableForDates } from "./guestAvailability";
-import { parseLocalYmd, formatLocalYmd, blockedCheckInSetFromRanges, addLocalDays } from "./roomStayDates";
+import {
+  parseLocalYmd,
+  formatLocalYmd,
+  blockedCheckInSetFromRanges,
+  splitGuestStayNightsByTone,
+  addLocalDays,
+} from "./roomStayDates";
+import { fetchRoomBookedRangesMerged } from "./roomBookingOccupancy";
 import {
   createBookingBackend,
   fetchRoomsCatalog,
   fetchRoomAvailabilityWindow,
-  fetchRoomGuestOccupancy,
   bookingSaveAlertMessage,
   dispatchFrontdeskNotificationsRefresh,
+  dispatchGuestBookingsRefreshPing,
+  GUEST_BOOKINGS_STORAGE_PING_KEY,
 } from "../api/guestApi";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import GuestSidebar from "./GuestSidebar";
@@ -25,8 +33,9 @@ import { GuestArchiveIcon } from "./guestArchiveIcon";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
-import { DayPicker } from "react-day-picker";
+import { DayPicker, labelDayButton as defaultLabelDayButton } from "react-day-picker";
 import "react-day-picker/style.css";
+import "../frontdesks/dashboard.css";
 import "./guest-room.css";
 
 /** GCash mark for payment card: `public/Gcash.png`. Scan-to-pay QR: `public/gcash-payment-qr.png`. */
@@ -145,43 +154,24 @@ function mapApiRoomToView(api) {
   };
 }
 
-/**
- * When the catalog has exactly two rooms, show Abela’s public suite lineup:
- * cheaper listing → Single Suite ₱824, other → Executive ₱2,940, with your photos in `public/`.
- * (Keeps the same `id` / `roomNumber` so bookings still target the correct catalog row.)
- */
-function applyAbelaSuitePresentation(viewRooms) {
-  if (!Array.isArray(viewRooms) || viewRooms.length !== 2) return viewRooms;
-  const sorted = [...viewRooms].sort(
-    (a, b) => a.priceNum - b.priceNum || String(a.id).localeCompare(String(b.id)),
-  );
-  Object.assign(sorted[0], {
-    name: "Single Suite",
-    priceNum: 824,
-    priceNew: "₱824",
-    img: "/room-single-suite.png",
-  });
-  Object.assign(sorted[1], {
-    name: "Executive",
-    priceNum: 2940,
-    priceNew: "₱2,940",
-    img: "/room-executive.png",
-  });
-  return viewRooms;
-}
-
 // --- Helpers ---
 function parsePriceToNumber(priceStr) {
   const n = Number(String(priceStr || "").replace(/[₱,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 
-function buildRoomReservationPayload(viewRooms, form, resRoom, { paymentAmountNum = 0, transactionId = "", idDataUrl = null } = {}) {
+function buildRoomReservationPayload(
+  viewRooms,
+  form,
+  resRoom,
+  { paymentAmountNum = 0, transactionId = "", idDataUrl = null, paymentProofData = "", paymentDate = "" } = {},
+) {
   const room = viewRooms.find((r) => r.name === resRoom);
   const total = room ? room.priceNum : 0;
   const minDown = Math.round(total * 0.3);
   const email = form.customerEmail.trim().toLowerCase();
   const hasId = typeof idDataUrl === "string" && idDataUrl.startsWith("data:image");
+  const hasProof = typeof paymentProofData === "string" && paymentProofData.startsWith("data:image");
   return {
     roomId: String(room?.id ?? ""),
     customerName: form.customerName.trim(),
@@ -205,6 +195,9 @@ function buildRoomReservationPayload(viewRooms, form, resRoom, { paymentAmountNu
     paymentAmount: String(paymentAmountNum),
     paymentMethod: form.payment === "gcash" ? "Gcash" : "Cash",
     ...(transactionId ? { transactionId } : {}),
+    paymentDate: String(paymentDate || "").trim(),
+    paymentProofData: hasProof ? paymentProofData : "",
+    paymentProofName: hasProof ? "uploaded" : "",
   };
 }
 
@@ -229,6 +222,9 @@ function roomPayloadToApi(p) {
     paymentAmount: p.paymentAmount,
     paymentMethod: p.paymentMethod,
     transactionId: p.transactionId || "",
+    paymentDate: p.paymentDate || "",
+    paymentProofData: p.paymentProofData || "",
+    paymentProofName: p.paymentProofName || "",
   };
 }
 
@@ -280,6 +276,8 @@ export default function Rooms() {
   const [roomOccupancyRanges, setRoomOccupancyRanges] = useState([]);
   const [occupancyLoading, setOccupancyLoading] = useState(false);
   const [occupancyErr, setOccupancyErr] = useState("");
+  /** Bumped when front desk approves/rejects (or other tabs) so calendars refetch server occupancy. */
+  const [guestBookingsPing, setGuestBookingsPing] = useState(0);
 
   // Payment modal
   const [payOpen, setPayOpen]   = useState(false);
@@ -288,6 +286,8 @@ export default function Rooms() {
   const [proofFile, setProofFile]       = useState(null);
   const [proofPreview, setProofPreview] = useState(null);
   const [payErrors, setPayErrors]       = useState({});
+  /** GCash details + proof saved in the form until the guest confirms submission (not sent to the server yet). */
+  const [pendingGcash, setPendingGcash] = useState(null);
 
   // Confirm & success (toast only — no full-screen overlay)
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -334,7 +334,7 @@ export default function Rooms() {
     fetchRoomsCatalog()
       .then((list) => {
         if (cancelled) return;
-        setRooms(applyAbelaSuitePresentation(list.map(mapApiRoomToView)));
+        setRooms(list.map(mapApiRoomToView));
       })
       .catch(() => {
         if (cancelled) return;
@@ -375,6 +375,28 @@ export default function Rooms() {
 
   const blockedCheckInSet = useMemo(() => blockedCheckInSetFromRanges(roomOccupancyRanges), [roomOccupancyRanges]);
 
+  const { occupiedNightSet, reservedNightSet } = useMemo(
+    () => splitGuestStayNightsByTone(roomOccupancyRanges),
+    [roomOccupancyRanges],
+  );
+
+  const bookingCalendarLabels = useMemo(
+    () => ({
+      labelDayButton(date, modifiers, options, dateLib) {
+        let label = defaultLabelDayButton(date, modifiers, options, dateLib);
+        const key = formatLocalYmd(date);
+        if (resRoomId && blockedCheckInSet.has(key)) {
+          const detail = occupiedNightSet.has(key)
+            ? " In-house stay (guest is currently checked in)."
+            : " This night is already reserved for this room.";
+          label = `${label}.${detail} You cannot choose it as your check-in date.`;
+        }
+        return label;
+      },
+    }),
+    [resRoomId, blockedCheckInSet, occupiedNightSet],
+  );
+
   const checkInDisabledMatchers = useMemo(() => {
     const t0 = parseLocalYmd(today);
     return [t0 ? { before: t0 } : { before: new Date() }, (date) => blockedCheckInSet.has(formatLocalYmd(date))];
@@ -392,14 +414,32 @@ export default function Rooms() {
   );
 
   useEffect(() => {
+    function bumpOccupancyRefresh() {
+      setGuestBookingsPing((n) => n + 1);
+    }
+    window.addEventListener("abela-guest-bookings-ping", bumpOccupancyRefresh);
+    function onStorage(e) {
+      if (e.key === GUEST_BOOKINGS_STORAGE_PING_KEY) bumpOccupancyRefresh();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("abela-guest-bookings-ping", bumpOccupancyRefresh);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!resOpen || !resRoomId) return undefined;
     let cancelled = false;
     setOccupancyLoading(true);
     setOccupancyErr("");
     (async () => {
       try {
-        const data = await fetchRoomGuestOccupancy(resRoomId, today, occupancyWindowTo);
-        if (!cancelled) setRoomOccupancyRanges(Array.isArray(data.bookedRanges) ? data.bookedRanges : []);
+        const { ranges, primaryErr } = await fetchRoomBookedRangesMerged(resRoomId, today, occupancyWindowTo);
+        if (!cancelled) {
+          setRoomOccupancyRanges(ranges);
+          setOccupancyErr(ranges.length === 0 && primaryErr ? primaryErr : "");
+        }
       } catch (e) {
         if (!cancelled) {
           setRoomOccupancyRanges([]);
@@ -412,7 +452,7 @@ export default function Rooms() {
     return () => {
       cancelled = true;
     };
-  }, [resOpen, resRoomId, occupancyWindowTo]);
+  }, [resOpen, resRoomId, occupancyWindowTo, guestBookingsPing]);
 
   /** Changing dates or guest count exits the filtered view until the guest runs search again. */
   useEffect(() => {
@@ -486,6 +526,12 @@ export default function Rooms() {
       }
       return;
     }
+    setPendingGcash(null);
+    setPayOpen(false);
+    setConfirmOpen(false);
+    clearPayForm();
+    setRoomOccupancyRanges([]);
+    setOccupancyErr("");
     setResRoom(name);
     setResOpen(true);
   }
@@ -567,7 +613,34 @@ export default function Rooms() {
     return Object.keys(errs).length === 0;
   }
 
-  function handleSubmitRes() { if (validateRes()) setConfirmOpen(true); }
+  function handleSubmitRes() {
+    if (!validateRes()) return;
+    if (form.payment === "gcash" && !pendingGcash) {
+      openGcashPaymentModal();
+      return;
+    }
+    setConfirmOpen(true);
+  }
+
+  function preparePayModalFromDraft() {
+    setPayErrors({});
+    if (pendingGcash) {
+      setPayForm({
+        amount: pendingGcash.amount,
+        date: pendingGcash.date,
+        txId: pendingGcash.txId,
+      });
+      setProofPreview(pendingGcash.proofPreview || null);
+      setProofFile(null);
+    } else {
+      clearPayForm();
+    }
+  }
+
+  function openGcashPaymentModal() {
+    preparePayModalFromDraft();
+    setPayOpen(true);
+  }
 
   async function confirmSubmit() {
     if (!getStoredAuthToken()) {
@@ -581,8 +654,37 @@ export default function Rooms() {
       return;
     }
     if (form.payment === "gcash") {
-      setConfirmOpen(false);
-      setPayOpen(true);
+      if (!pendingGcash) {
+        setConfirmOpen(false);
+        openGcashPaymentModal();
+        return;
+      }
+      setResSubmitting(true);
+      try {
+        const payload = buildRoomReservationPayload(rooms, form, resRoom, {
+          paymentAmountNum: pendingGcash.paidNum,
+          transactionId: pendingGcash.txId,
+          idDataUrl: idPreview,
+          paymentProofData: pendingGcash.proofPreview || "",
+          paymentDate: pendingGcash.date,
+        });
+        await saveRoomReservation(payload);
+        dispatchFrontdeskNotificationsRefresh();
+        dispatchGuestBookingsRefreshPing();
+        try {
+          sessionStorage.setItem("abela_guest_email", payload.email);
+        } catch {
+          /* ignore */
+        }
+        setConfirmOpen(false);
+        setResOpen(false);
+        clearResForm();
+        setBookingSuccessToast("gcash");
+      } catch (err) {
+        window.alert(bookingSaveAlertMessage(err));
+      } finally {
+        setResSubmitting(false);
+      }
       return;
     }
     setResSubmitting(true);
@@ -590,6 +692,7 @@ export default function Rooms() {
       const payload = buildRoomReservationPayload(rooms, form, resRoom, { paymentAmountNum: 0, idDataUrl: idPreview });
       await saveRoomReservation(payload);
       dispatchFrontdeskNotificationsRefresh();
+      dispatchGuestBookingsRefreshPing();
       try {
         sessionStorage.setItem("abela_guest_email", payload.email);
       } catch {
@@ -617,6 +720,7 @@ export default function Rooms() {
     setIdFile(null); setIdPreview(null);
     setFormErrors({});
     setPayOpen(false);
+    setPendingGcash(null);
     clearPayForm();
   }
 
@@ -624,10 +728,10 @@ export default function Rooms() {
   function selectPayment(val) {
     setForm(f => ({ ...f, payment: val }));
     if (val === "gcash") {
-      setPayErrors({});
-      setPayOpen(true);
+      openGcashPaymentModal();
     } else {
       setPayOpen(false);
+      setPendingGcash(null);
       clearPayForm();
     }
   }
@@ -654,18 +758,20 @@ export default function Rooms() {
     reader.readAsDataURL(file);
   }
 
-  async function submitPayment() {
+  function submitPayment() {
     const errs = {};
     if (!payForm.amount.trim()) errs.amount = "Amount paid is required.";
     if (!payForm.date.trim())   errs.date = "Payment date is required.";
     if (!payForm.txId.trim())   errs.txId = "Transaction ID is required.";
-    if (!proofFile)             errs.proof = "Please upload proof of payment.";
+    const hasProof =
+      Boolean(proofFile) ||
+      (typeof proofPreview === "string" && proofPreview.startsWith("data:image"));
+    if (!hasProof) errs.proof = "Please upload proof of payment.";
     setPayErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
     if (form.payment !== "gcash") {
       closePay();
-      setBookingSuccessToast("room");
       return;
     }
 
@@ -689,29 +795,15 @@ export default function Rooms() {
       return;
     }
 
-    setResSubmitting(true);
-    try {
-      const payload = buildRoomReservationPayload(rooms, form, resRoom, {
-        paymentAmountNum: paid,
-        transactionId: payForm.txId.trim(),
-        idDataUrl: idPreview,
-      });
-      await saveRoomReservation(payload);
-      dispatchFrontdeskNotificationsRefresh();
-      try {
-        sessionStorage.setItem("abela_guest_email", payload.email);
-      } catch {
-        /* ignore */
-      }
-      closePay();
-      setResOpen(false);
-      clearResForm();
-      setBookingSuccessToast("gcash");
-    } catch (err) {
-      window.alert(bookingSaveAlertMessage(err));
-    } finally {
-      setResSubmitting(false);
-    }
+    setPendingGcash({
+      amount: payForm.amount.trim(),
+      date: payForm.date.trim(),
+      txId: payForm.txId.trim(),
+      proofPreview: proofPreview || "",
+      paidNum: paid,
+    });
+    setPayOpen(false);
+    clearPayForm();
   }
 
   return (
@@ -954,6 +1046,10 @@ export default function Rooms() {
               </div>
 
               <div className="form-row form-row--stay-calendars">
+                <p className="booking-cal-unavailable-hint">
+                  <strong>Calendar key:</strong> <span className="booking-cal-unavailable-hint__inline">Occupied</span> (red) and{" "}
+                  <span className="booking-cal-unavailable-hint__inline">Reserved</span> (gold) nights match the front desk view. They cannot be used as your check-in date for this room.
+                </p>
                 <div className="form-group">
                   <span className="form-label-static" id="booking-checkin-label">Check-in date <span className="required">*</span></span>
                   <div className={formErrors.checkInDate ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"}>
@@ -965,8 +1061,17 @@ export default function Rooms() {
                       endMonth={parseLocalYmd(occupancyWindowTo) ?? undefined}
                       defaultMonth={parseLocalYmd(form.checkInDate) ?? parseLocalYmd(today) ?? undefined}
                       disabled={checkInDisabledMatchers}
-                      modifiers={{ booked: (date) => blockedCheckInSet.has(formatLocalYmd(date)) }}
-                      modifiersClassNames={{ booked: "booking-cal-day-booked" }}
+                      labels={bookingCalendarLabels}
+                      modifiers={{
+                        stayOccupied: (date) =>
+                          Boolean(resRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
+                        stayReserved: (date) =>
+                          Boolean(resRoomId) && reservedNightSet.has(formatLocalYmd(date)),
+                      }}
+                      modifiersClassNames={{
+                        stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
+                        stayReserved: "fd-cal-cell fd-cal-cell--reserved",
+                      }}
                       className="booking-day-picker"
                       id="booking-checkin-calendar"
                       aria-labelledby="booking-checkin-label"
@@ -991,6 +1096,17 @@ export default function Rooms() {
                         undefined
                       }
                       disabled={checkoutDisabledMatcher}
+                      labels={bookingCalendarLabels}
+                      modifiers={{
+                        stayOccupied: (date) =>
+                          Boolean(resRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
+                        stayReserved: (date) =>
+                          Boolean(resRoomId) && reservedNightSet.has(formatLocalYmd(date)),
+                      }}
+                      modifiersClassNames={{
+                        stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
+                        stayReserved: "fd-cal-cell fd-cal-cell--reserved",
+                      }}
                       className="booking-day-picker"
                       id="booking-checkout-calendar"
                       aria-labelledby="booking-checkout-label"
@@ -1002,13 +1118,28 @@ export default function Rooms() {
                   {formErrors.checkOutDate && <span className="field-error">{formErrors.checkOutDate}</span>}
                 </div>
               </div>
-              {occupancyErr ? (
+              {occupancyErr && roomOccupancyRanges.length === 0 ? (
                 <p className="booking-occupancy-warn" role="status">
-                  Calendar could not load server data ({occupancyErr}). You can still submit; the front desk will confirm availability.
+                  Could not load booked dates for this room ({occupancyErr}). You can still submit; the front desk will confirm availability. Double booking is possible until dates load — try again or pick dates you know are open.
                 </p>
               ) : null}
+              <div className="booking-form-fd-cal-legend">
+                <div className="fd-cal-legend" aria-label="Calendar legend">
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Reserved
+                  </span>
+                </div>
+                <p className="booking-cal-legend-help">
+                  Check-in and check-out use the same colors: each night shows whether this room is already tied up.{" "}
+                  <strong>Gold</strong> is any stay on the books before check-in (pending, approved, or confirmed).{" "}
+                  <strong>Red</strong> only appears after the front desk has checked a guest in for that booking.
+                </p>
+              </div>
               <p className="booking-schedule-note" role="note">
-                <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Red-shaded dates are booked nights and cannot be selected as check-in. The next guest may check in from 2:00 PM on the departure date shown for an existing booking. Calendar reflects approved, confirmed, and in-house stays.
+                <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk calendar: <strong>Occupied</strong> (red) and <strong>Reserved</strong> (gold) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
               </p>
 
               <div className="form-row">
@@ -1042,7 +1173,9 @@ export default function Rooms() {
                   <CardIcon aria-hidden />
                   <h3 className="form-section__title">Payment options</h3>
                 </div>
-                <p className="form-section__desc">Pay with cash on arrival, or choose GCash to scan and complete the payment form.</p>
+                <p className="form-section__desc">
+                  Pay with cash on arrival, or choose GCash to scan and save your payment details here. Saving GCash details does not send your booking until you click Submit Reservation and confirm.
+                </p>
                 <div className="payment-options">
                   <label className={`payment-card${form.payment === "cash" ? " selected" : ""}`}
                     onClick={() => selectPayment("cash")}>
@@ -1108,9 +1241,74 @@ export default function Rooms() {
                 {formErrors.stayCheck && <span className="field-error">{formErrors.stayCheck}</span>}
               </div>
 
+              {resRoom && (form.checkInDate || form.checkOutDate || form.customerName.trim()) ? (
+                <div className="booking-review-summary" aria-labelledby="booking-review-summary-title">
+                  <h3 id="booking-review-summary-title" className="booking-review-summary__title">
+                    Booking summary
+                  </h3>
+                  <ul className="booking-review-summary__list">
+                    <li>
+                      <span className="booking-review-summary__k">Room</span>
+                      <span className="booking-review-summary__v">{resRoom}</span>
+                    </li>
+                    <li>
+                      <span className="booking-review-summary__k">Check-in</span>
+                      <span className="booking-review-summary__v">{form.checkInDate || "—"}</span>
+                    </li>
+                    <li>
+                      <span className="booking-review-summary__k">Check-out</span>
+                      <span className="booking-review-summary__v">{form.checkOutDate || "—"}</span>
+                    </li>
+                    <li>
+                      <span className="booking-review-summary__k">Additional guests</span>
+                      <span className="booking-review-summary__v">{form.additionalGuest || "0"}</span>
+                    </li>
+                    <li>
+                      <span className="booking-review-summary__k">Guest</span>
+                      <span className="booking-review-summary__v">{form.customerName.trim() || "—"}</span>
+                    </li>
+                    <li>
+                      <span className="booking-review-summary__k">Stay total (room)</span>
+                      <span className="booking-review-summary__v">
+                        {formatRoomPriceDisplay(rooms.find((r) => r.name === resRoom)?.priceNum)}
+                      </span>
+                    </li>
+                    <li>
+                      <span className="booking-review-summary__k">Payment method</span>
+                      <span className="booking-review-summary__v">{form.payment === "gcash" ? "GCash" : "Cash on arrival"}</span>
+                    </li>
+                    {form.payment === "gcash" && pendingGcash ? (
+                      <li>
+                        <span className="booking-review-summary__k">GCash</span>
+                        <span className="booking-review-summary__v">
+                          Amount paid ₱{Number(pendingGcash.paidNum).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })},{" "}
+                          paid on {pendingGcash.date}, ref. {pendingGcash.txId}
+                          {pendingGcash.proofPreview ? " · Proof attached" : ""}
+                        </span>
+                      </li>
+                    ) : form.payment === "gcash" ? (
+                      <li>
+                        <span className="booking-review-summary__k">GCash</span>
+                        <span className="booking-review-summary__v booking-review-summary__v--muted">
+                          Not saved yet — click Submit Reservation to open the payment form.
+                        </span>
+                      </li>
+                    ) : null}
+                  </ul>
+                </div>
+              ) : null}
+
+              {form.payment === "gcash" && pendingGcash ? (
+                <p className="booking-gcash-draft-note" role="status">
+                  GCash details are saved in this form only. Review the summary above, then click Submit Reservation to send your request to the hotel.
+                </p>
+              ) : null}
+
               <div className="modal-actions">
                 <button type="button" className="btn-clear" onClick={clearResForm}>Clear</button>
-                <button type="button" className="btn-submit-reservation" onClick={handleSubmitRes}>Submit Reservation</button>
+                <button type="button" className="btn-submit-reservation" onClick={handleSubmitRes} disabled={resSubmitting}>
+                  {resSubmitting ? "Sending…" : "Submit Reservation"}
+                </button>
               </div>
               </div>
             </div>
@@ -1128,6 +1326,10 @@ export default function Rooms() {
               <button className="modal-close" onClick={closePay}>✕</button>
             </div>
             <div className="modal-body payment-modal-body">
+              <p className="payment-modal-lead">
+                Enter your transfer details and proof here. This step only saves them in your booking form — your reservation is not sent until you click Submit Reservation and confirm.
+              </p>
+              <div className="payment-modal-columns">
               <div className="payment-qr-side">
                 <div className="payment-qr-brand">
                   <div className={`qr-payment-frame${payQrMissing ? " qr-payment-frame--empty" : ""}`}>
@@ -1188,13 +1390,14 @@ export default function Rooms() {
                   {payErrors.proof && <span className="field-error">{payErrors.proof}</span>}
                 </div>
                 <div className="payment-form-actions">
-                  <button type="button" className="btn-clear" onClick={clearPayForm} disabled={resSubmitting}>
+                  <button type="button" className="btn-clear" onClick={clearPayForm}>
                     Clear
                   </button>
-                  <button type="button" className="btn-submit-reservation" onClick={submitPayment} disabled={resSubmitting}>
-                    {resSubmitting ? "Saving…" : "Submit"}
+                  <button type="button" className="btn-submit-reservation" onClick={submitPayment}>
+                    Save payment details
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           </div>
@@ -1211,13 +1414,30 @@ export default function Rooms() {
               </svg>
               <span className="confirm-exclaim">!</span>
             </div>
-            <h3 className="confirm-title">Submit Reservation?</h3>
+            <h3 className="confirm-title">Submit reservation?</h3>
+            <p className="confirm-sub">Please confirm the details below. This sends your request to the hotel.</p>
+            {resRoom ? (
+              <div className="confirm-booking-summary">
+                <p><strong>Room</strong> {resRoom}</p>
+                <p><strong>Stay</strong> {form.checkInDate || "—"} → {form.checkOutDate || "—"}</p>
+                <p><strong>Guest</strong> {form.customerName.trim() || "—"}</p>
+                <p><strong>Total</strong> {formatRoomPriceDisplay(rooms.find((r) => r.name === resRoom)?.priceNum)}</p>
+                <p><strong>Payment</strong> {form.payment === "gcash" ? "GCash" : "Cash on arrival"}</p>
+                {form.payment === "gcash" && pendingGcash ? (
+                  <p>
+                    <strong>GCash</strong> ₱{Number(pendingGcash.paidNum).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{" "}
+                    on {pendingGcash.date} · Ref. {pendingGcash.txId}
+                    {pendingGcash.proofPreview ? " · Proof attached" : ""}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="confirm-btns">
               <button type="button" className="btn-cancel-confirm" onClick={() => setConfirmOpen(false)} disabled={resSubmitting}>
                 Cancel
               </button>
               <button type="button" className="btn-submit-confirm" onClick={confirmSubmit} disabled={resSubmitting}>
-                {resSubmitting ? "Saving…" : "Submit"}
+                {resSubmitting ? "Sending…" : "Confirm & submit"}
               </button>
             </div>
           </div>

@@ -4,7 +4,7 @@
   .sidebar.admin-rail-shell + .main-wrapper {
     --gold:      #9e7e2a;
     --gold-dark: #8a6d24;
-    --sidebar-w: 260px;
+    --sidebar-w: 240px;
     --topbar-h:  62px;
     --text-dark: #3a2e1e;
     --text-mid:  #6b5a3e;
@@ -47,14 +47,16 @@
   .sidebar-nav::-webkit-scrollbar { width: 3px; }
   .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
   .nav-item {
-    display: flex; align-items: center; gap: 16px;
+    display: flex; align-items: center; gap: 14px;
     padding: 16px 22px; text-decoration: none; color: white;
     font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px;
+    line-height: 1.25;
+    transition: background 0.18s ease;
   }
   .nav-item:hover  { background: rgba(0,0,0,0.10); }
-  .nav-item.active { background: rgba(0,0,0,0.20); }
-  .nav-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .nav-icon svg { width: 24px; height: 24px; }
+  .nav-item.active { background: rgba(0,0,0,0.22); }
+  .nav-icon { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .nav-icon svg { width: 22px; height: 22px; }
   
   /* ── MAIN WRAPPER ── */
   .main-wrapper {
@@ -232,7 +234,7 @@
   @media (max-width: 768px) {
     .sidebar { width: 64px; }
     .nav-item span:last-child { display: none; }
-    .nav-item { justify-content: center; padding: 14px 10px; }
+    .nav-item { justify-content: center; padding: 18px 10px; }
     .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
     .content { padding: 14px 12px; }
     .exp-card { max-width: 100%; }

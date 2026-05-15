@@ -8,13 +8,11 @@ import {
   dispatchHousekeepingTasksRefresh,
   dispatchHousekeepingInboxRefresh,
   dispatchFrontdeskNotificationsRefresh,
+  HOUSEKEEPING_TASKS_REFRESH_EVENT,
+  HOUSEKEEPING_TASKS_STORAGE_PING_KEY,
 } from "../api/guestApi";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT, getSessionRole } from "../api/authApi";
-import { TopbarUserIcon } from "./frontdeskTopbarIcons";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -256,6 +254,7 @@ function getBadgeClass(status) {
   if (s === "Needs clean" || s === "Need Clean") return "badge-needclean";
   if (s === "Occupied") return "badge-occupied";
   if (s === "In Progress") return "badge-inprogress";
+  if (s === "Complete") return "badge-completed";
   if (s === "Ready") return "badge-completed";
   if (s === "Active") return "badge-active";
   if (s === "Pending") return "badge-pending";
@@ -272,17 +271,12 @@ export default function FrontdeskDashboard() {
     location.pathname === "/frontdesk-dashboard" ||
     location.pathname.endsWith("/frontdesk-dashboard");
 
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
   const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
 
-  const userRef = useRef(null);
-  const notifRef = useRef(null);
   const { pendingCount, displayNotifications, markStaffNotificationsSeen } = useFrontdeskPendingNotifications({
     bookingType: "all",
   });
-  const { topbarProfile } = useTopbarUserProfile("frontdesk");
   const [currentTab, setCurrentTab] = useState("room");
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
@@ -310,8 +304,9 @@ export default function FrontdeskDashboard() {
   /** Ignore stale booking-detail responses when the user closes the modal or opens another row. */
   const bookingDetailsFetchGenRef = useRef(0);
 
-  const refreshDashboard = useCallback(async () => {
-    setRefreshing(true);
+  const refreshDashboard = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) setRefreshing(true);
     try {
       const d = await loadDashboardBundle();
       setAuthenticated(d.authenticated);
@@ -329,7 +324,7 @@ export default function FrontdeskDashboard() {
         setBookingsError(null);
       }
     } finally {
-      setRefreshing(false);
+      if (!silent) setRefreshing(false);
     }
   }, []);
 
@@ -438,14 +433,27 @@ export default function FrontdeskDashboard() {
     };
   }, [refreshDashboard]);
 
+  /** Room / event status on the dashboard follows the same Mongo fields as housekeeping; keep in sync when HK updates. */
   useEffect(() => {
-    function handler(e) {
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    if (!isDashboardPath || !authenticated) return undefined;
+    const hk = () => void refreshDashboard({ silent: true });
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refreshDashboard({ silent: true });
+    };
+    const onStorage = (e) => {
+      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) void refreshDashboard({ silent: true });
+    };
+    window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, hk);
+    window.addEventListener("storage", onStorage);
+    document.addEventListener("visibilitychange", onVis);
+    const poll = window.setInterval(() => void refreshDashboard({ silent: true }), 8000);
+    return () => {
+      window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, hk);
+      window.removeEventListener("storage", onStorage);
+      document.removeEventListener("visibilitychange", onVis);
+      window.clearInterval(poll);
+    };
+  }, [isDashboardPath, authenticated, refreshDashboard]);
 
   const anySectionError = summaryError || roomCatalogError || eventCatalogError || bookingsError;
 
@@ -556,48 +564,17 @@ export default function FrontdeskDashboard() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Dashboard</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => {
-                  if (!v) void markStaffNotificationsSeen();
-                  return !v;
-                });
-              }}
-              notifications={displayNotifications}
-              dot={pendingCount > 0 ? "active" : null}
-              dotTitle="Pending or unread alerts"
-              onItemClick={(n) => {
-                setNotifOpen(false);
-                setUserOpen(false);
-                openStaffNotification(n);
-              }}
-            />
-
-            <div className="icon-btn" ref={userRef} onClick={() => setUserOpen((v) => !v)}>
-              <TopbarUserIcon />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                &#9662;
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.frontdesk.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <StaffTopbarActions
+            roleKey="frontdesk"
+            notifications={displayNotifications}
+            dot={pendingCount > 0 ? "active" : null}
+            dotTitle="Pending or unread alerts"
+            onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
+            onNotificationItemClick={(n) => {
+              openStaffNotification(n);
+            }}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         <main className="content">

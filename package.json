@@ -4,7 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "concurrently -k -n api,web -c magenta,green \"npm run dev --prefix ../../be/abela-be\" \"npm run dev:web:wait\"",
+    "dev:fresh": "npm run kill-port --prefix ../../be/abela-be && npm run dev",
+    "dev:with-api": "npm run dev",
+    "dev:web": "vite",
+    "dev:web:wait": "wait-on http://127.0.0.1:5000/api/health -t 120000 -i 500 && vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -20,6 +24,8 @@
     "recharts": "^3.8.0"
   },
   "devDependencies": {
+    "wait-on": "^8.0.1",
+    "concurrently": "^9.1.2",
     "@eslint/js": "^9.39.4",
     "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.4",

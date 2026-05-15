@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { createPortal } from "react-dom";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -8,20 +9,22 @@ import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import {
   fetchRoomsCatalog,
+  fetchBookingsBackend,
   createRoomBackend,
   updateRoomBackend,
   deleteRoomBackend,
+  uploadRoomImageDirectBackend,
+  HOUSEKEEPING_TASKS_REFRESH_EVENT,
 } from "../api/guestApi";
+import {
+  adminBookingStatusBadgeClass,
+  formatAdminBookingStatusLabel,
+  resolveBookingRawStatus,
+} from "./adminBookingStatusDisplay";
 import "./room-management.css";
 
-/* ── INITIAL DATA ── */
-const INITIAL_STATUSES = [
-  { number: 1, housekeeping: "Joanah Cultura", package: "Single Suites",  type: "Room", status: "Available" },
-  { number: 2, housekeeping: "Jujenn Nabo",    package: "Twin Bed",        type: "Room", status: "Available" },
-  { number: 3, housekeeping: "Jujenn Nabo",    package: "Double Standard", type: "Room", status: "Available" },
-  { number: 4, housekeeping: "Jujenn Nabo",    package: "Matrimonial",     type: "Room", status: "Occupied"  },
-  { number: 5, housekeeping: "Janah Cultura",  package: "Family",          type: "Room", status: "Occupied"  },
-];
+/** Admin room tables: rows per page (client-side slice only; API unchanged). */
+const RM_TABLE_PAGE_SIZE = 10;
 
 /** Map `GET /api/rooms` documents to admin table rows (`be/abela-be/README.md`). */
 function mapApiRoomToAdmin(api) {
@@ -32,6 +35,7 @@ function mapApiRoomToAdmin(api) {
     : "—";
   const pkg =
     String(api.package ?? "").trim() || String(api.title ?? "").trim();
+  const apiStatus = String(api.status ?? "available").trim().toLowerCase();
   return {
     apiId: String(api.id ?? ""),
     roomNum: String(api.roomNumber ?? "").trim(),
@@ -43,7 +47,12 @@ function mapApiRoomToAdmin(api) {
     features: Array.isArray(api.features) ? api.features : [],
     description: String(api.description ?? "").trim(),
     image: String(api.image ?? "").trim() || "",
+    apiStatus,
   };
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function parseGuestsFromLimit(limitStr) {
@@ -64,6 +73,46 @@ const BLANK_FORM = {
   featOther: "",
   image: "",
 };
+
+const ROOM_IMAGE_DATA_URL_MAX_CHARS = 400_000;
+
+/** Browser `fetch` failures (offline, wrong API URL, CORS) usually surface as TypeError / "Failed to fetch" with no HTTP status. */
+function isLikelyNetworkFailure(err) {
+  if (!err || err.status != null) return false;
+  const name = String(err.name || "");
+  const msg = String(err.message || "");
+  return (
+    name === "TypeError" ||
+    msg === "Failed to fetch" ||
+    /networkerror|load failed|failed to fetch/i.test(msg)
+  );
+}
+
+function readImageFileAsDataUrlLimited(file, maxChars = ROOM_IMAGE_DATA_URL_MAX_CHARS) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result || "");
+      if (s.length > maxChars) {
+        reject(
+          new Error(
+            "Image is too large to store without S3. Add AWS_* and S3_MENU_BUCKET to the API .env (see .env.example).",
+          ),
+        );
+        return;
+      }
+      resolve(s);
+    };
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** When false (`VITE_MENU_IMAGE_LOCAL_FALLBACK=false`), failed S3/API uploads surface errors instead of a data-URL preview (same toggle as restaurant menu admin). */
+const ROOM_IMAGE_LOCAL_FALLBACK_ENABLED = !(
+  import.meta.env.VITE_MENU_IMAGE_LOCAL_FALLBACK === "false" ||
+  import.meta.env.VITE_MENU_IMAGE_LOCAL_FALLBACK === "0"
+);
 
 /* ────────────────────────────────────────────────────── */
 /*  SVG ICONS                                             */
@@ -138,20 +187,26 @@ const IconThumb = () => (
 export default function RoomManagement() {
   const { mainStyle } = useAdminShell();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const [statuses] = useState(INITIAL_STATUSES);
+  const [roomBookingsRaw, setRoomBookingsRaw] = useState([]);
+  const [bookingsLoading, setBookingsLoading] = useState(true);
+  const [bookingsError, setBookingsError] = useState(null);
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [roomsError, setRoomsError] = useState(null);
   const [roomMutating, setRoomMutating] = useState(false);
-  const [activeTab, setActiveTab] = useState("status");
+  const [activeTab, setActiveTab] = useState("rooms");
   const [statusSearch, setStatusSearch] = useState("");
   const [roomsSearch, setRoomsSearch] = useState("");
+  const [statusPage, setStatusPage] = useState(1);
+  const [roomsPage, setRoomsPage] = useState(1);
 
   /* modal */
   const [modalOpen, setModalOpen] = useState(false);
   const [editIdx, setEditIdx] = useState(-1);
   const [form, setForm] = useState(BLANK_FORM);
   const [formErr, setFormErr] = useState("");
+  const [imageUploadBusy, setImageUploadBusy] = useState(false);
+  const roomImageFileRef = useRef(null);
 
   /* delete */
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -161,30 +216,102 @@ export default function RoomManagement() {
   const [toast, setToast] = useState({ visible: false, msg: "" });
   const toastTimer = useRef(null);
 
-  /* ── STATS ── */
-  const statAvailable = statuses.filter(s => s.status === "Available").length;
-  const statOccupied  = statuses.filter(s => s.status === "Occupied").length;
-  const statTotal     = rooms.length;
+  const roomStatusRows = useMemo(() => {
+    const byId = new Map(rooms.map((r) => [String(r.apiId || "").trim(), r]));
+    const byNum = new Map();
+    for (const r of rooms) {
+      const n = String(r.roomNum || "").trim().toLowerCase();
+      if (n) byNum.set(n, r);
+    }
+    return roomBookingsRaw
+      .map((b) => {
+        const rid = String(b.roomId || "").trim();
+        let room = rid ? byId.get(rid) : null;
+        if (!room) {
+          const num = String(b.roomNumber || "").trim().toLowerCase();
+          if (num) room = byNum.get(num);
+        }
+        if (!room) return null;
+        const rawStatus = resolveBookingRawStatus(b);
+        const checkInSlice = String(b.checkIn || "").trim().slice(0, 10);
+        return {
+          id: String(b.id || ""),
+          number: String(room.roomNum || b.roomNumber || "—").trim(),
+          housekeeping: "—",
+          package: String(room.package || b.roomTitle || "—").trim(),
+          type: "Room",
+          status: formatAdminBookingStatusLabel(rawStatus),
+          badgeClass: adminBookingStatusBadgeClass(rawStatus),
+          rawStatus,
+          checkInDate: checkInSlice,
+          customerHint: String(b.customerName || "").trim(),
+        };
+      })
+      .filter(Boolean);
+  }, [roomBookingsRaw, rooms]);
 
-  /* ── FILTERED DATA ── */
-  const filteredStatuses = statuses.filter(s => {
+  const todayIso = todayIsoDate();
+  const statBookingsToday = roomStatusRows.filter((s) => s.checkInDate === todayIso).length;
+  const statTotalBookings = roomStatusRows.length;
+  const statPendingBookings = roomStatusRows.filter((s) => s.rawStatus === "pending").length;
+  const statRoomsCatalog = rooms.length;
+  const statsLoading = roomsLoading || bookingsLoading;
+
+  const filteredStatuses = useMemo(() => {
     const q = statusSearch.toLowerCase();
-    return String(s.number).includes(q)
-      || s.housekeeping.toLowerCase().includes(q)
-      || s.package.toLowerCase().includes(q)
-      || s.type.toLowerCase().includes(q)
-      || s.status.toLowerCase().includes(q);
-  });
+    return roomStatusRows.filter(
+      (s) =>
+        String(s.number).toLowerCase().includes(q) ||
+        String(s.housekeeping || "").toLowerCase().includes(q) ||
+        String(s.package || "").toLowerCase().includes(q) ||
+        String(s.type || "").toLowerCase().includes(q) ||
+        String(s.status || "").toLowerCase().includes(q) ||
+        String(s.customerHint || "").toLowerCase().includes(q) ||
+        String(s.checkInDate || "").includes(q),
+    );
+  }, [roomStatusRows, statusSearch]);
 
-  const filteredRooms = rooms.filter(r => {
+  const filteredRooms = useMemo(() => {
     const q = roomsSearch.toLowerCase();
-    return r.roomNum.toLowerCase().includes(q)
-      || r.package.toLowerCase().includes(q)
-      || r.type.toLowerCase().includes(q)
-      || r.limit.toLowerCase().includes(q);
-  });
+    return rooms.filter(
+      (r) =>
+        r.roomNum.toLowerCase().includes(q) ||
+        r.package.toLowerCase().includes(q) ||
+        r.type.toLowerCase().includes(q) ||
+        r.limit.toLowerCase().includes(q),
+    );
+  }, [rooms, roomsSearch]);
 
-  /* ── TOAST ── */
+  const statusTotalPages = Math.max(1, Math.ceil(filteredStatuses.length / RM_TABLE_PAGE_SIZE));
+  const statusCurrentPage = Math.min(Math.max(1, statusPage), statusTotalPages);
+  const statusPageStart = (statusCurrentPage - 1) * RM_TABLE_PAGE_SIZE;
+  const pagedStatuses = filteredStatuses.slice(statusPageStart, statusPageStart + RM_TABLE_PAGE_SIZE);
+  const statusRangeFrom = filteredStatuses.length === 0 ? 0 : statusPageStart + 1;
+  const statusRangeTo = filteredStatuses.length === 0 ? 0 : statusPageStart + pagedStatuses.length;
+
+  const roomsTotalPages = Math.max(1, Math.ceil(filteredRooms.length / RM_TABLE_PAGE_SIZE));
+  const roomsCurrentPage = Math.min(Math.max(1, roomsPage), roomsTotalPages);
+  const roomsPageStart = (roomsCurrentPage - 1) * RM_TABLE_PAGE_SIZE;
+  const pagedRooms = filteredRooms.slice(roomsPageStart, roomsPageStart + RM_TABLE_PAGE_SIZE);
+  const roomsRangeFrom = filteredRooms.length === 0 ? 0 : roomsPageStart + 1;
+  const roomsRangeTo = filteredRooms.length === 0 ? 0 : roomsPageStart + pagedRooms.length;
+
+  useEffect(() => {
+    setStatusPage(1);
+  }, [statusSearch]);
+
+  useEffect(() => {
+    setRoomsPage(1);
+  }, [roomsSearch]);
+
+  useEffect(() => {
+    setStatusPage((p) => Math.min(Math.max(1, p), statusTotalPages));
+  }, [statusTotalPages]);
+
+  useEffect(() => {
+    setRoomsPage((p) => Math.min(Math.max(1, p), roomsTotalPages));
+  }, [roomsTotalPages]);
+
   function showToast(msg) {
     clearTimeout(toastTimer.current);
     setToast({ visible: true, msg });
@@ -229,12 +356,50 @@ export default function RoomManagement() {
     setForm(prev => ({ ...prev, [field]: value }));
   }
 
-  function handleImageChange(e) {
-    const file = e.target.files[0];
+  async function handleImageChange(e) {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => setForm(prev => ({ ...prev, image: ev.target.result }));
-    reader.readAsDataURL(file);
+    setFormErr("");
+
+    async function applyLocalPreview(reason) {
+      const dataUrl = await readImageFileAsDataUrlLimited(file);
+      setForm((prev) => ({ ...prev, image: dataUrl }));
+      setFormErr("");
+      if (reason === "s3-disabled") {
+        showToast("S3 is not configured — using a local preview. Fine for dev; use S3 in production.");
+      } else {
+        showToast(
+          "Could not reach the API — using a local preview. Check VITE_API_BASE_URL / backend if you need uploads.",
+        );
+      }
+    }
+
+    try {
+      setImageUploadBusy(true);
+      try {
+        const result = await uploadRoomImageDirectBackend(file);
+        if (!result?.publicUrl) {
+          throw new Error("Server did not return an image URL.");
+        }
+        setForm((prev) => ({ ...prev, image: result.publicUrl }));
+      } catch (err) {
+        if (ROOM_IMAGE_LOCAL_FALLBACK_ENABLED && (err?.status === 503 || isLikelyNetworkFailure(err))) {
+          await applyLocalPreview(err?.status === 503 ? "s3-disabled" : "network");
+          return;
+        }
+        if (!ROOM_IMAGE_LOCAL_FALLBACK_ENABLED && isLikelyNetworkFailure(err)) {
+          throw new Error(
+            "Could not reach the API. Use relative /api in dev (leave VITE_API_BASE_URL unset with the Vite proxy), or fix the API URL.",
+          );
+        }
+        throw err;
+      }
+    } catch (err) {
+      setFormErr(err?.message || "Image upload failed.");
+    } finally {
+      setImageUploadBusy(false);
+    }
   }
 
   const refreshRooms = useCallback(async () => {
@@ -251,7 +416,29 @@ export default function RoomManagement() {
     }
   }, []);
 
+  const loadRoomBookings = useCallback(async () => {
+    setBookingsLoading(true);
+    setBookingsError(null);
+    try {
+      const list = await fetchBookingsBackend();
+      const roomOnly = (Array.isArray(list) ? list : []).filter(
+        (b) => String(b.type || "").toLowerCase() === "room",
+      );
+      setRoomBookingsRaw(roomOnly);
+    } catch (e) {
+      const msg =
+        e && e.code === "NO_TOKEN"
+          ? "Sign in as admin (JWT) to load room bookings from the API."
+          : e.message || "Could not load room bookings.";
+      setBookingsError(msg);
+      setRoomBookingsRaw([]);
+    } finally {
+      setBookingsLoading(false);
+    }
+  }, []);
+
   async function saveRoom() {
+    if (imageUploadBusy) return;
     const { roomNum, package: pkg, limit, price } = form;
     if (!roomNum.trim() || !pkg.trim() || !limit.trim() || String(price).trim() === "") {
       setFormErr("Room number, package, limit and price are required.");
@@ -315,7 +502,10 @@ export default function RoomManagement() {
 
   /* ── DELETE ── */
   function openDelete(idx) { setDeletingIdx(idx); setDeleteOpen(true); }
-  function closeDelete()   { setDeleteOpen(false); }
+  function closeDelete() {
+    setDeleteOpen(false);
+    setDeletingIdx(-1);
+  }
   async function confirmDelete() {
     const row = rooms[deletingIdx];
     if (!row?.apiId) {
@@ -323,19 +513,20 @@ export default function RoomManagement() {
       closeDelete();
       return;
     }
+    const apiId = row.apiId;
+    closeDelete();
+
     setRoomMutating(true);
     try {
-      await deleteRoomBackend(row.apiId);
+      await deleteRoomBackend(apiId);
       showToast("Room deleted.");
       await refreshRooms();
-      closeDelete();
     } catch (e) {
       showToast(
         e && e.code === "NO_TOKEN"
           ? "No API token — use a backend admin account, not demo-only login."
           : e.message || "Delete failed"
       );
-      closeDelete();
     } finally {
       setRoomMutating(false);
     }
@@ -345,15 +536,43 @@ export default function RoomManagement() {
     refreshRooms();
   }, [refreshRooms]);
 
+  useEffect(() => {
+    void loadRoomBookings();
+  }, [loadRoomBookings]);
+
+  useEffect(() => {
+    const onHk = () => {
+      void refreshRooms();
+      void loadRoomBookings();
+    };
+    window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
+    const poll = window.setInterval(() => {
+      void refreshRooms();
+      void loadRoomBookings();
+    }, 25_000);
+    return () => {
+      window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
+      window.clearInterval(poll);
+    };
+  }, [refreshRooms, loadRoomBookings]);
+
   /* ────────────────────────────────────────────────────── */
   /*  RENDER                                                */
   /* ────────────────────────────────────────────────────── */
   return (
     <>
       <RailPortalShell
-        rootClassName="rm-app"
+        rootClassName="app-layout admin-app-layout admin-rooms-page rm-app"
         mainStyle={mainStyle}
-        sidebar={<AdminSidebarNav logoSrc="/public/logo.png" />}
+        sidebar={
+          <AdminSidebarNav
+            logoSrc="/logo.png"
+            onLogoError={(e) => {
+              e.target.style.background = "white";
+              e.target.style.padding = "8px";
+            }}
+          />
+        }
       >
         {/* ── TOP BAR ── */}
         <header className="topbar">
@@ -381,26 +600,37 @@ export default function RoomManagement() {
                 {roomsError}
               </div>
             )}
+            {bookingsError && (
+              <div className="rm-api-err" style={{ marginTop: "8px", color: "#c0392b", fontSize: "14px" }}>
+                {bookingsError}
+              </div>
+            )}
           </div>
 
-          <div className="rm-stats-row">
+          <div className="rm-stats-row rm-stats-row--room-dash">
             <div className="rm-stat-card">
               <div className="rm-stat-label">
-                <IconAvail /> Available Rooms
+                <IconAvail /> Room bookings today
               </div>
-              <div className="rm-stat-value">{statAvailable}</div>
+              <div className="rm-stat-value">{statsLoading ? "…" : statBookingsToday}</div>
             </div>
             <div className="rm-stat-card">
               <div className="rm-stat-label">
-                <IconOccupied /> Occupied Rooms
+                <IconTotal /> Total room bookings
               </div>
-              <div className="rm-stat-value">{statOccupied}</div>
+              <div className="rm-stat-value">{statsLoading ? "…" : statTotalBookings}</div>
             </div>
             <div className="rm-stat-card">
               <div className="rm-stat-label">
-                <IconTotal /> Total Rooms
+                <IconOccupied /> Pending / review
               </div>
-              <div className="rm-stat-value">{statTotal}</div>
+              <div className="rm-stat-value">{statsLoading ? "…" : statPendingBookings}</div>
+            </div>
+            <div className="rm-stat-card">
+              <div className="rm-stat-label">
+                <IconThumb /> Rooms in catalog
+              </div>
+              <div className="rm-stat-value">{roomsLoading ? "…" : statRoomsCatalog}</div>
             </div>
           </div>
 
@@ -432,7 +662,7 @@ export default function RoomManagement() {
                 <div className="rm-search-wrap">
                   <IconSearch/>
                   <input type="text" className="rm-search-input"
-                         placeholder="Search available, occupied, needs clean..."
+                         placeholder="Search room, guest, check-in date, status…"
                          value={statusSearch}
                          onChange={e => setStatusSearch(e.target.value)}/>
                 </div>
@@ -454,23 +684,55 @@ export default function RoomManagement() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredStatuses.length === 0 ? (
-                      <tr><td colSpan={5} className="rm-empty">No reservations found.</td></tr>
-                    ) : filteredStatuses.map(s => (
-                        <tr key={s.number}>
+                    {bookingsLoading || roomsLoading ? (
+                      <tr>
+                        <td colSpan={5} className="rm-empty">Loading room bookings…</td>
+                      </tr>
+                    ) : filteredStatuses.length === 0 ? (
+                      <tr><td colSpan={5} className="rm-empty">No room status records found.</td></tr>
+                    ) : (
+                      pagedStatuses.map(s => (
+                        <tr key={s.id}>
                           <td>{s.number}</td>
                           <td>{s.housekeeping}</td>
                           <td>{s.package}</td>
                           <td>{s.type}</td>
                           <td>
-                            <span className={`rm-badge badge-${s.status.toLowerCase()}`}>
-                              {s.status}
-                            </span>
+                            <span className={`rm-badge ${s.badgeClass}`}>{s.status}</span>
                           </td>
                         </tr>
-                      ))}
+                      ))
+                    )}
                   </tbody>
                 </table>
+                {!bookingsLoading && !roomsLoading && filteredStatuses.length > 0 ? (
+                  <div className="rm-pagination-bar" aria-label="Room status pages">
+                    <span className="rm-pagination-info">
+                      Showing {statusRangeFrom}–{statusRangeTo} of {filteredStatuses.length}
+                    </span>
+                    <div className="rm-pagination-btns">
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={statusCurrentPage <= 1}
+                        onClick={() => setStatusPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="rm-pagination-pages">
+                        Page {statusCurrentPage} of {statusTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={statusCurrentPage >= statusTotalPages}
+                        onClick={() => setStatusPage((p) => Math.min(statusTotalPages, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
@@ -514,7 +776,7 @@ export default function RoomManagement() {
                       <tr><td colSpan={7} className="rm-empty">Loading rooms…</td></tr>
                     ) : filteredRooms.length === 0 ? (
                       <tr><td colSpan={7} className="rm-empty">No rooms found.</td></tr>
-                    ) : filteredRooms.map(r => {
+                    ) : pagedRooms.map(r => {
                       const idx = rooms.indexOf(r);
                       return (
                         <tr key={(r.apiId || "") + r.roomNum + idx}>
@@ -542,6 +804,34 @@ export default function RoomManagement() {
                     })}
                   </tbody>
                 </table>
+                {!roomsLoading && filteredRooms.length > 0 ? (
+                  <div className="rm-pagination-bar" aria-label="Room catalog pages">
+                    <span className="rm-pagination-info">
+                      Showing {roomsRangeFrom}–{roomsRangeTo} of {filteredRooms.length}
+                    </span>
+                    <div className="rm-pagination-btns">
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={roomsCurrentPage <= 1}
+                        onClick={() => setRoomsPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="rm-pagination-pages">
+                        Page {roomsCurrentPage} of {roomsTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="rm-page-btn"
+                        disabled={roomsCurrentPage >= roomsTotalPages}
+                        onClick={() => setRoomsPage((p) => Math.min(roomsTotalPages, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           )}
@@ -627,18 +917,37 @@ export default function RoomManagement() {
 
               <div className="rm-form-group">
                 <label>Upload Image</label>
-                <div className="rm-upload-area"
-                     onClick={() => document.getElementById("fRoomImage").click()}>
-                  <input type="file" id="fRoomImage" accept="image/*"
-                         style={{ display: "none" }} onChange={handleImageChange}/>
+                <div
+                  className={`rm-upload-area${imageUploadBusy ? " rm-upload-area--busy" : ""}`}
+                  onClick={() => {
+                    if (!imageUploadBusy) roomImageFileRef.current?.click();
+                  }}
+                  style={imageUploadBusy ? { opacity: 0.7, pointerEvents: "none" } : undefined}
+                >
+                  <input
+                    ref={roomImageFileRef}
+                    type="file"
+                    id="fRoomImage"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    disabled={imageUploadBusy}
+                    onChange={(ev) => void handleImageChange(ev)}
+                  />
                   <div className="rm-upload-content">
-                    {form.image
-                      ? <img src={form.image} style={{ maxHeight: 110, borderRadius: 6, objectFit: "contain" }} alt="preview"/>
-                      : (<>
-                          <span className="rm-upload-text">Upload your room image here...</span>
-                          <IconUpload/>
-                        </>)
-                    }
+                    {imageUploadBusy ? (
+                      <span className="rm-upload-text">Uploading image…</span>
+                    ) : form.image ? (
+                      <img
+                        src={form.image}
+                        style={{ maxHeight: 110, borderRadius: 6, objectFit: "contain" }}
+                        alt="preview"
+                      />
+                    ) : (
+                      <>
+                        <span className="rm-upload-text">Upload your room image here...</span>
+                        <IconUpload />
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -646,10 +955,20 @@ export default function RoomManagement() {
               {formErr && <span className="rm-err">{formErr}</span>}
 
               <div className="rm-modal-actions">
-                <button className="rm-btn-clear" type="button" onClick={clearForm} disabled={roomMutating}>
+                <button
+                  className="rm-btn-clear"
+                  type="button"
+                  onClick={clearForm}
+                  disabled={roomMutating || imageUploadBusy}
+                >
                   Clear
                 </button>
-                <button className="rm-btn-save" type="button" onClick={saveRoom} disabled={roomMutating}>
+                <button
+                  className="rm-btn-save"
+                  type="button"
+                  onClick={saveRoom}
+                  disabled={roomMutating || imageUploadBusy}
+                >
                   {roomMutating ? "Saving…" : editIdx === -1 ? "Add Room" : "Save Changes"}
                 </button>
               </div>
@@ -687,13 +1006,16 @@ export default function RoomManagement() {
         </div>
       )}
 
-      {/* ── TOAST ── */}
-      {toast.visible && (
-        <div className="rm-toast active">
-          <IconCheck/>
-          <span>{toast.msg}</span>
-        </div>
-      )}
+      {/* ── TOAST (portal: avoids #root / route flex stretch that made .rm-toast full-width) ── */}
+      {toast.visible &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="rm-toast active" role="status">
+            <IconCheck />
+            <span>{toast.msg}</span>
+          </div>,
+          document.body
+        )}
 
       <LogoutConfirmModal
         open={logoutModalOpen}

@@ -8,7 +8,7 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
-import { fetchCategoriesBackend, createCategoryBackend } from "../api/menuApi";
+import { fetchRestaurantMenuAdminBootstrap, uploadMenuImageDirectBackend } from "../api/menuApi";
 import { getMenus, createMenu, updateMenu, deleteMenu } from "../api/menu.service";
 import "./resto.css";
 
@@ -17,10 +17,11 @@ const CATEGORIES_FALLBACK = ["Main Course", "Side Dish", "Beverages", "Soup", "F
 /** In-memory menu list cache so category tabs can swap without waiting on the network again. */
 const MENU_LIST_CACHE_MS = 5 * 60 * 1000;
 
-function menuListCacheKey(categoryId, search, page, limit) {
+function menuListCacheKey(categoryName, search, page, limit) {
+  const name = String(categoryName ?? "").trim();
   const p = Math.max(1, Number(page) || 1);
   const lim = Math.max(1, Number(limit) || 10);
-  return `${categoryId ?? ""}|${String(search ?? "").trim()}|${p}|${lim}`;
+  return `${name}|${String(search ?? "").trim()}|${p}|${lim}`;
 }
 
 /** Category id from API row (`id` from backend or legacy `_id`). */
@@ -58,18 +59,59 @@ function orderCategoryNames(rows = []) {
   return ordered.length > 0 ? ordered : [...CATEGORIES_FALLBACK];
 }
 
-async function seedDefaultCategoriesIfEmpty(signal) {
-  await Promise.all(
-    CATEGORIES_FALLBACK.map(async (name) => {
-      try {
-        await createCategoryBackend({ name }, { signal });
-      } catch (err) {
-        if (err?.status === 409) return;
-        /* ignore other errors; a follow-up GET will show whatever exists */
-      }
-    }),
+function guessImageContentType(file) {
+  const t = String(file?.type || "")
+    .trim()
+    .split(";")[0]
+    .toLowerCase();
+  if (t && t.startsWith("image/")) return t;
+  const name = String(file?.name || "").toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".gif")) return "image/gif";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  return "image/jpeg";
+}
+
+const MENU_IMAGE_DATA_URL_MAX_CHARS = 400_000;
+
+/** Browser `fetch` failures (offline, wrong API URL, CORS) usually surface as TypeError / "Failed to fetch" with no HTTP status. */
+function isLikelyNetworkFailure(err) {
+  if (!err || err.status != null) return false;
+  const name = String(err.name || "");
+  const msg = String(err.message || "");
+  return (
+    name === "TypeError" ||
+    msg === "Failed to fetch" ||
+    /networkerror|load failed|failed to fetch/i.test(msg)
   );
 }
+
+function readImageFileAsDataUrlLimited(file, maxChars = MENU_IMAGE_DATA_URL_MAX_CHARS) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const s = String(reader.result || "");
+      if (s.length > maxChars) {
+        reject(
+          new Error(
+            "Image is too large to store without S3. Add AWS_* and S3_MENU_BUCKET to the API .env (see .env.example).",
+          ),
+        );
+        return;
+      }
+      resolve(s);
+    };
+    reader.onerror = () => reject(new Error("Could not read image file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+/** When false (`VITE_MENU_IMAGE_LOCAL_FALLBACK=false`), failed S3/API uploads surface errors instead of a data-URL preview. */
+const MENU_IMAGE_LOCAL_FALLBACK_ENABLED = !(
+  import.meta.env.VITE_MENU_IMAGE_LOCAL_FALLBACK === "false" ||
+  import.meta.env.VITE_MENU_IMAGE_LOCAL_FALLBACK === "0"
+);
 
 /* ─── SVG Icons ─── */
 const IconRestoGold  = () => (<svg viewBox="0 0 24 24" fill="none" stroke="#b8922a" strokeWidth="2" width="36" height="36"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>);
@@ -93,7 +135,9 @@ function menuItemToDish(m, categories = []) {
   const categoryRefId = String(m.categoryRef ?? m.categoryId ?? "").trim();
   const categoryNameFromRef =
     categoryRefId && Array.isArray(categories)
-      ? categories.find((c) => String(categoryRowId(c) ?? "") === categoryRefId)?.name || ""
+      ? categories.find((c) => String(categoryRowId(c) ?? "") === categoryRefId)?.name ||
+        categories.find((c) => String(c?.name ?? "").trim().toLowerCase() === categoryRefId.toLowerCase())?.name ||
+        ""
       : "";
   const categoryName = categoryNameFromPayload || categoryNameFromRef || categories[0]?.name || CATEGORIES_FALLBACK[0];
   const status = String(m.status ?? m.availability ?? "available").toLowerCase();
@@ -211,6 +255,7 @@ export default function RestoMenu() {
   const [fCat, setFCat] = useState("Main Course");
   const [fAvail, setFAvail] = useState("Available");
   const [fImage, setFImage] = useState("");
+  const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const [formErr, setFormErr] = useState("");
   const [saveBusy, setSaveBusy] = useState(false);
   const fileRef = useRef();
@@ -232,6 +277,8 @@ export default function RestoMenu() {
   const lastCategoryDigestRef = useRef("");
   const dishesRef = useRef([]);
   const listSkelTimerRef = useRef(null);
+  /** Bumps when a new restaurant bootstrap starts (avoids StrictMode / overlap applying stale state). */
+  const loadSeqRef = useRef(0);
 
   useEffect(() => {
     dishesRef.current = dishes;
@@ -257,15 +304,18 @@ export default function RestoMenu() {
     return () => window.clearTimeout(t);
   }, [search]);
 
-  const loadCategories = useCallback(async (signal) => {
+  const loadRestaurantBootstrap = useCallback(async (signal) => {
     setLoading(true);
     setLoadNotice("");
+    const seq = ++loadSeqRef.current;
     try {
-      let cats = await fetchCategoriesBackend({ signal });
-      if (cats.length === 0) {
-        await seedDefaultCategoriesIfEmpty(signal);
-        cats = await fetchCategoriesBackend({ signal });
-      }
+      const data = await fetchRestaurantMenuAdminBootstrap({
+        limit: menuLimit,
+        signal,
+      });
+      if (signal?.aborted || seq !== loadSeqRef.current) return;
+
+      const cats = Array.isArray(data.categories) ? data.categories : [];
       const digest = Array.isArray(cats)
         ? cats
             .map((c) => `${categoryRowId(c) ?? ""}\t${String(c?.name ?? "").trim()}`)
@@ -278,44 +328,74 @@ export default function RestoMenu() {
         prevListKeyRef.current = null;
       }
       setCategories(cats);
-      if (cats.length > 0) {
-        const orderedCats = orderCategoryNames(cats);
-        setCurrentCat((prev) => (orderedCats.includes(prev) ? prev : orderedCats[0]));
-        setMenuPage(1);
-      }
+      const orderedCats = orderCategoryNames(cats);
+      const selectedName = String(data.selectedCategoryName || "").trim();
+      const nextCat =
+        selectedName && orderedCats.includes(selectedName)
+          ? selectedName
+          : orderedCats.length > 0
+            ? orderedCats[0]
+            : "Main Course";
+      setCurrentCat(nextCat);
+      setMenuPage(1);
+
+      const mp = data.menuPage || {};
+      const rows = Array.isArray(mp.data) ? mp.data : [];
+      const tp = Number(mp.totalPages);
+      const ti = Number(mp.totalItems);
+      const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
+      const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
+      const mapped = rows.map((m) => menuItemToDish(m, cats));
+      const key = menuListCacheKey(nextCat, "", 1, menuLimit);
+      menuListCacheRef.current.set(key, {
+        dishes: mapped,
+        totalPages: nextTp,
+        totalItems: nextTi,
+        savedAt: Date.now(),
+      });
+      prevListKeyRef.current = key;
+      setDishes(mapped);
+      setTotalPages(nextTp);
+      setTotalItems(nextTi);
     } catch (e) {
       if (e?.name === "AbortError") return;
+      if (seq !== loadSeqRef.current) return;
       setCategories([]);
       lastCategoryDigestRef.current = "";
       setLoadNotice(
         e?.code === "NO_TOKEN"
           ? "Sign in as admin to load the menu from the database."
-          : e?.message || "Could not load categories.",
+          : e?.message || "Could not load restaurant data.",
       );
+      setDishes([]);
+      setTotalItems(0);
+      setTotalPages(1);
     } finally {
-      setLoading(false);
+      if (!signal?.aborted && seq === loadSeqRef.current) {
+        setLoading(false);
+      }
     }
-  }, []);
+  }, [menuLimit]);
 
   useEffect(() => {
     const ac = new AbortController();
-    void loadCategories(ac.signal);
+    void loadRestaurantBootstrap(ac.signal);
     return () => ac.abort();
-  }, [loadCategories]);
+  }, [loadRestaurantBootstrap]);
 
   useEffect(() => {
-    const onTok = () => void loadCategories();
+    const onTok = () => void loadRestaurantBootstrap();
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
-  }, [loadCategories]);
+  }, [loadRestaurantBootstrap]);
 
   /** Prefetch page 1 on tab hover/focus (no bulk warm-up — that competed with the first menu fetch and slowed cold loads). */
   const prefetchCategoryMenu = useCallback(
     (catName) => {
       const row = categories.find((c) => String(c?.name ?? "").trim() === String(catName ?? "").trim());
-      const cid = categoryRowId(row);
-      if (!cid) return;
-      const key = menuListCacheKey(cid, debouncedSearch, 1, menuLimit);
+      const filterName = String(row?.name ?? catName ?? "").trim();
+      if (!filterName) return;
+      const key = menuListCacheKey(filterName, debouncedSearch, 1, menuLimit);
       const existing = menuListCacheRef.current.get(key);
       if (existing && Date.now() - existing.savedAt <= MENU_LIST_CACHE_MS) return;
       if (prefetchInFlightRef.current.has(key)) return;
@@ -323,7 +403,7 @@ export default function RestoMenu() {
       void (async () => {
         try {
           const result = await getMenus(1, menuLimit, {
-            categoryId: cid,
+            category: filterName,
             search: debouncedSearch || undefined,
           });
           const rows = Array.isArray(result?.data) ? result.data : [];
@@ -375,16 +455,29 @@ export default function RestoMenu() {
     const catRow = categories.find(
       (c) => String(c?.name ?? "").trim() === String(currentCat ?? "").trim(),
     );
-    const categoryId = categoryRowId(catRow);
-    const key = menuListCacheKey(categoryId, debouncedSearch, menuPage, menuLimit);
+    const filterName = String(catRow?.name ?? currentCat ?? "").trim();
+    const key = menuListCacheKey(filterName, debouncedSearch, menuPage, menuLimit);
 
     const keyChanged = prevListKeyRef.current !== key;
-    prevListKeyRef.current = key;
-
     const hit = menuListCacheRef.current.get(key);
     const cacheFresh = Boolean(hit && Date.now() - hit.savedAt <= MENU_LIST_CACHE_MS);
 
-    if (keyChanged && !cacheFresh) {
+    if (cacheFresh) {
+      if (keyChanged) {
+        setDishes(hit.dishes);
+        setTotalPages(hit.totalPages);
+        setTotalItems(hit.totalItems);
+      }
+      prevListKeyRef.current = key;
+      setMenuFetching(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    prevListKeyRef.current = key;
+
+    if (keyChanged) {
       setDishes([]);
       const hadRows = dishesRef.current.length > 0;
       if (hadRows) {
@@ -395,13 +488,9 @@ export default function RestoMenu() {
       } else {
         setDelayedListSkeleton(true);
       }
-    } else if (cacheFresh) {
-      setDishes(hit.dishes);
-      setTotalPages(hit.totalPages);
-      setTotalItems(hit.totalItems);
     }
 
-    if (!cacheFresh) setMenuFetching(true);
+    setMenuFetching(true);
 
     const menuAc = new AbortController();
 
@@ -411,7 +500,7 @@ export default function RestoMenu() {
           menuPage,
           menuLimit,
           {
-            categoryId,
+            category: filterName,
             search: debouncedSearch || undefined,
           },
           { signal: menuAc.signal },
@@ -480,14 +569,14 @@ export default function RestoMenu() {
     const catRow = categories.find(
       (c) => String(c?.name ?? "").trim() === String(currentCat ?? "").trim(),
     );
-    const categoryId = categoryRowId(catRow);
+    const filterName = String(catRow?.name ?? currentCat ?? "").trim();
     const pageToFetch =
       opts.page != null
         ? Math.max(1, parseInt(String(opts.page), 10) || 1)
         : Math.max(1, parseInt(String(menuPage), 10) || 1);
     try {
       const result = await getMenus(pageToFetch, menuLimit, {
-        categoryId,
+        category: filterName,
         search: debouncedSearch || undefined,
       });
       if (!skipStaleGuard && gen !== menuFetchGenRef.current) return;
@@ -504,7 +593,7 @@ export default function RestoMenu() {
       setTotalPages(nextTp);
       setTotalItems(nextTi);
       setDishes(mapped);
-      menuListCacheRef.current.set(menuListCacheKey(categoryId, debouncedSearch, pageToFetch, menuLimit), {
+      menuListCacheRef.current.set(menuListCacheKey(filterName, debouncedSearch, pageToFetch, menuLimit), {
         dishes: mapped,
         totalPages: nextTp,
         totalItems: nextTi,
@@ -532,7 +621,7 @@ export default function RestoMenu() {
   function openAddModal() {
     if (categories.length === 0) {
       showToast("No categories yet — refresh the page or check admin login.");
-      void loadCategories();
+      void loadRestaurantBootstrap();
       return;
     }
     setEditingId(-1);
@@ -569,8 +658,7 @@ export default function RestoMenu() {
     const cat = categories.find(
       (c) => String(c?.name ?? "").trim() === String(fCat ?? "").trim(),
     );
-    const categoryIdStr = categoryRowId(cat);
-    if (!cat || !categoryIdStr) {
+    if (!cat) {
       setFormErr("Choose a category that exists in the database.");
       return;
     }
@@ -584,7 +672,7 @@ export default function RestoMenu() {
       name: fName.trim(),
       description: fDesc.trim(),
       price: priceNum,
-      categoryId: categoryIdStr,
+      category: String(cat.name ?? fCat).trim(),
       imageUrl: fImage || "",
       availability,
       status: availability,
@@ -652,12 +740,50 @@ export default function RestoMenu() {
     }
   }
 
-  function handleImageChange(e) {
-    const file = e.target.files[0];
+  async function handleImageChange(e) {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setFImage(ev.target.result);
-    reader.readAsDataURL(file);
+    setFormErr("");
+
+    async function applyLocalPreview(reason) {
+      const dataUrl = await readImageFileAsDataUrlLimited(file);
+      setFImage(dataUrl);
+      setFormErr("");
+      if (reason === "s3-disabled") {
+        showToast("S3 is not configured — using a local preview. Fine for dev; use S3 in production.");
+      } else {
+        showToast(
+          "Could not reach the API — using a local preview. Check VITE_API_BASE_URL / backend if you need uploads.",
+        );
+      }
+    }
+
+    try {
+      setImageUploadBusy(true);
+      try {
+        const result = await uploadMenuImageDirectBackend(file);
+        if (!result?.publicUrl) {
+          throw new Error("Server did not return an image URL.");
+        }
+        setFImage(result.publicUrl);
+      } catch (err) {
+        if (MENU_IMAGE_LOCAL_FALLBACK_ENABLED && (err?.status === 503 || isLikelyNetworkFailure(err))) {
+          await applyLocalPreview(err?.status === 503 ? "s3-disabled" : "network");
+          return;
+        }
+        if (!MENU_IMAGE_LOCAL_FALLBACK_ENABLED && isLikelyNetworkFailure(err)) {
+          throw new Error(
+            "Could not reach the API. Use relative /api in dev (leave VITE_API_BASE_URL unset with the Vite proxy), or fix the API URL.",
+          );
+        }
+        throw err;
+      }
+    } catch (err) {
+      setFormErr(err?.message || "Image upload failed.");
+    } finally {
+      setImageUploadBusy(false);
+    }
   }
 
   const tabsToShow = orderCategoryNames(categories);
@@ -678,7 +804,7 @@ export default function RestoMenu() {
   return (
     <>
       <RailPortalShell
-        rootClassName="app-root resto-admin-page"
+        rootClassName="app-layout admin-app-layout app-root resto-admin-page"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav />}
       >
@@ -914,10 +1040,31 @@ export default function RestoMenu() {
                 />
               </div>
               <div className="rm-form-group">
-                <label className="rm-label">Upload Image</label>
-                <div className="rm-upload-area" onClick={() => fileRef.current?.click()}>
-                  <input type="file" accept="image/*" className="rm-file-input" ref={fileRef} onChange={handleImageChange} />
-                  {fImage ? (
+                <label className="rm-label">Upload image</label>
+                <p className="rm-upload-hint" style={{ fontSize: "0.85rem", color: "#888", margin: "0 0 8px" }}>
+                  Images are sent to your API, then stored in S3 when AWS env vars are set. If S3 is unavailable, a small
+                  local preview may be used (development only).
+                </p>
+                <div
+                  className={`rm-upload-area${imageUploadBusy ? " rm-upload-area--busy" : ""}`}
+                  onClick={() => {
+                    if (!imageUploadBusy) fileRef.current?.click();
+                  }}
+                  style={imageUploadBusy ? { opacity: 0.7, pointerEvents: "none" } : undefined}
+                >
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif,.jpg,.jpeg,.png,.webp,.gif"
+                    className="rm-file-input"
+                    ref={fileRef}
+                    disabled={imageUploadBusy}
+                    onChange={(ev) => void handleImageChange(ev)}
+                  />
+                  {imageUploadBusy ? (
+                    <div className="rm-upload-content">
+                      <span className="rm-upload-text">Uploading to storage…</span>
+                    </div>
+                  ) : fImage ? (
                     <img src={fImage} className="rm-upload-preview" alt="preview" />
                   ) : (
                     <div className="rm-upload-content">

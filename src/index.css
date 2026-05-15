@@ -101,3 +101,15 @@ p {
   transform: translateY(-1px);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.25);
 }
+
+/* Topbar user menu: "My Profile" is a React Router <a> (RoleUserDropdown). Strip default link underline app-wide. */
+a.user-dropdown-item {
+  text-decoration: none;
+}
+
+a.user-dropdown-item:hover,
+a.user-dropdown-item:visited,
+a.user-dropdown-item:focus,
+a.user-dropdown-item:active {
+  text-decoration: none;
+}

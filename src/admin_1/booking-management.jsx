@@ -9,7 +9,15 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { fetchBookingsBackend, fetchRoomsCatalog, deleteBookingBackend } from "../api/guestApi";
+import { fetchBookingsBackend, fetchBookingByIdBackend, fetchRoomsCatalog, deleteBookingBackend } from "../api/guestApi";
+import { ReservationProofPreview } from "../components/ReservationProofPreview";
+import {
+  derivePaymentStatusLine,
+  paymentMethodDisplayLabel,
+  paymentProofFromBooking,
+} from "../components/reservationDetailsHelpers";
+import { openPdfPrintOrDownload, pdfSafeText } from "../utils/pdfClientExport";
+import "../components/reservation-details-modal.css";
 import {
   bookingAddressDisplay,
   bookingCustomerDisplayName,
@@ -21,18 +29,31 @@ import {
 import "../guests/idUploadedCard.css";
 import "./booking-management.css";
 
+/** Rows per page for reservation tables — UI-only; data still loads via `fetchBookingsBackend` (no API/DB changes). */
+const BOOKING_PAGE_SIZE = 10;
+
 /** Served from `public/logo.jpg` (swap file to customize print header). */
 const BM_PRINT_LOGO_SRC = `${import.meta.env.BASE_URL}logo.jpg`;
 
 function parseMoneyStr(v) {
   if (v == null || v === "") return 0;
-  const n = Number(String(v).replace(/[₱,\s]/g, ""));
+  const n = Number(
+    String(v)
+      .replace(/^\s*PHP\s*/i, "")
+      .replace(/[₱,\s]/g, ""),
+  );
   return Number.isFinite(n) ? n : 0;
 }
 
 function fmtPeso(n) {
   if (!Number.isFinite(n)) return "—";
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+/** ASCII-safe money for print/PDF summaries (matches sanitized PHP style). */
+function fmtSummaryPhp(n) {
+  if (!Number.isFinite(n)) return "—";
+  return `PHP ${n.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 function statusToBadgeLabel(st) {
@@ -89,12 +110,27 @@ function mapRoomBookingRow(b, roomIdToNumber) {
     address: bookingAddressDisplay(b),
     requests: b.additionalRequests || "",
     refnum: String(b.id),
+    bookingId: String(b.id || ""),
     amountpaid: fmtPeso(down),
-    paydate: b.updatedAt ? new Date(b.updatedAt).toLocaleDateString("en-PH") : "",
+    paydate: b.paymentDate && String(b.paymentDate).trim()
+      ? formatBookingPaymentDate(b.paymentDate)
+      : b.updatedAt
+        ? new Date(b.updatedAt).toLocaleDateString("en-PH")
+        : "",
     transid: b.transactionId || "",
     guestcount: String(b.additionalGuests ?? 0),
-    bookingId: String(b.id || ""),
+    paymentMethod: b.paymentMethod || "",
+    paymethod: b.paymentMethod || "",
+    paymentProofData: "",
   };
+}
+
+function formatBookingPaymentDate(iso) {
+  const s = String(iso || "").trim();
+  if (!s) return "";
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return s;
 }
 
 function mapEventBookingRow(b) {
@@ -110,6 +146,7 @@ function mapEventBookingRow(b) {
     checkout: b.eventEndDate || b.eventDate || "—",
     downpayment: fmtPeso(down),
     balance: fmtPeso(bal),
+    price: fmtPeso(total),
     status: statusToBadgeLabel(b.status),
     contact: bookingPhoneDisplay(b),
     email: bookingEmailDisplay(b),
@@ -117,175 +154,261 @@ function mapEventBookingRow(b) {
     attendees: String(b.expectedPax ?? ""),
     requests: b.additionalRequests || "",
     refnum: String(b.id),
-    amountpaid: fmtPeso(down),
-    paydate: b.updatedAt ? new Date(b.updatedAt).toLocaleDateString("en-PH") : "",
-    transid: b.transactionId || "",
     bookingId: String(b.id || ""),
+    amountpaid: fmtPeso(down),
+    paydate: b.paymentDate && String(b.paymentDate).trim()
+      ? formatBookingPaymentDate(b.paymentDate)
+      : b.updatedAt
+        ? new Date(b.updatedAt).toLocaleDateString("en-PH")
+        : "",
+    transid: b.transactionId || "",
+    paymentMethod: b.paymentMethod || "",
+    paymethod: b.paymentMethod || "",
+    paymentProofData: "",
   };
 }
 
-const ROOM_PRINT_COLS = [
-  "Ref",
-  "Room No.",
-  "Package",
-  "Customer",
-  "Price",
-  "Check-In",
-  "Check-Out",
-  "Status",
-  "Downpayment",
-  "Balance",
-  "Contact",
-  "Email",
-  "Address",
-  "Guests",
-  "Requests",
-  "Amount paid",
-  "Pay date",
-  "Tx ID",
-];
-
-const EVENT_PRINT_COLS = [
-  "Ref",
-  "Customer",
-  "Event / Venue",
-  "Check-In",
-  "Check-Out",
-  "Downpayment",
-  "Balance",
-  "Status",
-  "Contact",
-  "Email",
-  "Time slot",
-  "Attendees",
-  "Requests",
-  "Amount paid",
-  "Pay date",
-  "Tx ID",
-];
-
-function roomRowToPrintCells(r) {
-  return [
-    r.refnum,
-    r.number,
-    r.type,
-    r.customer,
-    r.price,
-    r.checkin,
-    r.checkout,
-    r.status,
-    r.downpayment,
-    r.balance,
-    r.contact,
-    r.email,
-    r.address,
-    r.guestcount,
-    r.requests,
-    r.amountpaid,
-    r.paydate,
-    r.transid,
-  ];
-}
-
-function eventRowToPrintCells(r) {
-  return [
-    r.refnum,
-    r.customer,
-    r.event,
-    r.checkin,
-    r.checkout,
-    r.downpayment,
-    r.balance,
-    r.status,
-    r.contact,
-    r.email,
-    r.timeslot,
-    r.attendees,
-    r.requests,
-    r.amountpaid,
-    r.paydate,
-    r.transid,
-  ];
+/** Short ref for dense layouts; full id still available on `title` in print cards. */
+function shortBookingRef(id) {
+  const s = String(id ?? "").trim();
+  if (s.length <= 14) return s;
+  return `${s.slice(0, 6)}…${s.slice(-6)}`;
 }
 
 const PDF_HEAD_RGB = [184, 146, 42];
 
-function cellPdf(v) {
-  return String(v ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+/** Line height in mm for a font size in pt (readable spacing). */
+function bookingPdfLineH(fsPt) {
+  return (fsPt * 0.352778) * 1.38;
 }
 
-/** Client-side PDF export (same columns as print preview). */
-function downloadBookingReportPdf({ variant, monthLabel, roomRows, eventRows, printMonthKey }) {
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const margin = 8;
-
-  const tableDefaults = {
-    styles: { fontSize: 5, cellPadding: 0.55, overflow: "linebreak" },
-    headStyles: { fillColor: PDF_HEAD_RGB, fontSize: 5, textColor: 255 },
-    bodyStyles: { fontSize: 5 },
-    margin: { left: margin, right: margin },
-    theme: "striped",
-  };
-
-  let y = 12;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("ABELA SUITES", margin, y);
-  y += 7;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(`Period: ${monthLabel}`, margin, y);
-  y += 12;
-
-  if (variant === "room") {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("Room reservations", margin, y);
-    y += 4;
-    const body =
-      roomRows.length > 0
-        ? roomRows.map((r) => roomRowToPrintCells(r).map(cellPdf))
-        : [ROOM_PRINT_COLS.map((_, i) => (i === 0 ? "No room bookings for this period." : ""))];
-
-    autoTable(doc, {
-      ...tableDefaults,
-      startY: y,
-      head: [ROOM_PRINT_COLS],
-      body,
-    });
+/** If not enough room, start a new page and return top margin y. */
+function bookingPdfEnsure(doc, y, needMm, margin, pageH) {
+  if (y + needMm > pageH - margin) {
+    doc.addPage();
+    return margin;
   }
+  return y;
+}
 
-  if (variant === "event") {
+function bookingPdfSafe(v, maxLen = 4000) {
+  return pdfSafeText(sanitizeBookingPrintCell(v), maxLen);
+}
+
+/**
+ * Normalize text for print preview + PDF output. Default Helvetica cannot render ₱, ×, or many
+ * Unicode spaces; HTML in `additionalRequests` can show as garbled `&…` in PDF/print output.
+ */
+function sanitizeBookingPrintCell(v) {
+  let s = String(v ?? "");
+  s = s.replace(/<[^>]*>/g, " ");
+  s = s.replace(/&nbsp;/gi, " ");
+  s = s.replace(/&times;/gi, "x");
+  s = s.replace(/&apos;/gi, "'");
+  s = s.replace(/&quot;/gi, '"');
+  s = s.replace(/&lt;/gi, "<");
+  s = s.replace(/&gt;/gi, ">");
+  s = s.replace(/&#x([0-9a-f]{1,6});?/gi, (_, hex) => {
+    const cp = parseInt(hex, 16);
+    return Number.isFinite(cp) && cp >= 32 && cp < 0x110000 ? String.fromCodePoint(cp) : "";
+  });
+  s = s.replace(/&#(\d{1,7});?/g, (_, dec) => {
+    const cp = parseInt(dec, 10);
+    return Number.isFinite(cp) && cp >= 32 && cp < 0x110000 ? String.fromCodePoint(cp) : "";
+  });
+  s = s.replace(/&amp;/gi, "&");
+  s = s.replace(/\u20b1/gi, "PHP ");
+  s = s.replace(/₱/g, "PHP ");
+  s = s.replace(/×/g, "x");
+  s = s.replace(/\u00d7/g, "x");
+  s = s.replace(/[\u00a0\u202f\u2007\u200b\u200c\u200d\ufeff]/g, " ");
+  s = s.replace(/\r\n|\r|\n/g, " ");
+  s = s.replace(/\s+/g, " ").trim();
+  return s;
+}
+
+function computeBookingSummary(rows) {
+  const byStatus = {};
+  let sumTotal = 0;
+  let sumPaid = 0;
+  let sumBal = 0;
+  for (const r of rows) {
+    const st = String(r.status || "—");
+    byStatus[st] = (byStatus[st] || 0) + 1;
+    sumTotal += parseMoneyStr(r.price);
+    sumPaid += parseMoneyStr(r.amountpaid);
+    sumBal += parseMoneyStr(r.balance);
+  }
+  return { count: rows.length, byStatus, sumTotal, sumPaid, sumBal };
+}
+
+const ROOM_SUMMARY_COLS = ["Ref", "Room", "Package", "Customer", "In", "Out", "Status", "Total", "Paid", "Balance"];
+
+const EVENT_SUMMARY_COLS = ["Ref", "Event", "Customer", "Start", "End", "Status", "Total", "Paid", "Balance"];
+
+function roomRowToSummaryCells(r) {
+  return [
+    shortBookingRef(r.refnum),
+    sanitizeBookingPrintCell(r.number),
+    sanitizeBookingPrintCell(r.type),
+    sanitizeBookingPrintCell(r.customer),
+    sanitizeBookingPrintCell(r.checkin),
+    sanitizeBookingPrintCell(r.checkout),
+    sanitizeBookingPrintCell(r.status),
+    fmtSummaryPhp(parseMoneyStr(r.price)),
+    fmtSummaryPhp(parseMoneyStr(r.amountpaid)),
+    fmtSummaryPhp(parseMoneyStr(r.balance)),
+  ];
+}
+
+function eventRowToSummaryCells(r) {
+  return [
+    shortBookingRef(r.refnum),
+    sanitizeBookingPrintCell(r.event),
+    sanitizeBookingPrintCell(r.customer),
+    sanitizeBookingPrintCell(r.checkin),
+    sanitizeBookingPrintCell(r.checkout),
+    sanitizeBookingPrintCell(r.status),
+    fmtSummaryPhp(parseMoneyStr(r.price)),
+    fmtSummaryPhp(parseMoneyStr(r.amountpaid)),
+    fmtSummaryPhp(parseMoneyStr(r.balance)),
+  ];
+}
+
+function summaryCellPdf(v) {
+  return pdfSafeText(sanitizeBookingPrintCell(v), 240);
+}
+
+/** Client-side PDF: overall summary + compact table (A4 landscape). */
+function buildBookingReportPdf({ variant, monthLabel, roomRows, eventRows, printMonthKey }) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const margin = 12;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const contentW = pageW - 2 * margin;
+  let y = margin + 4;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.text("ABELA SUITES", margin, y);
+  y += 8;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(`Period: ${bookingPdfSafe(monthLabel, 200)}`, margin, y);
+  y += 6;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11);
+  doc.text(
+    variant === "room" ? "Room reservations — overall summary" : "Event reservations — overall summary",
+    margin,
+    y,
+  );
+  y += 7;
+  doc.setDrawColor(210, 198, 178);
+  doc.setLineWidth(0.35);
+  doc.line(margin, y, margin + contentW, y);
+  y += 6;
+
+  const rows = variant === "room" ? roomRows : eventRows;
+  if (rows.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(
+      variant === "room" ? "No room bookings for this period." : "No event bookings for this period.",
+      margin,
+      y,
+    );
+  } else {
+    const sum = computeBookingSummary(rows);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("Event reservations", margin, y);
-    y += 4;
+    doc.setFontSize(10);
+    doc.text("Summary", margin, y);
+    y += 5.5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.text(`Total bookings: ${sum.count}`, margin, y);
+    y += 5;
+    const statusParts = Object.entries(sum.byStatus)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${bookingPdfSafe(k, 120)}: ${v}`);
+    const statusBlob = statusParts.join("   ");
+    const statusLines = doc.splitTextToSize(statusBlob, contentW);
+    for (let i = 0; i < statusLines.length; i += 1) {
+      y = bookingPdfEnsure(doc, y, bookingPdfLineH(9.5), margin, pageH);
+      doc.text(statusLines[i], margin, y);
+      y += bookingPdfLineH(9.5);
+    }
+    y += 2;
+    doc.text(`Total booking amount: ${bookingPdfSafe(fmtSummaryPhp(sum.sumTotal), 80)}`, margin, y);
+    y += 5;
+    doc.text(`Total collected (paid): ${bookingPdfSafe(fmtSummaryPhp(sum.sumPaid), 80)}`, margin, y);
+    y += 5;
+    doc.text(`Total balance due: ${bookingPdfSafe(fmtSummaryPhp(sum.sumBal), 80)}`, margin, y);
+    y += 8;
+
+    doc.setDrawColor(210, 198, 178);
+    doc.line(margin, y, margin + contentW, y);
+    y += 5;
+
+    const head = variant === "room" ? [ROOM_SUMMARY_COLS] : [EVENT_SUMMARY_COLS];
     const body =
-      eventRows.length > 0
-        ? eventRows.map((r) => eventRowToPrintCells(r).map(cellPdf))
-        : [EVENT_PRINT_COLS.map((_, i) => (i === 0 ? "No event bookings for this period." : ""))];
+      variant === "room"
+        ? roomRows.map((r) => roomRowToSummaryCells(r).map(summaryCellPdf))
+        : eventRows.map((r) => eventRowToSummaryCells(r).map(summaryCellPdf));
 
     autoTable(doc, {
-      ...tableDefaults,
       startY: y,
-      head: [EVENT_PRINT_COLS],
+      head,
       body,
+      theme: "striped",
+      styles: {
+        fontSize: 8.5,
+        cellPadding: 1.05,
+        overflow: "linebreak",
+        valign: "top",
+        font: "helvetica",
+      },
+      headStyles: { fillColor: PDF_HEAD_RGB, fontSize: 8.5, textColor: 255, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8.5 },
+      margin: { left: margin, right: margin },
     });
   }
 
   const slug = (printMonthKey || "all-time").replace(/[^\d-]/g, "") || "all-time";
-  doc.save(`Abela_bookings_${variant}_${slug}.pdf`);
+  const filename = `Abela_bookings_${variant}_${slug}.pdf`;
+  return { doc, filename };
+}
+
+function downloadBookingReportPdf(opts) {
+  const { doc, filename } = buildBookingReportPdf(opts);
+  doc.save(filename);
+}
+
+function printBookingReportPdf(opts) {
+  const { doc, filename } = buildBookingReportPdf(opts);
+  openPdfPrintOrDownload(doc, filename);
 }
 
 function BookingPrintModal({ open, onClose, monthLabel, variant, roomRows, eventRows, printMonthKey }) {
   if (!open) return null;
 
-  const heading = variant === "room" ? "Room reservations" : "Event reservations";
+  const tableRows = variant === "room" ? roomRows : eventRows;
+  const summary = useMemo(() => computeBookingSummary(tableRows), [tableRows]);
+  const heading =
+    variant === "room" ? "Room reservations — overall summary" : "Event reservations — overall summary";
 
   const handleDownloadPdf = () => {
     downloadBookingReportPdf({
+      variant,
+      monthLabel,
+      roomRows,
+      eventRows,
+      printMonthKey,
+    });
+  };
+
+  const handlePrintPdf = () => {
+    printBookingReportPdf({
       variant,
       monthLabel,
       roomRows,
@@ -327,73 +450,131 @@ function BookingPrintModal({ open, onClose, monthLabel, variant, roomRows, event
             <div className="bm-print-brand">ABELA SUITES</div>
             <div className="bm-print-period">Period: {monthLabel}</div>
             <div className="bm-print-subtitle">{heading}</div>
+            <p className="bm-print-summary-note">
+              Totals and a compact list for this period. Open a booking in Booking Management for full contact,
+              requests, and proof of payment.
+            </p>
           </header>
 
           {variant === "room" && (
             <section className="bm-print-section">
-              <h3 className="bm-print-section-title">Room reservations</h3>
-              <div className="bm-print-table-wrap">
-                <table className="bm-print-table">
-                  <thead>
-                    <tr>
-                      {ROOM_PRINT_COLS.map((c) => (
-                        <th key={c}>{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {roomRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={ROOM_PRINT_COLS.length} className="bm-print-empty">
-                          No room bookings for this period.
-                        </td>
-                      </tr>
-                    ) : (
-                      roomRows.map((r) => (
-                        <tr key={`room-${r.refnum}`}>
-                          {roomRowToPrintCells(r).map((cell, i) => (
-                            <td key={i}>{cell}</td>
+              <h3 className="bm-print-section-title">Room summary</h3>
+              {roomRows.length === 0 ? (
+                <div className="bm-print-empty bm-print-empty--card">No room bookings for this period.</div>
+              ) : (
+                <div className="bm-print-cards-wrap bm-print-summary-wrap">
+                  <div className="bm-print-summary-stats">
+                    <div className="bm-print-summary-stats-grid">
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total bookings</span>
+                        <strong className="bm-print-summary-stat-value">{summary.count}</strong>
+                      </div>
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total amount</span>
+                        <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumTotal)}</strong>
+                      </div>
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total collected</span>
+                        <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumPaid)}</strong>
+                      </div>
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total balance due</span>
+                        <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumBal)}</strong>
+                      </div>
+                    </div>
+                    <div className="bm-print-summary-pills" aria-label="By status">
+                      {Object.entries(summary.byStatus)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([label, n]) => (
+                          <span key={label} className="bm-print-summary-pill">
+                            {label}: {n}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                  <div className="bm-print-table-wrap bm-print-summary-table-wrap">
+                    <table className="bm-print-summary-table">
+                      <thead>
+                        <tr>
+                          {ROOM_SUMMARY_COLS.map((c) => (
+                            <th key={c}>{c}</th>
                           ))}
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {roomRows.map((r) => (
+                          <tr key={r.bookingId || r.refnum}>
+                            {roomRowToSummaryCells(r).map((cell, i) => (
+                              <td key={i}>{cell}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
           {variant === "event" && (
             <section className="bm-print-section">
-              <h3 className="bm-print-section-title">Event reservations</h3>
-              <div className="bm-print-table-wrap">
-                <table className="bm-print-table">
-                  <thead>
-                    <tr>
-                      {EVENT_PRINT_COLS.map((c) => (
-                        <th key={c}>{c}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {eventRows.length === 0 ? (
-                      <tr>
-                        <td colSpan={EVENT_PRINT_COLS.length} className="bm-print-empty">
-                          No event bookings for this period.
-                        </td>
-                      </tr>
-                    ) : (
-                      eventRows.map((r) => (
-                        <tr key={`event-${r.refnum}`}>
-                          {eventRowToPrintCells(r).map((cell, i) => (
-                            <td key={i}>{cell}</td>
+              <h3 className="bm-print-section-title">Event summary</h3>
+              {eventRows.length === 0 ? (
+                <div className="bm-print-empty bm-print-empty--card">No event bookings for this period.</div>
+              ) : (
+                <div className="bm-print-cards-wrap bm-print-summary-wrap">
+                  <div className="bm-print-summary-stats">
+                    <div className="bm-print-summary-stats-grid">
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total bookings</span>
+                        <strong className="bm-print-summary-stat-value">{summary.count}</strong>
+                      </div>
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total amount</span>
+                        <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumTotal)}</strong>
+                      </div>
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total collected</span>
+                        <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumPaid)}</strong>
+                      </div>
+                      <div className="bm-print-summary-stat">
+                        <span className="bm-print-summary-stat-label">Total balance due</span>
+                        <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumBal)}</strong>
+                      </div>
+                    </div>
+                    <div className="bm-print-summary-pills" aria-label="By status">
+                      {Object.entries(summary.byStatus)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([label, n]) => (
+                          <span key={label} className="bm-print-summary-pill">
+                            {label}: {n}
+                          </span>
+                        ))}
+                    </div>
+                  </div>
+                  <div className="bm-print-table-wrap bm-print-summary-table-wrap">
+                    <table className="bm-print-summary-table">
+                      <thead>
+                        <tr>
+                          {EVENT_SUMMARY_COLS.map((c) => (
+                            <th key={c}>{c}</th>
                           ))}
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                      </thead>
+                      <tbody>
+                        {eventRows.map((r) => (
+                          <tr key={r.bookingId || r.refnum}>
+                            {eventRowToSummaryCells(r).map((cell, i) => (
+                              <td key={i}>{cell}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </section>
           )}
         </div>
@@ -405,7 +586,7 @@ function BookingPrintModal({ open, onClose, monthLabel, variant, roomRows, event
           <button type="button" className="bm-print-footer-btn pdf" onClick={handleDownloadPdf}>
             Download PDF
           </button>
-          <button type="button" className="bm-print-footer-btn primary" onClick={() => window.print()}>
+          <button type="button" className="bm-print-footer-btn primary" onClick={handlePrintPdf}>
             Print
           </button>
         </div>
@@ -528,115 +709,238 @@ function Badge({ status }) {
 }
 
 function RoomModal({ d }) {
+  if (!d) return null;
+  const proofBooking = { paymentMethod: d.paymentMethod || d.paymethod, paymentProofData: d.paymentProofData };
+  const proofSrc = paymentProofFromBooking(proofBooking);
+  const payLine = derivePaymentStatusLine(
+    { paymentMethod: d.paymentMethod || d.paymethod, transactionId: d.transid },
+    proofSrc,
+  );
   return (
-    <>
-      <div className="modal-two-col">
-        <div className="modal-card">
-          <h4 className="modal-card-title">Room Details</h4>
-          <div className="detail-grid">
-            <div><span className="detail-label">Room No.</span><span className="detail-value">{d.number}</span></div>
-            <div><span className="detail-label">Package</span><span className="detail-value">{d.type}</span></div>
-            <div><span className="detail-label">Price</span><span className="detail-value">{d.price}</span></div>
-            <div><span className="detail-label">Status</span><span className="detail-value"><Badge status={d.status} /></span></div>
-          </div>
+    <div className="rdm">
+      <div className="rdm-status-bar">
+        <div className="rdm-pill rdm-pill--booking">
+          <span className="rdm-pill__k">Booking status</span>
+          <span className="rdm-pill__v">
+            <Badge status={d.status} />
+          </span>
         </div>
-        <div className="modal-card">
-          <h4 className="modal-card-title">Guest Information</h4>
-          <div className="detail-list">
-            <div><span className="detail-label">Guest</span><span className="detail-value">{d.customer}</span></div>
-            <div><span className="detail-label">Email</span><span className="detail-value">{d.email}</span></div>
-            <div><span className="detail-label">Contact</span><span className="detail-value">{d.contact}</span></div>
-            <div><span className="detail-label">Check-In</span><span className="detail-value">{d.checkin}</span></div>
-            <div><span className="detail-label">Check-Out</span><span className="detail-value">{d.checkout}</span></div>
-            <div><span className="detail-label">Additional Guest</span><span className="detail-value">{d.guestcount}</span></div>
-          </div>
+        <div className="rdm-pill rdm-pill--payment">
+          <span className="rdm-pill__k">Payment status</span>
+          <span className="rdm-pill__v">{payLine}</span>
+        </div>
+        <div className="rdm-pill rdm-pill--balance">
+          <span className="rdm-pill__k">Remaining balance</span>
+          <span className="rdm-pill__v">{d.balance}</span>
         </div>
       </div>
-      <div className="modal-card">
-        <h4 className="modal-card-title">Billing Summary</h4>
-        <div className="billing-grid">
-          <div><span className="detail-label">Total Amount</span><span className="detail-value">{d.price}</span></div>
-          <div><span className="detail-label">Downpayment</span><span className="detail-value">{d.downpayment}</span></div>
-          <div><span className="detail-label remaining">Remaining Balance</span><span className="detail-value remaining">{d.balance}</span></div>
-          <div><span className="detail-label paid">Total Paid</span><span className="detail-value paid">{d.downpayment}</span></div>
-        </div>
-      </div>
-      <div className="modal-card">
-        <h4 className="modal-card-title">Reference Number</h4>
-        <span className="detail-value">{d.refnum}</span>
-      </div>
-      <div className="modal-two-col">
-        <div className="modal-card">
-          <h4 className="modal-card-title">Payment Details</h4>
-          <div className="detail-grid">
-            <div><span className="detail-label">Amount Paid</span><span className="detail-value">{d.amountpaid}</span></div>
-            <div><span className="detail-label">Date</span><span className="detail-value">{d.paydate}</span></div>
-            <div><span className="detail-label">Transaction ID</span><span className="detail-value">{d.transid}</span></div>
+      <div className="rdm-grid">
+        <section className="rdm-card">
+          <h4 className="rdm-card__title">Booking information</h4>
+          <dl className="rdm-dl">
+            <div>
+              <dt className="rdm-dt">Room no.</dt>
+              <dd className="rdm-dd">{d.number}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Package</dt>
+              <dd className="rdm-dd">{d.type}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Check-in</dt>
+              <dd className="rdm-dd">{d.checkin}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Check-out</dt>
+              <dd className="rdm-dd">{d.checkout}</dd>
+            </div>
+          </dl>
+        </section>
+        <section className="rdm-card">
+          <h4 className="rdm-card__title">Guest information</h4>
+          <dl className="rdm-dl">
+            <div className="rdm-dl__full">
+              <dt className="rdm-dt">Guest</dt>
+              <dd className="rdm-dd">{d.customer}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Email</dt>
+              <dd className="rdm-dd rdm-dd--muted">{d.email}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Contact</dt>
+              <dd className="rdm-dd">{d.contact}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Additional guests</dt>
+              <dd className="rdm-dd">{d.guestcount}</dd>
+            </div>
+          </dl>
+        </section>
+        <section className="rdm-card rdm-card--span2">
+          <h4 className="rdm-card__title">Billing summary</h4>
+          <div className="rdm-billing">
+            <div className="rdm-billing__cell">
+              <div className="rdm-billing__label">Total amount</div>
+              <div className="rdm-billing__value">{d.price}</div>
+            </div>
+            <div className="rdm-billing__cell">
+              <div className="rdm-billing__label">Downpayment</div>
+              <div className="rdm-billing__value">{d.downpayment}</div>
+            </div>
+            <div className="rdm-billing__cell">
+              <div className="rdm-billing__label">Total paid</div>
+              <div className="rdm-billing__value">{d.amountpaid}</div>
+            </div>
+            <div className="rdm-billing__cell rdm-billing__cell--highlight">
+              <div className="rdm-billing__label">Remaining balance</div>
+              <div className="rdm-billing__value">{d.balance}</div>
+            </div>
           </div>
-        </div>
-        <div className="id-uploaded-card">
-          <h4 className="id-uploaded-card-title">ID Uploaded</h4>
-          <div className="id-uploaded-frame">
-            <img src="images/id.jpg" alt="ID" className="id-img" />
-          </div>
-        </div>
+        </section>
+        <section className="rdm-card">
+          <h4 className="rdm-card__title">Payment information</h4>
+          <dl className="rdm-dl">
+            <div>
+              <dt className="rdm-dt">Method</dt>
+              <dd className="rdm-dd">{paymentMethodDisplayLabel(proofBooking)}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Amount paid</dt>
+              <dd className="rdm-dd">{d.amountpaid}</dd>
+            </div>
+            <div className="rdm-dl__full">
+              <dt className="rdm-dt">Transaction ID</dt>
+              <dd className="rdm-dd rdm-dd--muted">{d.transid || "—"}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Payment date</dt>
+              <dd className="rdm-dd">{d.paydate || "—"}</dd>
+            </div>
+          </dl>
+        </section>
+        <ReservationProofPreview booking={proofBooking} proofSrc={proofSrc} />
       </div>
-    </>
+    </div>
   );
 }
 
 function EventModal({ d }) {
+  if (!d) return null;
+  const proofBooking = { paymentMethod: d.paymentMethod || d.paymethod, paymentProofData: d.paymentProofData };
+  const proofSrc = paymentProofFromBooking(proofBooking);
+  const payLine = derivePaymentStatusLine(
+    { paymentMethod: d.paymentMethod || d.paymethod, transactionId: d.transid },
+    proofSrc,
+  );
   return (
-    <>
-      <div className="modal-two-col">
-        <div className="modal-card">
-          <h4 className="modal-card-title">Event Details</h4>
-          <div className="detail-grid">
-            <div><span className="detail-label">Venue</span><span className="detail-value">{d.event}</span></div>
-            <div><span className="detail-label">Date</span><span className="detail-value">{d.checkin}</span></div>
-            <div><span className="detail-label">Time Slot</span><span className="detail-value">{d.timeslot}</span></div>
-            <div><span className="detail-label">Attendees</span><span className="detail-value">{d.attendees}</span></div>
-            <div><span className="detail-label">Status</span><span className="detail-value"><Badge status={d.status} /></span></div>
-          </div>
+    <div className="rdm">
+      <div className="rdm-status-bar">
+        <div className="rdm-pill rdm-pill--booking">
+          <span className="rdm-pill__k">Booking status</span>
+          <span className="rdm-pill__v">
+            <Badge status={d.status} />
+          </span>
         </div>
-        <div className="modal-card">
-          <h4 className="modal-card-title">Guest Information</h4>
-          <div className="detail-list">
-            <div><span className="detail-label">Guest</span><span className="detail-value">{d.customer}</span></div>
-            <div><span className="detail-label">Email</span><span className="detail-value">{d.email}</span></div>
-            <div><span className="detail-label">Contact</span><span className="detail-value">{d.contact}</span></div>
-            <div><span className="detail-label">Additional Requests</span><span className="detail-value">{d.requests}</span></div>
-          </div>
+        <div className="rdm-pill rdm-pill--payment">
+          <span className="rdm-pill__k">Payment status</span>
+          <span className="rdm-pill__v">{payLine}</span>
+        </div>
+        <div className="rdm-pill rdm-pill--balance">
+          <span className="rdm-pill__k">Remaining balance</span>
+          <span className="rdm-pill__v">{d.balance}</span>
         </div>
       </div>
-      <div className="modal-card">
-        <h4 className="modal-card-title">Billing Summary</h4>
-        <div className="billing-grid">
-          <div><span className="detail-label">Downpayment</span><span className="detail-value">{d.downpayment}</span></div>
-          <div><span className="detail-label remaining">Remaining Balance</span><span className="detail-value remaining">{d.balance}</span></div>
-        </div>
-      </div>
-      <div className="modal-card">
-        <h4 className="modal-card-title">Reference Number</h4>
-        <span className="detail-value">{d.refnum}</span>
-      </div>
-      <div className="modal-two-col">
-        <div className="modal-card">
-          <h4 className="modal-card-title">Payment Details</h4>
-          <div className="detail-grid">
-            <div><span className="detail-label">Amount Paid</span><span className="detail-value">{d.amountpaid}</span></div>
-            <div><span className="detail-label">Date</span><span className="detail-value">{d.paydate}</span></div>
-            <div><span className="detail-label">Transaction ID</span><span className="detail-value">{d.transid}</span></div>
+      <div className="rdm-grid">
+        <section className="rdm-card">
+          <h4 className="rdm-card__title">Booking information</h4>
+          <dl className="rdm-dl">
+            <div className="rdm-dl__full">
+              <dt className="rdm-dt">Venue / event</dt>
+              <dd className="rdm-dd">{d.event}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Date</dt>
+              <dd className="rdm-dd">{d.checkin}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Time slot</dt>
+              <dd className="rdm-dd">{d.timeslot || "—"}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Attendees</dt>
+              <dd className="rdm-dd">{d.attendees}</dd>
+            </div>
+          </dl>
+        </section>
+        <section className="rdm-card">
+          <h4 className="rdm-card__title">Guest information</h4>
+          <dl className="rdm-dl">
+            <div className="rdm-dl__full">
+              <dt className="rdm-dt">Guest</dt>
+              <dd className="rdm-dd">{d.customer}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Email</dt>
+              <dd className="rdm-dd rdm-dd--muted">{d.email}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Contact</dt>
+              <dd className="rdm-dd">{d.contact}</dd>
+            </div>
+          </dl>
+        </section>
+        <section className="rdm-card rdm-card--span2">
+          <h4 className="rdm-card__title">Requests</h4>
+          <p className="rdm-dd rdm-dd--muted" style={{ margin: 0 }}>
+            {d.requests && String(d.requests).trim() ? d.requests : "None"}
+          </p>
+        </section>
+        <section className="rdm-card rdm-card--span2">
+          <h4 className="rdm-card__title">Billing summary</h4>
+          <div className="rdm-billing">
+            <div className="rdm-billing__cell">
+              <div className="rdm-billing__label">Total amount</div>
+              <div className="rdm-billing__value">{d.price}</div>
+            </div>
+            <div className="rdm-billing__cell">
+              <div className="rdm-billing__label">Downpayment</div>
+              <div className="rdm-billing__value">{d.downpayment}</div>
+            </div>
+            <div className="rdm-billing__cell">
+              <div className="rdm-billing__label">Total paid</div>
+              <div className="rdm-billing__value">{d.amountpaid}</div>
+            </div>
+            <div className="rdm-billing__cell rdm-billing__cell--highlight">
+              <div className="rdm-billing__label">Remaining balance</div>
+              <div className="rdm-billing__value">{d.balance}</div>
+            </div>
           </div>
-        </div>
-        <div className="id-uploaded-card">
-          <h4 className="id-uploaded-card-title">ID Uploaded</h4>
-          <div className="id-uploaded-frame">
-            <img src="images/id.jpg" alt="ID" className="id-img" />
-          </div>
-        </div>
+        </section>
+        <section className="rdm-card">
+          <h4 className="rdm-card__title">Payment information</h4>
+          <dl className="rdm-dl">
+            <div>
+              <dt className="rdm-dt">Method</dt>
+              <dd className="rdm-dd">{paymentMethodDisplayLabel(proofBooking)}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Amount paid</dt>
+              <dd className="rdm-dd">{d.amountpaid}</dd>
+            </div>
+            <div className="rdm-dl__full">
+              <dt className="rdm-dt">Transaction ID</dt>
+              <dd className="rdm-dd rdm-dd--muted">{d.transid || "—"}</dd>
+            </div>
+            <div>
+              <dt className="rdm-dt">Payment date</dt>
+              <dd className="rdm-dd">{d.paydate || "—"}</dd>
+            </div>
+          </dl>
+        </section>
+        <ReservationProofPreview booking={proofBooking} proofSrc={proofSrc} />
       </div>
-    </>
+    </div>
   );
 }
 
@@ -644,7 +948,10 @@ export default function BookingManagement() {
   const { mainStyle } = useAdminShell();
   const [activeTab, setActiveTab] = useState("room");
   const [search, setSearch] = useState("");
+  const [roomPage, setRoomPage] = useState(1);
+  const [eventPage, setEventPage] = useState(1);
   const [viewModal, setViewModal] = useState(null);
+  const [viewDetailBooking, setViewDetailBooking] = useState(null);
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
 
   const [roomData, setRoomData] = useState([]);
@@ -702,18 +1009,71 @@ export default function BookingManagement() {
     loadBookings();
   }, [loadBookings]);
 
+  useEffect(() => {
+    if (!viewModal?.data?.bookingId) {
+      setViewDetailBooking(null);
+      return undefined;
+    }
+    let cancelled = false;
+    setViewDetailBooking(null);
+    fetchBookingByIdBackend(viewModal.data.bookingId)
+      .then((b) => {
+        if (!cancelled && b && String(b.id) === String(viewModal.data.bookingId)) setViewDetailBooking(b);
+      })
+      .catch(() => {
+        if (!cancelled) setViewDetailBooking(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [viewModal]);
+
   const notifications = [
     { msg: "Your reservation progress is pending", time: "2/19/2026, 10:39:00 AM" },
     { msg: "Your reservation was approved", time: "2/19/2026, 10:39:00 AM" },
     { msg: "Your reservation was declined", time: "2/19/2026, 10:39:00 AM" },
   ];
 
-  const filteredRooms = roomData.filter((r) =>
-    Object.values(r).some((v) => String(v).toLowerCase().includes(search.toLowerCase())),
-  );
-  const filteredEvents = eventData.filter((e) =>
-    Object.values(e).some((v) => String(v).toLowerCase().includes(search.toLowerCase())),
-  );
+  const filteredRooms = useMemo(() => {
+    const q = search.toLowerCase();
+    return roomData.filter((r) =>
+      Object.values(r).some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [roomData, search]);
+
+  const filteredEvents = useMemo(() => {
+    const q = search.toLowerCase();
+    return eventData.filter((e) =>
+      Object.values(e).some((v) => String(v).toLowerCase().includes(q)),
+    );
+  }, [eventData, search]);
+
+  const roomTotalPages = Math.max(1, Math.ceil(filteredRooms.length / BOOKING_PAGE_SIZE));
+  const roomCurrentPage = Math.min(Math.max(1, roomPage), roomTotalPages);
+  const roomPageStart = (roomCurrentPage - 1) * BOOKING_PAGE_SIZE;
+  const pagedRooms = filteredRooms.slice(roomPageStart, roomPageStart + BOOKING_PAGE_SIZE);
+  const roomRangeFrom = filteredRooms.length === 0 ? 0 : roomPageStart + 1;
+  const roomRangeTo = filteredRooms.length === 0 ? 0 : roomPageStart + pagedRooms.length;
+
+  const eventTotalPages = Math.max(1, Math.ceil(filteredEvents.length / BOOKING_PAGE_SIZE));
+  const eventCurrentPage = Math.min(Math.max(1, eventPage), eventTotalPages);
+  const eventPageStart = (eventCurrentPage - 1) * BOOKING_PAGE_SIZE;
+  const pagedEvents = filteredEvents.slice(eventPageStart, eventPageStart + BOOKING_PAGE_SIZE);
+  const eventRangeFrom = filteredEvents.length === 0 ? 0 : eventPageStart + 1;
+  const eventRangeTo = filteredEvents.length === 0 ? 0 : eventPageStart + pagedEvents.length;
+
+  useEffect(() => {
+    setRoomPage(1);
+    setEventPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    setRoomPage((p) => Math.min(Math.max(1, p), roomTotalPages));
+  }, [roomTotalPages]);
+
+  useEffect(() => {
+    setEventPage((p) => Math.min(Math.max(1, p), eventTotalPages));
+  }, [eventTotalPages]);
 
   const totalReservations = roomData.length + eventData.length;
   const pendingCount =
@@ -741,9 +1101,26 @@ export default function BookingManagement() {
     }
   };
 
+  const viewMergedRow = useMemo(() => {
+    if (!viewModal?.data) return null;
+    const base = viewModal.data;
+    if (!viewDetailBooking || String(viewDetailBooking.id) !== String(base.bookingId)) return base;
+    return {
+      ...base,
+      transid: viewDetailBooking.transactionId || base.transid,
+      paydate:
+        viewDetailBooking.paymentDate && String(viewDetailBooking.paymentDate).trim()
+          ? formatBookingPaymentDate(viewDetailBooking.paymentDate)
+          : base.paydate,
+      paymentProofData: viewDetailBooking.paymentProofData || base.paymentProofData || "",
+      paymentMethod: viewDetailBooking.paymentMethod || base.paymentMethod,
+      paymethod: viewDetailBooking.paymentMethod || base.paymethod,
+    };
+  }, [viewModal, viewDetailBooking]);
+
   return (
     <>
-      <RailPortalShell mainStyle={mainStyle} sidebar={<AdminSidebarNav />}>
+      <RailPortalShell rootClassName="app-layout admin-app-layout" mainStyle={mainStyle} sidebar={<AdminSidebarNav />}>
         {/* TOPBAR */}
         <header className="topbar">
           <div className="topbar-breadcrumb">
@@ -810,62 +1187,77 @@ export default function BookingManagement() {
             </button>
           </div>
 
-          <div className="bk-booking-search-wrap">
-            <span className="bk-booking-search-icon" aria-hidden>
-              {icons.search}
-            </span>
-            <input
-              type="search"
-              className="bk-booking-search-input"
-              placeholder="Search guest..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-
-          {/* Print reports (month filter like Settings → Export) */}
-          <div className="bm-print-toolbar">
-            <div className="bm-print-toolbar-field">
-              <label className="bm-print-label" htmlFor="bm-booking-print-month">
-                Select month
-              </label>
-              <input
-                id="bm-booking-print-month"
-                type="month"
-                className="bm-print-month-input"
-                value={printMonth}
-                onChange={(e) => setPrintMonth(e.target.value)}
-              />
-              <p className="bm-print-hint">Leave empty to include all bookings. Dates use room check-in or event date.</p>
+          {/* Search | month | Print (same row pattern as front desk bills) */}
+          <div className="bm-main-toolbar">
+            <div className="bm-toolbar-search-col">
+              <div className="bm-toolbar-search-wrap">
+                <span className="bm-toolbar-search-icon" aria-hidden>
+                  {icons.search}
+                </span>
+                <input
+                  type="search"
+                  className="bm-toolbar-search-input"
+                  placeholder="Search guest..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  autoComplete="off"
+                  aria-label="Search reservations"
+                />
+              </div>
             </div>
-            <div className="bm-print-toolbar-actions">
-              {activeTab === "room" && (
-                <button
-                  type="button"
-                  className="bm-print-action-btn"
-                  onClick={() => openBookingPrint("room")}
-                >
-                  Print room report
-                </button>
-              )}
-              {activeTab === "event" && (
-                <button
-                  type="button"
-                  className="bm-print-action-btn"
-                  onClick={() => openBookingPrint("event")}
-                >
-                  Print event report
-                </button>
-              )}
+            <div className="bm-toolbar-month-col">
+              <div className="bm-toolbar-month-head">
+                <span className="bm-toolbar-month-label">Select month</span>
+                {printMonth ? (
+                  <button type="button" className="bm-toolbar-month-clear" onClick={() => setPrintMonth("")}>
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+              <div className="bm-toolbar-month-input-wrap">
+                <input
+                  id="bm-booking-print-month"
+                  type="month"
+                  className="bm-toolbar-month-input"
+                  value={printMonth}
+                  onChange={(e) => setPrintMonth(e.target.value)}
+                  aria-label="Select month for booking reports"
+                />
+              </div>
+            </div>
+            <div className="bm-toolbar-print-col">
               <button
                 type="button"
-                className="bm-print-action-btn bm-print-action-btn--outline"
+                className="bm-toolbar-print-btn"
                 onClick={() => openBookingPrint(activeTab === "room" ? "room" : "event")}
+                title={
+                  activeTab === "room"
+                    ? "Open printable room booking report for the selected month (or all time if empty)."
+                    : "Open printable event booking report for the selected month (or all time if empty)."
+                }
               >
-                {activeTab === "room" ? "Print all room transactions" : "Print all event transactions"}
+                <svg
+                  className="bm-toolbar-print-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  width="18"
+                  height="18"
+                  aria-hidden
+                >
+                  <polyline points="6 9 6 2 18 2 18 9" />
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                  <rect x="6" y="14" width="12" height="8" />
+                </svg>
+                Print
               </button>
             </div>
+          </div>
+          <div className="bm-toolbar-subrow">
+            <p className="bm-toolbar-hint">
+              Leave empty to include all bookings. Dates use room check-in or event date.
+            </p>
           </div>
 
           {/* TABLE */}
@@ -891,7 +1283,7 @@ export default function BookingManagement() {
                       </tr>
                     )}
                     {!bookingsLoading &&
-                      filteredRooms.map((row, i) => (
+                      pagedRooms.map((row, i) => (
                       <tr key={row.refnum || i}>
                         <td>{row.number}</td>
                         <td>{row.type}</td>
@@ -932,6 +1324,34 @@ export default function BookingManagement() {
                     )}
                   </tbody>
                 </table>
+                {!bookingsLoading && filteredRooms.length > 0 ? (
+                  <div className="bm-pagination-bar" aria-label="Room reservations pages">
+                    <span className="bm-pagination-info">
+                      Showing {roomRangeFrom}–{roomRangeTo} of {filteredRooms.length}
+                    </span>
+                    <div className="bm-pagination-btns">
+                      <button
+                        type="button"
+                        className="bm-page-btn"
+                        disabled={roomCurrentPage <= 1}
+                        onClick={() => setRoomPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="bm-pagination-pages">
+                        Page {roomCurrentPage} of {roomTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="bm-page-btn"
+                        disabled={roomCurrentPage >= roomTotalPages}
+                        onClick={() => setRoomPage((p) => Math.min(roomTotalPages, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
 
@@ -954,7 +1374,7 @@ export default function BookingManagement() {
                       </tr>
                     )}
                     {!bookingsLoading &&
-                      filteredEvents.map((row, i) => (
+                      pagedEvents.map((row, i) => (
                       <tr key={row.refnum || i}>
                         <td>{row.customer}</td>
                         <td>{row.event}</td>
@@ -995,6 +1415,34 @@ export default function BookingManagement() {
                     )}
                   </tbody>
                 </table>
+                {!bookingsLoading && filteredEvents.length > 0 ? (
+                  <div className="bm-pagination-bar" aria-label="Event reservations pages">
+                    <span className="bm-pagination-info">
+                      Showing {eventRangeFrom}–{eventRangeTo} of {filteredEvents.length}
+                    </span>
+                    <div className="bm-pagination-btns">
+                      <button
+                        type="button"
+                        className="bm-page-btn"
+                        disabled={eventCurrentPage <= 1}
+                        onClick={() => setEventPage((p) => Math.max(1, p - 1))}
+                      >
+                        Previous
+                      </button>
+                      <span className="bm-pagination-pages">
+                        Page {eventCurrentPage} of {eventTotalPages}
+                      </span>
+                      <button
+                        type="button"
+                        className="bm-page-btn"
+                        disabled={eventCurrentPage >= eventTotalPages}
+                        onClick={() => setEventPage((p) => Math.min(eventTotalPages, p + 1))}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             )}
           </div>
@@ -1013,18 +1461,21 @@ export default function BookingManagement() {
 
       <Modal
         open={!!viewModal}
-        onClose={() => setViewModal(null)}
+        onClose={() => {
+          setViewModal(null);
+          setViewDetailBooking(null);
+        }}
         title="Reservation Details"
         size="lg"
-        placement="top"
-        panelClassName="bm-reservation-modal"
-        bodyClassName="modal-body-scroll"
+        placement="center"
+        panelClassName="bm-reservation-modal rdm-shell-panel"
+        bodyClassName="modal-body-scroll rdm-shell-body"
       >
-        {viewModal ? (
+        {viewModal && viewMergedRow ? (
           viewModal.type === "room" ? (
-            <RoomModal d={viewModal.data} />
+            <RoomModal d={viewMergedRow} />
           ) : (
-            <EventModal d={viewModal.data} />
+            <EventModal d={viewMergedRow} />
           )
         ) : null}
       </Modal>

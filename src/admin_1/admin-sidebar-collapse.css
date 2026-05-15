@@ -4,8 +4,29 @@ html[data-admin-sidebar-collapsed="true"] .bills-page,
 html[data-admin-sidebar-collapsed="true"] .admin-general-page,
 html[data-admin-sidebar-collapsed="true"] .settings-page,
 html[data-admin-sidebar-collapsed="true"] .rm-page,
+html[data-admin-sidebar-collapsed="true"] .rm-app,
+html[data-admin-sidebar-collapsed="true"] .admin-app-layout,
 html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   --sidebar-w: 64px;
+}
+
+/* Same rail root as front desk (`frontdesk-rooms.jsx` → `app-layout` + row flex + scrollable main). */
+.app-layout.admin-app-layout {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  min-height: 100vh;
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.app-layout.admin-app-layout > .main-wrapper {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar.admin-rail-shell .sidebar-logo {
@@ -17,6 +38,7 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   flex-shrink: 0;
   text-decoration: none;
   color: inherit;
+  box-sizing: border-box;
 }
 
 .sidebar.admin-rail-shell .sidebar-logo-img {
@@ -32,17 +54,37 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   box-sizing: border-box;
 }
 
+.sidebar.admin-rail-shell .sidebar-nav {
+  align-self: stretch;
+  width: 100%;
+}
+
+/* Fixed icon column + label column so every title lines up (same as clean admin rail reference). */
 .sidebar.admin-rail-shell .nav-item {
-  gap: 14px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  column-gap: 14px;
+  align-items: center;
+  justify-items: start;
+  width: 100%;
+  box-sizing: border-box;
   padding: 16px 22px;
+  font-family: 'Montserrat', sans-serif;
   font-weight: 600;
   font-size: 13px;
+  line-height: 1.25;
   color: #fff;
+  text-align: left;
+  transition: background 0.18s ease;
 }
 
 .sidebar.admin-rail-shell .nav-icon {
   width: 30px;
   height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .sidebar.admin-rail-shell .nav-icon svg {
@@ -50,12 +92,19 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   height: 22px;
 }
 
+.sidebar.admin-rail-shell .nav-label {
+  min-width: 0;
+  text-align: left;
+}
+
 .admin-rail-shell.sidebar-collapsed .nav-item > :not(.nav-icon) {
   display: none;
 }
 
 .admin-rail-shell.sidebar-collapsed .nav-item {
+  display: flex;
   justify-content: center;
+  align-items: center;
   padding: 18px 10px;
 }
 
@@ -97,7 +146,7 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
     max-height: 120px !important;
   }
 
-  .sidebar.admin-rail-shell.admin-mobile-shell .nav-item > span:last-child {
+  .sidebar.admin-rail-shell.admin-mobile-shell .nav-item .nav-label {
     display: inline !important;
     /* Keep long labels readable in half-width drawer (no hard truncation). */
     white-space: normal !important;
@@ -105,18 +154,17 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
     text-overflow: clip !important;
     line-height: 1.2 !important;
     overflow-wrap: anywhere !important;
-    flex: 1 1 auto !important;
     min-width: 0 !important;
     width: auto !important;
   }
 
   .sidebar.admin-rail-shell.admin-mobile-shell .nav-item {
-    display: flex !important;
-    flex-direction: row !important;
+    display: grid !important;
+    grid-template-columns: 30px minmax(0, 1fr) !important;
+    column-gap: 14px !important;
     align-items: center !important;
-    justify-content: flex-start !important;
+    justify-items: start !important;
     padding: 16px 22px !important;
-    gap: 14px !important;
     text-align: left !important;
     overflow: visible !important;
     text-overflow: clip !important;
@@ -124,11 +172,11 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   }
 
   .sidebar.admin-rail-shell.admin-mobile-shell .nav-icon {
-    display: inline-flex !important;
+    display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    width: 32px !important;
-    height: 32px !important;
+    width: 30px !important;
+    height: 30px !important;
     flex-shrink: 0 !important;
   }
 
@@ -189,21 +237,41 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   }
 }
 
-/* Rail uses <button> instead of <a> so navigation never runs synchronously inside a link click. */
+/* Rail uses <button> instead of <a> — match front desk link styling (`frontdesk-sidebar-collapse.css`). */
 .sidebar.admin-rail-shell button.sidebar-logo,
 .sidebar.admin-rail-shell button.nav-item {
   appearance: none;
   -webkit-appearance: none;
-  border: none;
   background: transparent;
   margin: 0;
-  font: inherit;
-  color: #fff;
   cursor: pointer;
   box-sizing: border-box;
 }
 
+/* Logo: restore divider under crest (shared rule above used `border: none` and removed it). */
+.sidebar.admin-rail-shell button.sidebar-logo {
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
 .sidebar.admin-rail-shell button.nav-item {
+  border: none;
   width: 100%;
   text-align: left;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #fff;
+  transition: background 0.18s ease;
+}
+
+.sidebar.admin-rail-shell button.nav-item:hover {
+  background: rgba(0, 0, 0, 0.1);
+  color: #fff;
+}
+
+.sidebar.admin-rail-shell button.nav-item.active {
+  background: rgba(0, 0, 0, 0.22);
+  color: #fff;
 }

@@ -7,7 +7,14 @@ import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { fetchBookingsBackend, patchBookingBackend, fetchRoomsCatalog, fetchEventVenuesBackend } from "../api/guestApi";
+import {
+  fetchBookingsBackend,
+  fetchBookingByIdBackend,
+  patchBookingBackend,
+  fetchRoomsCatalog,
+  fetchEventVenuesBackend,
+  GUEST_BOOKINGS_STORAGE_PING_KEY,
+} from "../api/guestApi";
 import {
   buildRoomIdToNumberMap,
   buildEventVenueIdToEventNumMap,
@@ -18,7 +25,7 @@ import {
   getBookingRoomNumber,
   looksLikeMongoObjectId,
 } from "./bookingRoomDisplay";
-import { getBackendBaseURL } from "../api/config";
+import { getBackendBaseURL, backendUrl } from "../api/config";
 import { getStoredAuthToken, clearStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import { resolveGuestIdImageSrc } from "./guestBookingIdPhoto";
@@ -28,6 +35,14 @@ import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
 import { Modal } from "../components/Modal";
+import { ReservationProofPreview } from "../components/ReservationProofPreview";
+import {
+  derivePaymentStatusLine,
+  parseAdditionalRequestChargeLines,
+  paymentMethodDisplayLabel,
+  paymentProofFromBooking,
+} from "../components/reservationDetailsHelpers";
+import "../components/reservation-details-modal.css";
 import "./idUploadedCard.css";
 import "./home.css";
 
@@ -64,7 +79,8 @@ const navItems = [
   { label: "Settings", icon: <SettingsIcon />, href: "/settings" },
 ];
 
-const SLIDES = [
+/** Shown only when GET /api/rooms is empty or unreachable (read-only fallback; no DB writes). */
+const FALLBACK_DEAL_SLIDES = [
   "https://i.huffpost.com/gen/1737520/original.jpg",
   "https://www.italianbark.com/wp-content/uploads/2018/01/hotel-room-design-trends-italianbark-interior-design-blog.jpg",
   "https://i.pinimg.com/originals/9e/a9/6c/9ea96c499272ddd30411b24338d90086.jpg",
@@ -75,13 +91,75 @@ const SLIDES = [
   "https://www.ahstatic.com/photos/b801_rod2c_00_p_1024x768.jpg",
   "/deal-9-bedroom.png",
 ];
-const TOTAL_DOTS = 3;
+
+const DEAL_PLACEHOLDER_IMG =
+  "https://placehold.co/960x600/f5f0e8/b8922a?text=Abela+Suites";
+
+/** Matches carousel transform: three slides visible per “page” / dot. */
 const SLIDES_PER_DOT = 3;
+
+function resolveRoomCatalogImageSrc(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return DEAL_PLACEHOLDER_IMG;
+  if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:")) return s;
+  const path = s.startsWith("/") ? s : `/${s}`;
+  return backendUrl(path);
+}
+
+function sortKeyRoomNumber(n) {
+  const v = parseInt(String(n).replace(/\D/g, ""), 10);
+  return Number.isNaN(v) ? 99999 : v;
+}
+
+/**
+ * Maps public room catalog rows to carousel slides (read-only).
+ * Newer `updatedAt` first so recently added/edited rooms surface in the deals strip.
+ */
+function catalogRoomsToDealSlides(rooms) {
+  const list = Array.isArray(rooms) ? rooms : [];
+  const sorted = [...list].sort((a, b) => {
+    const ta = a?.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+    const tb = b?.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+    if (tb !== ta) return tb - ta;
+    return sortKeyRoomNumber(a?.roomNumber) - sortKeyRoomNumber(b?.roomNumber);
+  });
+  return sorted.map((r) => {
+    const src = resolveRoomCatalogImageSrc(r?.image);
+    const label =
+      [String(r?.package ?? "").trim(), String(r?.roomNumber ?? "").trim()].filter(Boolean).join(" · ") || "Room";
+    return { src, alt: `${label} — Abela Suites` };
+  });
+}
+
+function padDealSlidesToMultiple(slides, groupSize) {
+  if (!Array.isArray(slides) || slides.length === 0) return slides;
+  const rem = slides.length % groupSize;
+  if (rem === 0) return slides;
+  const need = groupSize - rem;
+  const pad = Array.from({ length: need }, (_, i) => ({
+    src: DEAL_PLACEHOLDER_IMG,
+    alt: `Abela Suites — more offers (${i + 1})`,
+  }));
+  return [...slides, ...pad];
+}
+
+function fallbackDealSlideObjects() {
+  return FALLBACK_DEAL_SLIDES.map((src, i) => ({
+    src,
+    alt: `Abela Suites — inspiration ${i + 1}`,
+  }));
+}
 
 function parseMoney(v) {
   if (v == null || v === "") return null;
   const n = Number(String(v).replace(/[₱,\s]/g, ""));
   return Number.isFinite(n) ? n : null;
+}
+
+/** List vs detail APIs may return ids as strings or object-shaped ids — normalize for comparison. */
+function bookingDetailIdsEqual(a, b) {
+  if (a == null || b == null) return false;
+  return String(a).trim() === String(b).trim();
 }
 
 function formatPeso(n) {
@@ -117,34 +195,6 @@ function roomDetailDisplayNumber(booking, roomIdToNumber) {
   return code;
 }
 
-function bookingReferenceDisplay(booking) {
-  if (!booking) return "—";
-  const dateCompact = booking.createdAt
-    ? new Date(booking.createdAt).toISOString().slice(0, 10).replace(/-/g, "")
-    : "";
-  const idVal = booking.id ?? booking._id;
-  let suffix = "0000";
-  if (idVal != null) {
-    const s =
-      typeof idVal === "object" && idVal != null && "$oid" in idVal
-        ? String(idVal.$oid)
-        : String(idVal);
-    const idStr = s.trim();
-    if (looksLikeMongoObjectId(idStr)) {
-      suffix = String(parseInt(idStr.slice(-4), 16) % 10000).padStart(4, "0");
-    } else {
-      const digits = idStr.replace(/\D/g, "");
-      if (digits.length >= 4) suffix = digits.slice(-4);
-      else if (idStr.length >= 4) {
-        const tail = idStr.slice(-4).replace(/[^a-zA-Z0-9]/g, "");
-        if (tail) suffix = tail.toUpperCase();
-      }
-    }
-  }
-  if (!dateCompact) return `ABR-${suffix}`;
-  return `ABR-${dateCompact}-${suffix}`;
-}
-
 function formatPaymentDateDisplay(v) {
   if (v == null || v === "") return "—";
   const s = String(v).trim();
@@ -176,7 +226,7 @@ function statusTableLabel(raw) {
   if (k === "approved") return "Approved";
   if (k === "pending") return "Pending";
   if (k === "occupied") return "Occupied";
-  if (k === "declined" || k === "rejected") return "Declined";
+  if (k === "declined" || k === "rejected") return k === "rejected" ? "Rejected" : "Declined";
   if (k === "cancelled") return "Cancelled";
   if (k === "completed") return "Completed";
   return raw ? String(raw).charAt(0).toUpperCase() + String(raw).slice(1).toLowerCase() : "—";
@@ -217,6 +267,18 @@ function roomBookingModalBillingSplit(r, bm) {
   return { downpaymentShown, totalPaidShown };
 }
 
+/** Same split logic for event rows (optional minimumDownPayment on API). */
+function eventBookingModalBillingSplit(e, em) {
+  const paid = parseMoney(e.paymentAmount);
+  const minD = parseMoney(e.minimumDownPayment);
+  const hasPaidField = e.paymentAmount != null && String(e.paymentAmount).trim() !== "";
+  const downpaymentShown =
+    Number.isFinite(minD) && minD > 0 ? minD : em.down;
+  const totalPaidShown =
+    hasPaidField && Number.isFinite(paid) && paid >= 0 ? paid : em.down;
+  return { downpaymentShown, totalPaidShown };
+}
+
 function eventBookingMoneyForDisplay(e) {
   const total = parseMoney(e.venuePrice) ?? parseMoney(e.totalAmount) ?? 0;
   let down = parseMoney(e.paymentAmount) ?? 0;
@@ -234,6 +296,8 @@ function buildUnifiedRows(reservations, eventBookings, emailFilter, options = {}
   for (const r of reservations) {
     const st = normStatus(r.status);
     if (st === "cancelled" || st === "declined") continue;
+    /* Completed / checked-out stays belong in Booking History only */
+    if (st === "completed" || st === "checked-out") continue;
     if (!apiScoped && !matchesGuestEmail(reservationGuestEmail(r), emailFilter)) continue;
 
     const { total, down, balance } = roomBookingMoneyForDisplay(r);
@@ -259,6 +323,7 @@ function buildUnifiedRows(reservations, eventBookings, emailFilter, options = {}
   for (const e of eventBookings) {
     const st = normStatus(e.status);
     if (st === "cancelled" || st === "declined") continue;
+    if (st === "completed" || st === "checked-out") continue;
     if (!apiScoped && !matchesGuestEmail(eventGuestEmail(e), emailFilter)) continue;
 
     const { total, down, balance } = eventBookingMoneyForDisplay(e);
@@ -289,6 +354,53 @@ function buildUnifiedRows(reservations, eventBookings, emailFilter, options = {}
   return out;
 }
 
+/** IDs present in GET /api/rooms catalog (Mongo-backed). */
+function catalogRoomIdSet(catalog) {
+  const s = new Set();
+  for (const r of catalog || []) {
+    const id = String(r.id ?? r._id ?? "").trim();
+    if (id) s.add(id);
+  }
+  return s;
+}
+
+/** IDs present in GET /api/event-venues catalog (Mongo-backed). */
+function catalogVenueIdSet(venues) {
+  const s = new Set();
+  for (const v of venues || []) {
+    const id = String(v.id ?? v._id ?? "").trim();
+    if (id) s.add(id);
+  }
+  return s;
+}
+
+/**
+ * Guest homepage: only list rows with a real booking id and a room/venue FK that exists in the loaded catalogs.
+ * Dedupes by booking id. Invalid rows are dropped (never replaced with placeholders).
+ */
+function filterGuestHomeApiBookings(bookings, roomIdSet, venueIdSet) {
+  const list = Array.isArray(bookings) ? bookings : [];
+  const seen = new Set();
+  const out = [];
+  for (const b of list) {
+    const bid = String(b.id ?? "").trim();
+    if (!looksLikeMongoObjectId(bid) || seen.has(bid)) continue;
+    seen.add(bid);
+    const t = String(b.type || "").toLowerCase();
+    if (t === "room") {
+      const rid = String(b.roomId ?? "").trim();
+      if (!looksLikeMongoObjectId(rid) || !roomIdSet.has(rid)) continue;
+    } else if (t === "event") {
+      const vid = String(b.eventVenueId ?? "").trim();
+      if (!looksLikeMongoObjectId(vid) || !venueIdSet.has(vid)) continue;
+    } else {
+      continue;
+    }
+    out.push(b);
+  }
+  return out;
+}
+
 // ============================================================
 export default function Home() {
   const location = useLocation();
@@ -305,6 +417,8 @@ export default function Home() {
   const { topbarProfile: guestTopbarProfile } = useTopbarUserProfile("guest");
   const [userOpen, setUserOpen] = useState(false);
   const [current, setCurrent] = useState(0);
+  const [dealSlides, setDealSlides] = useState(() => fallbackDealSlideObjects());
+  const dealPageCount = Math.max(1, Math.ceil(dealSlides.length / SLIDES_PER_DOT));
   const trackRef = useRef(null);
   const userRef = useRef(null);
 
@@ -322,6 +436,18 @@ export default function Home() {
   const [selectedRow, setSelectedRow] = useState(null);
   const [cancelReason, setCancelReason] = useState("");
   const [cancelSubmitting, setCancelSubmitting] = useState(false);
+  const [successWasCancel, setSuccessWasCancel] = useState(false);
+  /** Full booking from GET /api/bookings/:id (includes payment proof omitted from list). */
+  const [detailBooking, setDetailBooking] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const selectedDetailFetchId =
+    detailsOpen && selectedRow
+      ? (() => {
+          const id = selectedRow.id ?? selectedRow.raw?.id;
+          return id != null && String(id).trim() !== "" ? id : null;
+        })()
+      : null;
 
   const loadBookings = useCallback(async () => {
     setBookingsLoading(true);
@@ -355,8 +481,12 @@ export default function Home() {
       const vNum = buildEventVenueIdToEventNumMap(venuesArr);
       const vName = buildEventVenueIdToNameMap(venuesArr);
       setRoomIdToNumber(ridMap);
-      const resList = bookings.filter((b) => b.type === "room");
-      const evList = bookings.filter((b) => b.type === "event");
+      const roomIdCatalogSet = catalogRoomIdSet(catalog);
+      const venueIdCatalogSet = catalogVenueIdSet(venuesArr);
+      const bookingsArr = Array.isArray(bookings) ? bookings : [];
+      const cleaned = filterGuestHomeApiBookings(bookingsArr, roomIdCatalogSet, venueIdCatalogSet);
+      const resList = cleaned.filter((b) => b.type === "room");
+      const evList = cleaned.filter((b) => b.type === "event");
       const rows = buildUnifiedRows(resList, evList, emailFilter, {
         apiScoped: true,
         roomIdToNumber: ridMap,
@@ -406,6 +536,21 @@ export default function Home() {
   }, [loadBookings, location.pathname, location.key]);
 
   useEffect(() => {
+    function reloadFromFrontdesk() {
+      loadBookings();
+    }
+    window.addEventListener("abela-guest-bookings-ping", reloadFromFrontdesk);
+    function onStorage(e) {
+      if (e.key === GUEST_BOOKINGS_STORAGE_PING_KEY) reloadFromFrontdesk();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("abela-guest-bookings-ping", reloadFromFrontdesk);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [loadBookings]);
+
+  useEffect(() => {
     function onAuthChanged() {
       loadBookings();
       loadGuestNotifications();
@@ -415,11 +560,47 @@ export default function Home() {
   }, [loadBookings, loadGuestNotifications]);
 
   useEffect(() => {
+    let cancelled = false;
+    fetchRoomsCatalog()
+      .then((list) => {
+        if (cancelled) return;
+        const mapped = catalogRoomsToDealSlides(list);
+        if (mapped.length > 0) {
+          setDealSlides(padDealSlidesToMultiple(mapped, SLIDES_PER_DOT));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const onVis = () => {
+      if (document.visibilityState !== "visible") return;
+      fetchRoomsCatalog()
+        .then((list) => {
+          const mapped = catalogRoomsToDealSlides(list);
+          if (mapped.length > 0) {
+            setDealSlides(padDealSlidesToMultiple(mapped, SLIDES_PER_DOT));
+          }
+        })
+        .catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
+  useEffect(() => {
+    setCurrent((c) => Math.min(c, Math.max(0, dealPageCount - 1)));
+  }, [dealPageCount]);
+
+  useEffect(() => {
     const timer = setInterval(() => {
-      setCurrent((c) => (c + 1) % TOTAL_DOTS);
+      setCurrent((c) => (c + 1) % dealPageCount);
     }, 4000);
     return () => clearInterval(timer);
-  }, []);
+  }, [dealPageCount]);
 
   const updateCarouselTransform = useCallback(() => {
     const track = trackRef.current;
@@ -428,7 +609,7 @@ export default function Home() {
     if (!slideEl) return;
     const slideW = slideEl.offsetWidth + 12;
     track.style.transform = `translateX(-${current * slideW * SLIDES_PER_DOT}px)`;
-  }, [current]);
+  }, [current, dealSlides.length]);
 
   useLayoutEffect(() => {
     updateCarouselTransform();
@@ -456,10 +637,66 @@ export default function Home() {
   function closeDetails() {
     setDetailsOpen(false);
     setSelectedRow(null);
+    setDetailBooking(null);
+    setDetailLoading(false);
   }
+
+  useEffect(() => {
+    if (!detailsOpen || selectedDetailFetchId == null) {
+      setDetailBooking(null);
+      setDetailLoading(false);
+      return undefined;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    setDetailBooking(null);
+    const id = selectedDetailFetchId;
+    if (!getStoredAuthToken()) {
+      setDetailLoading(false);
+      return undefined;
+    }
+    fetchBookingByIdBackend(id)
+      .then((b) => {
+        if (!cancelled && b && bookingDetailIdsEqual(b.id, id)) setDetailBooking(b);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailBooking(null);
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [detailsOpen, selectedDetailFetchId]);
+
+  /** While the modal is open, staff “add charges” updates the booking — refetch detail so bill totals and notes refresh. */
+  useEffect(() => {
+    if (!detailsOpen || selectedDetailFetchId == null || !getStoredAuthToken()) return undefined;
+
+    function refetchDetailBooking() {
+      const id = selectedDetailFetchId;
+      fetchBookingByIdBackend(id)
+        .then((b) => {
+          if (b && bookingDetailIdsEqual(b.id, id)) setDetailBooking(b);
+        })
+        .catch(() => {});
+    }
+
+    window.addEventListener("abela-guest-bookings-ping", refetchDetailBooking);
+    function onStorage(e) {
+      if (e.key === GUEST_BOOKINGS_STORAGE_PING_KEY) refetchDetailBooking();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("abela-guest-bookings-ping", refetchDetailBooking);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [detailsOpen, selectedDetailFetchId]);
 
   function openCancelFlow() {
     setCancelReason("");
+    setSuccessWasCancel(false);
     setCancelOpen(true);
     setDetailsOpen(false);
   }
@@ -474,20 +711,29 @@ export default function Home() {
 
   async function submitCancellation() {
     if (!selectedRow || cancelSubmitting) return;
+    const reason = String(cancelReason || "").trim();
+    if (reason.length < 3) {
+      window.alert("Please enter a cancellation reason (at least 3 characters).");
+      return;
+    }
     setCancelSubmitting(true);
     try {
       if (!getStoredAuthToken()) {
         window.alert("Log in with your guest account to cancel a booking.");
         return;
       }
-      await patchBookingBackend(selectedRow.id, { status: "cancelled" });
+      await patchBookingBackend(selectedRow.id, { status: "cancelled", cancellationReason: reason });
       setUnifiedRows((rows) => rows.filter((r) => r.key !== selectedRow.key));
       loadGuestNotifications();
       setConfirmOpen(false);
       setCancelOpen(false);
       setSelectedRow(null);
+      setSuccessWasCancel(true);
       setSuccessOpen(true);
-      window.setTimeout(() => setSuccessOpen(false), 3200);
+      window.setTimeout(() => {
+        setSuccessOpen(false);
+        setSuccessWasCancel(false);
+      }, 3200);
     } catch (err) {
       const m = err && typeof err.message === "string" ? err.message : "";
       const looksNetwork =
@@ -507,10 +753,19 @@ export default function Home() {
 
   const canCancelSelected =
     selectedRow &&
-    ["pending", "approved", "confirmed"].includes(normStatus(selectedRow.status));
+    ["pending", "approved", "confirmed"].includes(normStatus(selectedRow.status)) &&
+    normStatus(selectedRow.status) !== "occupied";
 
-  const roomRaw = selectedRow?.kind === "room" ? selectedRow.raw : null;
-  const eventRaw = selectedRow?.kind === "event" ? selectedRow.raw : null;
+  const roomRawBase = selectedRow?.kind === "room" ? selectedRow.raw : null;
+  const eventRawBase = selectedRow?.kind === "event" ? selectedRow.raw : null;
+  const detailMatches =
+    detailBooking &&
+    selectedRow?.id != null &&
+    String(detailBooking.id) === String(selectedRow.id);
+  const roomRaw =
+    roomRawBase && detailMatches ? { ...roomRawBase, ...detailBooking } : roomRawBase;
+  const eventRaw =
+    eventRawBase && detailMatches ? { ...eventRawBase, ...detailBooking } : eventRawBase;
   const roomIdPhotoSrc = roomRaw ? resolveGuestIdImageSrc(roomRaw) : null;
   const eventIdPhotoSrc = eventRaw ? resolveGuestIdImageSrc(eventRaw) : null;
   const {
@@ -610,15 +865,15 @@ export default function Home() {
             <p className="deals-sub">Grab exclusive deals and enjoy more for less.</p>
             <div className="carousel-wrapper">
               <div className="carousel-track" ref={trackRef}>
-                {SLIDES.map((src, i) => (
-                  <div className="carousel-slide" key={i}>
-                    <img src={src} alt={`Deal ${i + 1}`} />
+                {dealSlides.map((slide, i) => (
+                  <div className="carousel-slide" key={`${slide.src}-${i}`}>
+                    <img src={slide.src} alt={slide.alt} loading="lazy" />
                   </div>
                 ))}
               </div>
             </div>
             <div className="carousel-dots">
-              {Array.from({ length: TOTAL_DOTS }).map((_, i) => (
+              {Array.from({ length: dealPageCount }).map((_, i) => (
                 <span key={i} className={`dot${current === i ? " active" : ""}`} onClick={() => setCurrent(i)} role="presentation" />
               ))}
             </div>
@@ -637,9 +892,9 @@ export default function Home() {
               {!bookingsLoading && !bookingsError && unifiedRows.length === 0 && (
                 <div className="bookings-empty">
                   <p className="no-bookings">
-                    {hasGuestEmail
-                      ? "You don&apos;t have any active bookings yet. Reserve a room or venue to see it here."
-                      : "Log in, or complete a reservation with your email, to see your bookings here."}
+                    {getStoredAuthToken() || hasGuestEmail
+                      ? "No booking records found."
+                      : "Log in to view booking records from your account."}
                   </p>
                   <Link to="/rooms">
                     <button type="button" className="btn-book-now">
@@ -649,7 +904,7 @@ export default function Home() {
                 </div>
               )}
 
-              {!bookingsLoading && unifiedRows.length > 0 && (
+              {!bookingsLoading && !bookingsError && unifiedRows.length > 0 && (
                 <div className="bookings-table-wrap">
                   <table className="bookings-table">
                     <thead>
@@ -699,10 +954,10 @@ export default function Home() {
         onClose={closeDetails}
         title="Reservation Details"
         size="lg"
-        placement="top"
+        placement="center"
         overlayClassName="guest-home-modal-overlay"
-        panelClassName="guest-reservation-details modal-box--details"
-        bodyClassName="modal-body--details-scroll"
+        panelClassName="guest-reservation-details modal-box--details rdm-shell-panel"
+        bodyClassName="modal-body--details-scroll rdm-shell-body"
         footer={
           canCancelSelected ? (
             <div className="guest-reservation-details-footer">
@@ -713,214 +968,176 @@ export default function Home() {
           ) : null
         }
       >
-              {roomRaw && (() => {
-                const roomBm = roomBookingMoneyForDisplay(roomRaw);
-                const { downpaymentShown, totalPaidShown } = roomBookingModalBillingSplit(roomRaw, roomBm);
-                return (
-                <>
-                  <div className="modal-two-col modal-two-col--detail-hero">
-                    <div className="modal-card">
-                      <h4 className="modal-card-title">Room Details</h4>
-                      <div className="detail-grid">
-                        <div>
-                          <span className="detail-label">Room</span>
-                          <span className="detail-value">{roomDetailDisplayNumber(roomRaw, roomIdToNumber)}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Type</span>
-                          <span className="detail-value">{roomRaw.roomTitle || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Price</span>
-                          <span className="detail-value">{formatPesoModal(roomBm.total)}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Status</span>
-                          <span className="detail-value">{statusTableLabel(roomRaw.status)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="modal-card">
-                      <h4 className="modal-card-title">Guest Information</h4>
-                      <div className="detail-list">
-                        <div>
-                          <span className="detail-label">Guest</span>
-                          <span className="detail-value">{roomRaw.customerName || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Email</span>
-                          <span className="detail-value">{roomRaw.email || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Contact</span>
-                          <span className="detail-value">{roomRaw.contactNumber || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Check-In</span>
-                          <span className="detail-value">{roomRaw.checkIn || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Check-Out</span>
-                          <span className="detail-value">{roomRaw.checkOut || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Additional Guest</span>
-                          <span className="detail-value">{String(roomRaw.additionalGuests ?? "0")}</span>
-                        </div>
-                      </div>
-                    </div>
+        {roomRaw &&
+          (() => {
+            const roomBm = roomBookingMoneyForDisplay(roomRaw);
+            const { downpaymentShown, totalPaidShown } = roomBookingModalBillingSplit(roomRaw, roomBm);
+            const proofSrc = paymentProofFromBooking(roomRaw);
+            const pmLabel = paymentMethodDisplayLabel(roomRaw);
+            const payLine = derivePaymentStatusLine(roomRaw, proofSrc);
+            const addreqParsed = parseAdditionalRequestChargeLines(roomRaw.additionalRequests);
+            const addOnsSubtotalListed = addreqParsed.charges.reduce((s, c) => s + c.amount, 0);
+            return (
+              <div className="rdm">
+                {detailLoading ? <p className="rdm-loading">Loading full reservation…</p> : null}
+                <div className="rdm-status-bar">
+                  <div className="rdm-pill rdm-pill--booking">
+                    <span className="rdm-pill__k">Booking status</span>
+                    <span className="rdm-pill__v">{statusTableLabel(roomRaw.status)}</span>
                   </div>
-                  <div className="modal-card guest-details-balance-strip">
-                    <div className="guest-details-balance-grid">
+                  <div className="rdm-pill rdm-pill--payment">
+                    <span className="rdm-pill__k">Payment status</span>
+                    <span className="rdm-pill__v">{payLine}</span>
+                  </div>
+                  <div className="rdm-pill rdm-pill--balance">
+                    <span className="rdm-pill__k">Remaining balance</span>
+                    <span className="rdm-pill__v">{formatPesoModal(roomBm.balance)}</span>
+                  </div>
+                </div>
+                <div className="rdm-grid">
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Booking information</h4>
+                    <dl className="rdm-dl">
                       <div>
-                        <span className="detail-label remaining">Remaining Balance</span>
-                        <span className="detail-value remaining guest-details-balance-value">
-                          {formatPesoModal(roomBm.balance)}
-                        </span>
+                        <dt className="rdm-dt">Room</dt>
+                        <dd className="rdm-dd">{roomDetailDisplayNumber(roomRaw, roomIdToNumber)}</dd>
                       </div>
                       <div>
-                        <span className="detail-label paid">Total Paid</span>
-                        <span className="detail-value paid guest-details-balance-value">
-                          {formatPesoModal(totalPaidShown)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="modal-card">
-                    <h4 className="modal-card-title">Billing Summary</h4>
-                    <div className="billing-grid billing-grid--compact">
-                      <div>
-                        <span className="detail-label">Total Amount</span>
-                        <span className="detail-value">{formatPesoModal(roomBm.total)}</span>
+                        <dt className="rdm-dt">Package</dt>
+                        <dd className="rdm-dd">{roomRaw.roomTitle || "—"}</dd>
                       </div>
                       <div>
-                        <span className="detail-label">Downpayment</span>
-                        <span className="detail-value">{formatPesoModal(downpaymentShown)}</span>
+                        <dt className="rdm-dt">Check-in</dt>
+                        <dd className="rdm-dd">{roomRaw.checkIn || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Check-out</dt>
+                        <dd className="rdm-dd">{roomRaw.checkOut || "—"}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Guest information</h4>
+                    <dl className="rdm-dl">
+                      <div className="rdm-dl__full">
+                        <dt className="rdm-dt">Guest</dt>
+                        <dd className="rdm-dd">{roomRaw.customerName || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Email</dt>
+                        <dd className="rdm-dd rdm-dd--muted">{roomRaw.email || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Contact</dt>
+                        <dd className="rdm-dd">{roomRaw.contactNumber || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Additional guests</dt>
+                        <dd className="rdm-dd">{String(roomRaw.additionalGuests ?? "0")}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <section className="rdm-card rdm-card--span2">
+                    <h4 className="rdm-card__title">Billing summary</h4>
+                    <div className="rdm-billing">
+                      <div className="rdm-billing__cell">
+                        <div className="rdm-billing__label">Total amount</div>
+                        <div className="rdm-billing__value">{formatPesoModal(roomBm.total)}</div>
+                      </div>
+                      <div className="rdm-billing__cell">
+                        <div className="rdm-billing__label">Downpayment</div>
+                        <div className="rdm-billing__value">{formatPesoModal(downpaymentShown)}</div>
+                      </div>
+                      <div className="rdm-billing__cell">
+                        <div className="rdm-billing__label">Total paid</div>
+                        <div className="rdm-billing__value">{formatPesoModal(totalPaidShown)}</div>
+                      </div>
+                      <div className="rdm-billing__cell rdm-billing__cell--highlight">
+                        <div className="rdm-billing__label">Remaining balance</div>
+                        <div className="rdm-billing__value">{formatPesoModal(roomBm.balance)}</div>
                       </div>
                     </div>
-                  </div>
-                  <div className="modal-card guest-details-ref-card">
-                    <h4 className="modal-card-title">Reference Number</h4>
-                    <span className="detail-value reference-number-value">{bookingReferenceDisplay(roomRaw)}</span>
-                  </div>
-                  <div className="modal-two-col modal-two-col--detail-payment">
-                    <div className="modal-card">
-                      <h4 className="modal-card-title">Payment Details</h4>
-                      <div className="detail-grid detail-grid--payment-block">
-                        <div>
-                          <span className="detail-label">Payment Method</span>
-                          <span className="detail-value">{roomRaw.paymentType || roomRaw.paymentMethod || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Amount Paid</span>
-                          <span className="detail-value">{formatPesoModal(totalPaidShown)}</span>
-                        </div>
-                        <div className="detail-grid__full">
-                          <span className="detail-label">Transaction ID</span>
-                          <span className="detail-value">
-                            {roomRaw.paymentTransactionId || roomRaw.transactionId || "—"}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Date</span>
-                          <span className="detail-value">{formatPaymentDateDisplay(roomRaw.paymentDate)}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="id-uploaded-card guest-details-id-card">
-                      <h4 className="id-uploaded-card-title">ID Uploaded</h4>
-                      <div className="id-uploaded-frame">
-                        {roomIdPhotoSrc ? (
-                          <img
-                            src={roomIdPhotoSrc}
-                            alt="Government ID"
-                            className="id-img"
-                            decoding="async"
-                            onError={(e) => {
-                              const el = e.currentTarget;
-                              el.style.background = "#e8dcc8";
-                              el.style.minHeight = "100px";
-                            }}
-                          />
-                        ) : (
-                          <div className="id-placeholder">No government ID on file</div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </>
-                );
-              })()}
-
-              {eventRaw && (
-                <>
-                  <div className="modal-two-col">
-                    <div className="modal-card">
-                      <h4 className="modal-card-title">Venue</h4>
-                      <div className="detail-list">
-                        <div>
-                          <span className="detail-label">Venue</span>
-                          <span className="detail-value">{eventRaw.venueName || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Event</span>
-                          <span className="detail-value">{eventRaw.eventTitle || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Date</span>
-                          <span className="detail-value">{eventRaw.eventDate || "—"}</span>
-                        </div>
-                        {eventRaw.eventEndDate && (
-                          <div>
-                            <span className="detail-label">End date</span>
-                            <span className="detail-value">{eventRaw.eventEndDate}</span>
+                    {addreqParsed.charges.length > 0 || addreqParsed.notes.length > 0 ? (
+                      <>
+                        {addreqParsed.charges.length > 0 ? (
+                          <div
+                            className="rdm-charge-lines"
+                            style={{ marginTop: "1rem" }}
+                            aria-label="Itemized additional charges"
+                          >
+                            <div className="rdm-charge-lines__title">Additional charges</div>
+                            <ul className="rdm-charge-lines__list">
+                              {addreqParsed.charges.map((c, idx) => (
+                                <li key={`${c.label}-${idx}`} className="rdm-charge-lines__row">
+                                  <span className="rdm-charge-lines__name">{c.label}</span>
+                                  <span className="rdm-charge-lines__amt">{formatPesoModal(c.amount)}</span>
+                                </li>
+                              ))}
+                            </ul>
+                            <div className="rdm-charge-lines__footer">
+                              <span>Listed add-ons subtotal</span>
+                              <span>{formatPesoModal(addOnsSubtotalListed)}</span>
+                            </div>
                           </div>
-                        )}
-                        <div>
-                          <span className="detail-label">Expected pax</span>
-                          <span className="detail-value">{eventRaw.expectedPax ?? "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Status</span>
-                          <span className="detail-value">{(eventRaw.status || "pending").replace(/^./, (c) => c.toUpperCase())}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="modal-card">
-                      <h4 className="modal-card-title">Contact</h4>
-                      <div className="detail-list">
-                        <div>
-                          <span className="detail-label">Name</span>
-                          <span className="detail-value">{eventRaw.customerName || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Email</span>
-                          <span className="detail-value">{eventRaw.email || "—"}</span>
-                        </div>
-                        <div>
-                          <span className="detail-label">Phone</span>
-                          <span className="detail-value">{eventRaw.contactNumber || "—"}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="modal-card">
-                    <h4 className="modal-card-title">Billing</h4>
-                    <div className="billing-grid">
+                        ) : null}
+                        {addreqParsed.notes.length > 0 ? (
+                          <>
+                            <h4 className="rdm-card__title" style={{ marginTop: "1rem" }}>
+                              Requests & bill notes
+                            </h4>
+                            <p className="rdm-dd" style={{ margin: 0, whiteSpace: "pre-wrap" }}>
+                              {addreqParsed.notes.join("; ")}
+                            </p>
+                          </>
+                        ) : addreqParsed.charges.length > 0 ? (
+                          <p className="rdm-bill-hint" style={{ marginTop: "12px" }}>
+                            Priced add-ons above are included in your total amount and remaining balance.
+                          </p>
+                        ) : null}
+                        <p className="rdm-bill-hint">Includes add-on charges recorded by the hotel during your stay.</p>
+                      </>
+                    ) : null}
+                  </section>
+                  {String(roomRaw.declineReason || "").trim() !== "" ? (
+                    <section className="rdm-card rdm-card--span2">
+                      <h4 className="rdm-card__title">Rejection reason</h4>
+                      <p className="rdm-dd" style={{ margin: 0 }}>
+                        {String(roomRaw.declineReason).trim()}
+                      </p>
+                    </section>
+                  ) : null}
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Payment information</h4>
+                    <dl className="rdm-dl">
                       <div>
-                        <span className="detail-label">Quoted price</span>
-                        <span className="detail-value">{formatPeso(parseMoney(eventRaw.venuePrice))}</span>
+                        <dt className="rdm-dt">Method</dt>
+                        <dd className="rdm-dd">{pmLabel}</dd>
                       </div>
-                    </div>
-                  </div>
-                  <div className="id-uploaded-card id-uploaded-card--standalone guest-details-id-card--event">
-                    <h4 className="id-uploaded-card-title">ID Uploaded</h4>
-                    <div className="id-uploaded-frame">
-                      {eventIdPhotoSrc ? (
+                      <div>
+                        <dt className="rdm-dt">Amount paid</dt>
+                        <dd className="rdm-dd">{formatPesoModal(totalPaidShown)}</dd>
+                      </div>
+                      <div className="rdm-dl__full">
+                        <dt className="rdm-dt">Transaction ID</dt>
+                        <dd className="rdm-dd rdm-dd--muted">
+                          {roomRaw.paymentTransactionId || roomRaw.transactionId || "—"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Payment date</dt>
+                        <dd className="rdm-dd">{formatPaymentDateDisplay(roomRaw.paymentDate)}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <ReservationProofPreview booking={roomRaw} proofSrc={proofSrc} />
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Government ID</h4>
+                    <div className="rdm-media-frame rdm-media-frame--tall">
+                      {roomIdPhotoSrc ? (
                         <img
-                          src={eventIdPhotoSrc}
+                          src={roomIdPhotoSrc}
                           alt="Government ID"
-                          className="id-img"
+                          className="rdm-media-img"
                           decoding="async"
                           onError={(e) => {
                             const el = e.currentTarget;
@@ -929,37 +1146,201 @@ export default function Home() {
                           }}
                         />
                       ) : (
-                        <div className="id-placeholder">No government ID on file</div>
+                        <div className="rdm-media-placeholder">No government ID on file</div>
                       )}
                     </div>
+                  </section>
+                </div>
+              </div>
+            );
+          })()}
+
+        {eventRaw &&
+          (() => {
+            const evBm = eventBookingMoneyForDisplay(eventRaw);
+            const { downpaymentShown, totalPaidShown } = eventBookingModalBillingSplit(eventRaw, evBm);
+            const proofSrc = paymentProofFromBooking(eventRaw);
+            const pmLabel = paymentMethodDisplayLabel(eventRaw);
+            const payLine = derivePaymentStatusLine(eventRaw, proofSrc);
+            return (
+              <div className="rdm">
+                {detailLoading ? <p className="rdm-loading">Loading full reservation…</p> : null}
+                <div className="rdm-status-bar">
+                  <div className="rdm-pill rdm-pill--booking">
+                    <span className="rdm-pill__k">Booking status</span>
+                    <span className="rdm-pill__v">{statusTableLabel(eventRaw.status)}</span>
                   </div>
-                </>
-              )}
+                  <div className="rdm-pill rdm-pill--payment">
+                    <span className="rdm-pill__k">Payment status</span>
+                    <span className="rdm-pill__v">{payLine}</span>
+                  </div>
+                  <div className="rdm-pill rdm-pill--balance">
+                    <span className="rdm-pill__k">Remaining balance</span>
+                    <span className="rdm-pill__v">{formatPesoModal(evBm.balance)}</span>
+                  </div>
+                </div>
+                <div className="rdm-grid">
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Booking information</h4>
+                    <dl className="rdm-dl">
+                      <div>
+                        <dt className="rdm-dt">Venue</dt>
+                        <dd className="rdm-dd">{eventRaw.venueName || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Event</dt>
+                        <dd className="rdm-dd">{eventRaw.eventTitle || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Date</dt>
+                        <dd className="rdm-dd">{eventRaw.eventDate || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Time slot</dt>
+                        <dd className="rdm-dd">{eventRaw.timeSlot || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Expected pax</dt>
+                        <dd className="rdm-dd">{eventRaw.expectedPax ?? "—"}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Guest information</h4>
+                    <dl className="rdm-dl">
+                      <div className="rdm-dl__full">
+                        <dt className="rdm-dt">Guest</dt>
+                        <dd className="rdm-dd">{eventRaw.customerName || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Email</dt>
+                        <dd className="rdm-dd rdm-dd--muted">{eventRaw.email || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Phone</dt>
+                        <dd className="rdm-dd">{eventRaw.contactNumber || "—"}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <section className="rdm-card rdm-card--span2">
+                    <h4 className="rdm-card__title">Billing summary</h4>
+                    <div className="rdm-billing">
+                      <div className="rdm-billing__cell">
+                        <div className="rdm-billing__label">Total amount</div>
+                        <div className="rdm-billing__value">{formatPesoModal(evBm.total)}</div>
+                      </div>
+                      <div className="rdm-billing__cell">
+                        <div className="rdm-billing__label">Downpayment</div>
+                        <div className="rdm-billing__value">{formatPesoModal(downpaymentShown)}</div>
+                      </div>
+                      <div className="rdm-billing__cell">
+                        <div className="rdm-billing__label">Total paid</div>
+                        <div className="rdm-billing__value">{formatPesoModal(totalPaidShown)}</div>
+                      </div>
+                      <div className="rdm-billing__cell rdm-billing__cell--highlight">
+                        <div className="rdm-billing__label">Remaining balance</div>
+                        <div className="rdm-billing__value">{formatPesoModal(evBm.balance)}</div>
+                      </div>
+                    </div>
+                  </section>
+                  {String(eventRaw.declineReason || "").trim() !== "" ? (
+                    <section className="rdm-card rdm-card--span2">
+                      <h4 className="rdm-card__title">Rejection reason</h4>
+                      <p className="rdm-dd" style={{ margin: 0 }}>
+                        {String(eventRaw.declineReason).trim()}
+                      </p>
+                    </section>
+                  ) : null}
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Payment information</h4>
+                    <dl className="rdm-dl">
+                      <div>
+                        <dt className="rdm-dt">Method</dt>
+                        <dd className="rdm-dd">{pmLabel}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Amount paid</dt>
+                        <dd className="rdm-dd">{formatPesoModal(totalPaidShown)}</dd>
+                      </div>
+                      <div className="rdm-dl__full">
+                        <dt className="rdm-dt">Transaction ID</dt>
+                        <dd className="rdm-dd rdm-dd--muted">{eventRaw.transactionId || "—"}</dd>
+                      </div>
+                      <div>
+                        <dt className="rdm-dt">Payment date</dt>
+                        <dd className="rdm-dd">{formatPaymentDateDisplay(eventRaw.paymentDate)}</dd>
+                      </div>
+                    </dl>
+                  </section>
+                  <ReservationProofPreview booking={eventRaw} proofSrc={proofSrc} />
+                  <section className="rdm-card">
+                    <h4 className="rdm-card__title">Government ID</h4>
+                    <div className="rdm-media-frame rdm-media-frame--tall">
+                      {eventIdPhotoSrc ? (
+                        <img
+                          src={eventIdPhotoSrc}
+                          alt="Government ID"
+                          className="rdm-media-img"
+                          decoding="async"
+                          onError={(e) => {
+                            const el = e.currentTarget;
+                            el.style.background = "#e8dcc8";
+                            el.style.minHeight = "100px";
+                          }}
+                        />
+                      ) : (
+                        <div className="rdm-media-placeholder">No government ID on file</div>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              </div>
+            );
+          })()}
       </Modal>
 
       <Modal
         open={cancelOpen && !!selectedRow}
         onClose={closeCancel}
-        title="Reason of Cancelation"
+        title="Reason for cancellation"
         size="sm"
         placement="top"
         overlayClassName="guest-home-modal-overlay"
+        panelClassName="modal-cancel-panel"
+        bodyClassName="modal-body--cancel-reason"
+        footer={
+          <>
+            <button type="button" className="btn-clear" onClick={() => setCancelReason("")}>
+              Clear
+            </button>
+            <button
+              type="button"
+              className="btn-submit-cancel"
+              onClick={() => {
+                const t = String(cancelReason || "").trim();
+                if (t.length < 3) {
+                  window.alert("Please enter a cancellation reason (at least 3 characters) before continuing.");
+                  return;
+                }
+                setConfirmOpen(true);
+              }}
+            >
+              Submit cancellation
+            </button>
+          </>
+        }
       >
-        <p className="cancel-label">Please provide a reason for cancellation</p>
+        <p className="cancel-label">Please provide a reason for cancellation.</p>
+        <p className="cancel-policy-note" role="note">
+          Once a booking is confirmed and you cancel it, any payment or downpayment sent online is non-refundable.
+        </p>
         <textarea
           className="cancel-textarea"
           value={cancelReason}
           onChange={(e) => setCancelReason(e.target.value)}
-          placeholder="Write reason here..."
+          placeholder="Write your reason here…"
+          rows={5}
         />
-        <div className="modal-footer space-between">
-          <button type="button" className="btn-clear" onClick={() => setCancelReason("")}>
-            Clear
-          </button>
-          <button type="button" className="btn-submit-cancel" onClick={() => setConfirmOpen(true)}>
-            Submit Cancellation
-          </button>
-        </div>
       </Modal>
 
       <Modal
@@ -990,7 +1371,10 @@ export default function Home() {
 
       <Modal
         open={successOpen}
-        onClose={() => setSuccessOpen(false)}
+        onClose={() => {
+          setSuccessOpen(false);
+          setSuccessWasCancel(false);
+        }}
         placement="center"
         contentOnly
         shellStyle={false}
@@ -999,8 +1383,12 @@ export default function Home() {
         ariaLabel="Submission successful"
       >
         <div className="success-icon">✓</div>
-        <div className="success-title">Submitted Successfully!</div>
-        <div className="success-sub">Your booking is under review. Please wait for an SMS confirmation.</div>
+        <div className="success-title">{successWasCancel ? "Booking cancelled" : "Submitted Successfully!"}</div>
+        <div className="success-sub">
+          {successWasCancel
+            ? "Your reservation was cancelled. A notice was added to your account notifications."
+            : "Your booking is under review. Please wait for an SMS confirmation."}
+        </div>
       </Modal>
 
       <LogoutConfirmModal

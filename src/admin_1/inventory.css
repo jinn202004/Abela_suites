@@ -175,6 +175,58 @@
   font-size: 13px;
 }
 
+/* ── Inventory table pagination (client-side slice) ── */
+.inv-pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-top: 1px solid #e8dcc8;
+  background: #f5efe4;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+.inv-pagination-info {
+  flex-shrink: 0;
+}
+.inv-pagination-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.inv-pagination-pages {
+  font-family: "Montserrat", sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dark);
+  min-width: 7.5rem;
+  text-align: center;
+}
+.inv-page-btn {
+  padding: 7px 13px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dark);
+  background: #fff;
+  border: 1px solid #e8dcc8;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.inv-page-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  background: #fffdf8;
+}
+.inv-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* ── STATUS BADGES ── */
 .inv-badge {
   display: inline-block;
@@ -566,5 +618,13 @@
   .inv-table th,
   .inv-table td {
     padding: 9px 10px;
+  }
+  .inv-pagination-bar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  .inv-pagination-btns {
+    justify-content: center;
   }
 }

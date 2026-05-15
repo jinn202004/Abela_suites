@@ -9,7 +9,7 @@ export function looksLikeMongoObjectId(s) {
 export function buildRoomIdToNumberMap(catalog) {
   const m = new Map();
   for (const r of catalog || []) {
-    const id = String(r.id ?? "").trim();
+    const id = String(r.id ?? r._id ?? "").trim();
     if (!id) continue;
     m.set(id, String(r.roomNumber ?? "").trim());
   }
@@ -20,7 +20,7 @@ export function buildRoomIdToNumberMap(catalog) {
 export function buildEventVenueIdToEventNumMap(venues) {
   const m = new Map();
   for (const v of venues || []) {
-    const id = String(v.id ?? "").trim();
+    const id = String(v.id ?? v._id ?? "").trim();
     if (!id) continue;
     m.set(id, String(v.eventNum ?? "").trim());
   }
@@ -31,7 +31,7 @@ export function buildEventVenueIdToEventNumMap(venues) {
 export function buildEventVenueIdToNameMap(venues) {
   const m = new Map();
   for (const v of venues || []) {
-    const id = String(v.id ?? "").trim();
+    const id = String(v.id ?? v._id ?? "").trim();
     if (!id) continue;
     const name = String(v.name ?? v.title ?? "").trim();
     if (name) m.set(id, name);

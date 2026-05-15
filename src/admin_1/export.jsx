@@ -172,9 +172,9 @@ export default function ExportSettings() {
   return (
     <>
       <RailPortalShell
+        rootClassName="app-layout admin-app-layout"
+        rootStyle={{ minHeight: "100vh", background: "var(--bg-page, #f5f0e8)" }}
         mainStyle={mainStyle}
-        rootStyle={{ display: "flex", minHeight: "100vh", background: "var(--bg-page, #f5f0e8)" }}
-        sidebar={<AdminSidebarNav logoSrc="/images/logo.png" />}
       >
         {/* ── TOP BAR ── */}
         <header className="topbar">

@@ -4,7 +4,7 @@
     --gold-light: #c9a84c;
     --gold-dark:  #9a7520;
     --sidebar-bg: #b8922a;
-    --sidebar-w:  260px;
+    --sidebar-w:  240px;
     --topbar-h:   60px;
     --text-dark:  #3a2e1e;
     --text-mid:   #6b5a3e;
@@ -80,21 +80,22 @@
   .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 4px; }
   
   .nav-item {
-    display: flex; align-items: center; gap: 16px;
+    display: flex; align-items: center; gap: 14px;
     padding: 16px 22px;
     text-decoration: none; color: white;
     font-family: 'Montserrat', sans-serif; font-weight: 600; font-size: 13px;
-    transition: background 0.2s;
+    line-height: 1.25;
+    transition: background 0.18s ease;
   }
   .nav-item:hover  { background: rgba(0,0,0,0.10); color: #fff; }
-  .nav-item.active { background: rgba(0,0,0,0.20); color: #fff; }
+  .nav-item.active { background: rgba(0,0,0,0.22); color: #fff; }
   
   .nav-icon {
-    width: 32px; height: 32px;
+    width: 30px; height: 30px;
     display: flex; align-items: center; justify-content: center;
     flex-shrink: 0;
   }
-  .nav-icon svg { width: 24px; height: 24px; }
+  .nav-icon svg { width: 22px; height: 22px; }
   
   /* ============================================
      MAIN WRAPPER
@@ -317,47 +318,200 @@
     z-index: 1;
   }
 
-  .bk-booking-search-wrap {
-    position: relative;
-    width: 100%;
-    max-width: 100%;
+  /* Search | month | Print (aligned with front desk bills toolbar) */
+  .bm-main-toolbar {
     display: flex;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px 24px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    padding: 16px 18px 18px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
   }
 
-  .bk-booking-search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
+  .bm-toolbar-search-col {
+    flex: 1 1 38%;
+    min-width: min(100%, 220px);
+    max-width: 100%;
+  }
+
+  .bm-toolbar-search-wrap {
+    position: relative;
     display: flex;
     align-items: center;
-    color: var(--text-light);
+    width: 100%;
+  }
+
+  .bm-toolbar-search-icon {
+    position: absolute;
+    left: 14px;
+    display: flex;
+    align-items: center;
+    color: #b0a090;
     pointer-events: none;
   }
 
-  .bk-booking-search-input {
+  .bm-toolbar-search-icon svg {
+    width: 17px;
+    height: 17px;
+  }
+
+  .bm-toolbar-search-input {
     width: 100%;
     height: 44px;
-    padding: 0 12px 0 38px;
-    border: 1px solid #e8dcc8;
+    padding: 0 14px 0 42px;
+    border: 1px solid #d8d0c4;
     border-radius: 10px;
     font-family: 'Roboto', sans-serif;
-    font-size: 13px;
+    font-size: 14px;
     color: var(--text-dark);
     background: #fff;
     outline: none;
-    box-sizing: border-box;
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
 
-  .bk-booking-search-input:focus {
+  .bm-toolbar-search-input::placeholder {
+    color: #a8a098;
+    font-size: 13px;
+  }
+
+  .bm-toolbar-search-input:focus {
     border-color: var(--gold);
-    box-shadow: 0 0 0 2px rgba(184, 146, 42, 0.2);
+    box-shadow: 0 0 0 2px rgba(184, 146, 42, 0.12);
   }
 
-  .bk-booking-search-input::placeholder {
-    color: #9a8060;
+  .bm-toolbar-month-col {
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .bm-toolbar-month-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .bm-toolbar-month-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+  }
+
+  .bm-toolbar-month-clear {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: 'Roboto', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gold-dark);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .bm-toolbar-month-clear:hover {
+    color: var(--gold);
+  }
+
+  .bm-toolbar-month-input-wrap {
+    width: 100%;
+    min-width: 188px;
+    max-width: 220px;
+  }
+
+  .bm-toolbar-month-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid #d8d0c4;
+    border-radius: 10px;
+    font-family: 'Roboto', sans-serif;
+    font-size: 14px;
+    color: var(--text-dark);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .bm-toolbar-month-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(184, 146, 42, 0.12);
+  }
+
+  .bm-toolbar-print-col {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    margin-left: auto;
+  }
+
+  .bm-toolbar-print-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 22px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: var(--gold);
+    box-shadow: 0 2px 6px rgba(154, 117, 32, 0.35);
+    transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+    white-space: nowrap;
+  }
+
+  .bm-toolbar-print-btn:hover {
+    background: var(--gold-dark);
+    box-shadow: 0 3px 10px rgba(154, 117, 32, 0.4);
+  }
+
+  .bm-toolbar-print-btn:active {
+    transform: translateY(1px);
+  }
+
+  .bm-toolbar-print-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.45);
+  }
+
+  .bm-toolbar-print-icon {
+    flex-shrink: 0;
+    stroke: #fff;
+  }
+
+  .bm-toolbar-subrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    margin-top: 4px;
+  }
+
+  .bm-toolbar-hint {
+    flex: 1 1 220px;
+    margin: 0;
+    font-size: 11.5px;
+    color: var(--text-light);
+    line-height: 1.45;
+    max-width: 640px;
   }
   
   /* ============================================
@@ -538,6 +692,56 @@
   .delete-btn:hover:not(:disabled) { background: #fad4d4; }
   .res-table .action-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 
+  /* ── Reservation table pagination (client-side only; same data as full list) ── */
+  .bm-pagination-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 11px 14px;
+    border-top: 1px solid #f0e8d8;
+    background: #faf8f4;
+    font-family: 'Roboto', sans-serif;
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+  .bm-pagination-info { flex-shrink: 0; }
+  .bm-pagination-btns {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .bm-pagination-pages {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-dark);
+    min-width: 7.5rem;
+    text-align: center;
+  }
+  .bm-page-btn {
+    padding: 7px 13px;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-dark);
+    background: #fff;
+    border: 1px solid #e8dcc8;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .bm-page-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    background: #fffdf8;
+  }
+  .bm-page-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
   /* ============================================
      MODAL OVERLAY
      ============================================ */
@@ -702,7 +906,7 @@
   @media (max-width: 768px) {
     .sidebar { width: 64px; }
     .nav-item span:last-child { display: none; }
-    .nav-item { justify-content: center; padding: 14px 10px; }
+    .nav-item { justify-content: center; padding: 18px 10px; }
     .sidebar-logo-img { width: 46px; height: 46px; }
     .main-wrapper {
       margin-left: 64px;
@@ -721,6 +925,37 @@
     .res-table { min-width: 680px; font-size: 12px; }
     .res-table thead th,
     .res-table tbody td { padding: 9px 10px; }
+    .bm-pagination-bar {
+      flex-direction: column;
+      align-items: stretch;
+      text-align: center;
+    }
+    .bm-pagination-btns { justify-content: center; }
+    .bm-main-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .bm-toolbar-search-col {
+      flex: 1 1 100%;
+      max-width: none;
+    }
+    .bm-toolbar-month-col {
+      width: 100%;
+    }
+    .bm-toolbar-month-input-wrap {
+      max-width: none;
+    }
+    .bm-toolbar-print-col {
+      margin-left: 0;
+      width: 100%;
+    }
+    .bm-toolbar-print-btn {
+      width: 100%;
+    }
+    .bm-toolbar-subrow {
+      flex-direction: column;
+      align-items: stretch;
+    }
   }
   
   @media (max-width: 480px) {
@@ -730,101 +965,7 @@
     .breadcrumb-title { font-size: 14px; }
   }
 
-  /* ── Booking Management: print toolbar & preview (month filter like Export) ── */
-  .bm-print-toolbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: flex-end;
-    gap: 18px 24px;
-    padding: 18px 20px;
-    background: #fff;
-    border: 1px solid #e8dcc8;
-    border-radius: 12px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-  }
-
-  .bm-print-toolbar-field {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    min-width: min(220px, 100%);
-    flex: 1 1 200px;
-  }
-
-  .bm-print-label {
-    font-family: 'Roboto', sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-dark);
-  }
-
-  .bm-print-month-input {
-    width: 100%;
-    max-width: 260px;
-    height: 42px;
-    padding: 0 12px;
-    border: 1.5px solid #d4c4a8;
-    border-radius: 9px;
-    font-family: 'Roboto', sans-serif;
-    font-size: 13.5px;
-    color: var(--text-dark);
-    background: #fff;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-
-  .bm-print-month-input:focus {
-    border-color: var(--gold);
-    box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.12);
-  }
-
-  .bm-print-hint {
-    margin: 0;
-    font-size: 11.5px;
-    color: var(--text-light);
-    line-height: 1.4;
-    max-width: 320px;
-  }
-
-  .bm-print-toolbar-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    flex: 1 1 280px;
-    justify-content: flex-end;
-  }
-
-  .bm-print-action-btn {
-    padding: 11px 18px;
-    border-radius: 9px;
-    border: none;
-    cursor: pointer;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    background: var(--gold-dark);
-    color: #fff;
-    transition: background 0.2s, transform 0.15s;
-    white-space: nowrap;
-  }
-
-  .bm-print-action-btn:hover {
-    background: var(--gold);
-    transform: translateY(-1px);
-  }
-
-  .bm-print-action-btn--outline {
-    background: #fff;
-    color: var(--gold-dark);
-    border: 1.5px solid var(--border);
-  }
-
-  .bm-print-action-btn--outline:hover {
-    background: #fdf8f0;
-    transform: translateY(-1px);
-  }
-
+  /* ── Booking Management: print preview modal ── */
   .bm-print-backdrop {
     position: fixed;
     inset: 0;
@@ -846,7 +987,7 @@
     background: #fff;
     border-radius: 14px;
     width: 100%;
-    max-width: 960px;
+    max-width: min(1120px, 96vw);
     max-height: 92vh;
     display: flex;
     flex-direction: column;
@@ -895,11 +1036,14 @@
     flex: 1;
     min-height: 0;
     background: #fff;
+    font-size: 14px;
+    line-height: 1.45;
   }
 
   .bm-print-header {
     text-align: center;
     margin-bottom: 20px;
+    font-size: 14px;
   }
 
   .bm-print-logo-mark {
@@ -924,7 +1068,7 @@
 
   .bm-print-brand {
     font-family: 'Montserrat', sans-serif;
-    font-size: 15px;
+    font-size: 17px;
     font-weight: 800;
     letter-spacing: 0.06em;
     color: var(--text-dark);
@@ -932,14 +1076,22 @@
 
   .bm-print-period {
     margin-top: 6px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--gold-dark);
   }
 
   .bm-print-subtitle {
     margin-top: 4px;
+    font-size: 14px;
+    color: var(--text-mid);
+  }
+
+  .bm-print-summary-note {
+    margin: 10px auto 0;
+    max-width: 52rem;
     font-size: 12.5px;
+    line-height: 1.5;
     color: var(--text-mid);
   }
 
@@ -954,9 +1106,355 @@
   .bm-print-section-title {
     margin: 0 0 12px;
     font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
+    font-size: 16px;
     font-weight: 700;
     color: var(--gold);
+  }
+
+  .bm-print-summary-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .bm-print-summary-stats {
+    background: #fff;
+    border: 1px solid #e4d8c4;
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+  }
+
+  .bm-print-summary-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px 18px;
+    margin-bottom: 12px;
+  }
+
+  .bm-print-summary-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .bm-print-summary-stat-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #a89878;
+  }
+
+  .bm-print-summary-stat-value {
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--text-dark);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .bm-print-summary-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+  }
+
+  .bm-print-summary-pill {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: #f5efe4;
+    color: var(--text-dark);
+    border: 1px solid #e4d8c4;
+  }
+
+  .bm-print-summary-table-wrap {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    background: #fff;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bm-print-summary-table {
+    width: 100%;
+    min-width: 720px;
+    border-collapse: collapse;
+    font-size: 12.5px;
+    font-family: 'Roboto', sans-serif;
+  }
+
+  .bm-print-summary-table thead tr {
+    background: var(--gold-dark);
+  }
+
+  .bm-print-summary-table th {
+    padding: 10px 10px;
+    text-align: left;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: #fff;
+    white-space: nowrap;
+  }
+
+  .bm-print-summary-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #eee6d8;
+    color: var(--text-dark);
+    vertical-align: top;
+  }
+
+  .bm-print-summary-table tbody tr:nth-child(even) td {
+    background: #faf6ee;
+  }
+
+  .bm-print-summary-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .bm-print-cards-wrap {
+    border: 1px solid #e8dcc8;
+    border-radius: 12px;
+    padding: 14px 16px 18px;
+    background: #fdfaf5;
+  }
+
+  .bm-print-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .bm-print-card {
+    background: #fff;
+    border: 1px solid #e4d8c4;
+    border-radius: 12px;
+    padding: 14px 16px 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  }
+
+  .bm-print-card-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px 14px;
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #efe6d6;
+  }
+
+  .bm-print-card-head-text {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .bm-print-card-room-line {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-dark);
+    line-height: 1.35;
+  }
+
+  .bm-print-card-room-num {
+    color: var(--gold-dark);
+  }
+
+  .bm-print-card-room-div {
+    margin: 0 6px;
+    color: #c4b49a;
+    font-weight: 600;
+  }
+
+  .bm-print-card-room-type {
+    font-weight: 700;
+  }
+
+  .bm-print-card-event-title {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-dark);
+    line-height: 1.35;
+  }
+
+  .bm-print-card-status {
+    flex-shrink: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #f0ebe3;
+    color: var(--text-dark);
+  }
+
+  .bm-print-card-status--approved,
+  .bm-print-card-status--confirmed {
+    background: #e8f5ec;
+    color: #1e5f32;
+  }
+
+  .bm-print-card-status--completed {
+    background: #e8eef8;
+    color: #2c5282;
+  }
+
+  .bm-print-card-status--cancelled,
+  .bm-print-card-status--rejected,
+  .bm-print-card-status--declined {
+    background: #fdecea;
+    color: #c0392b;
+  }
+
+  .bm-print-card-status--pending-approval,
+  .bm-print-card-status--pending {
+    background: #fff8e6;
+    color: #8a6d1a;
+  }
+
+  .bm-print-card-status--occupied {
+    background: #ede8f7;
+    color: #553c9a;
+  }
+
+  .bm-print-card-ref-block {
+    margin-bottom: 12px;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-mid);
+  }
+
+  .bm-print-card-field-label {
+    display: block;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #a89878;
+    margin-bottom: 2px;
+  }
+
+  .bm-print-card-ref-short {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text-dark);
+  }
+
+  .bm-print-card-ref-full {
+    margin-top: 4px;
+    font-size: 12px;
+    word-break: break-all;
+    color: var(--text-mid);
+    font-family: ui-monospace, 'Cascadia Code', 'Consolas', monospace;
+  }
+
+  .bm-print-card-dl {
+    display: grid;
+    grid-template-columns: minmax(120px, 150px) 1fr;
+    gap: 10px 18px;
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  .bm-print-card-dl--after-money {
+    margin-top: 4px;
+  }
+
+  .bm-print-card-dl dt {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #7a6b52;
+    padding-top: 1px;
+  }
+
+  .bm-print-card-dl dd {
+    margin: 0;
+    color: var(--text-dark);
+  }
+
+  .bm-print-card-money {
+    margin: 14px 0;
+    padding: 14px 16px;
+    background: #faf7f0;
+    border: 1px solid #ebe0cc;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+
+  .bm-print-card-money-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px 20px;
+    padding: 6px 0;
+    border-bottom: 1px solid #ebe4d4;
+  }
+
+  .bm-print-card-money-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .bm-print-card-money-row:first-child {
+    padding-top: 0;
+  }
+
+  .bm-print-card-money-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: #7a6b52;
+  }
+
+  .bm-print-card-money-value {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dark);
+    text-align: right;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .bm-print-card-break-all {
+    word-break: break-word;
+    overflow-wrap: anywhere;
+  }
+
+  .bm-print-card-notes {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px dashed #e4d8c4;
+  }
+
+  .bm-print-card-notes-body {
+    margin-top: 6px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text-dark);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .bm-print-empty--card {
+    text-align: center;
+    font-size: 14px;
+    color: var(--text-light);
+    padding: 28px 16px !important;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px dashed #dccfb8;
   }
 
   .bm-print-table-wrap {
@@ -1081,6 +1579,17 @@
       width: 100%;
       padding: 12px !important;
       overflow: visible !important;
+    }
+
+    .bm-print-card {
+      page-break-inside: avoid;
+      break-inside: avoid;
+      box-shadow: none !important;
+    }
+
+    .bm-print-cards-wrap {
+      background: #fff !important;
+      border-color: #ddd !important;
     }
 
     .bm-print-backdrop {

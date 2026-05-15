@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -7,6 +7,9 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import "./inventory.css";
+
+/** Inventory table: rows per page (client-side slice; localStorage + in-memory list unchanged). */
+const INV_TABLE_PAGE_SIZE = 10;
 
 const INVENTORY_STORAGE_KEY = "abela-admin-inventory-v1";
 
@@ -57,6 +60,7 @@ export default function InventoryManagement() {
   ]);
   const [currentTab, setCurrentTab]         = useState("Rooms");
   const [searchQuery, setSearchQuery]       = useState("");
+  const [invPage, setInvPage]             = useState(1);
   const [nextId, setNextId]                 = useState(9);
   /** One paint cycle: show table loading while restoring from localStorage (no API yet). */
   const [hydrating, setHydrating]           = useState(true);
@@ -166,14 +170,32 @@ export default function InventoryManagement() {
     }
   }, [inventory, activityLog, nextId, hydrating]);
 
-  /* ── FILTER ── */
-  const catFilter = currentTab === "Rooms" ? "Room" : "Event";
-  const filtered = inventory.filter(item =>
-    item.category === catFilter &&
-    (item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     item.unit.toLowerCase().includes(searchQuery.toLowerCase()) ||
-     String(item.quantity).includes(searchQuery))
-  );
+  const filtered = useMemo(() => {
+    const catFilter = currentTab === "Rooms" ? "Room" : "Event";
+    const q = searchQuery.toLowerCase();
+    return inventory.filter(
+      (item) =>
+        item.category === catFilter &&
+        (item.name.toLowerCase().includes(q) ||
+          item.unit.toLowerCase().includes(q) ||
+          String(item.quantity).includes(searchQuery)),
+    );
+  }, [inventory, currentTab, searchQuery]);
+
+  const invTotalPages = Math.max(1, Math.ceil(filtered.length / INV_TABLE_PAGE_SIZE));
+  const invCurrentPage = Math.min(Math.max(1, invPage), invTotalPages);
+  const invPageStart = (invCurrentPage - 1) * INV_TABLE_PAGE_SIZE;
+  const pagedItems = filtered.slice(invPageStart, invPageStart + INV_TABLE_PAGE_SIZE);
+  const invRangeFrom = filtered.length === 0 ? 0 : invPageStart + 1;
+  const invRangeTo = filtered.length === 0 ? 0 : invPageStart + pagedItems.length;
+
+  useEffect(() => {
+    setInvPage(1);
+  }, [searchQuery, currentTab]);
+
+  useEffect(() => {
+    setInvPage((p) => Math.min(Math.max(1, p), invTotalPages));
+  }, [invTotalPages]);
 
   /* ── ADD / EDIT ── */
   function openAddModal() {
@@ -303,7 +325,7 @@ export default function InventoryManagement() {
   return (
     <>
       <RailPortalShell
-        rootClassName="app-root"
+        rootClassName="app-layout admin-app-layout app-root"
         mainStyle={mainStyle}
         sidebar={<AdminSidebarNav />}
       >
@@ -382,7 +404,7 @@ export default function InventoryManagement() {
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan="7" className="inv-empty">No items found.</td></tr>
-                ) : filtered.map(item => {
+                ) : pagedItems.map(item => {
                   const st = getStatus(item);
                   return (
                     <tr key={item.id}>
@@ -418,6 +440,34 @@ export default function InventoryManagement() {
                 })}
               </tbody>
             </table>
+            {!hydrating && filtered.length > 0 ? (
+              <div className="inv-pagination-bar" aria-label="Inventory pages">
+                <span className="inv-pagination-info">
+                  Showing {invRangeFrom}–{invRangeTo} of {filtered.length}
+                </span>
+                <div className="inv-pagination-btns">
+                  <button
+                    type="button"
+                    className="inv-page-btn"
+                    disabled={invCurrentPage <= 1}
+                    onClick={() => setInvPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <span className="inv-pagination-pages">
+                    Page {invCurrentPage} of {invTotalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="inv-page-btn"
+                    disabled={invCurrentPage >= invTotalPages}
+                    onClick={() => setInvPage((p) => Math.min(invTotalPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </main>
       </RailPortalShell>

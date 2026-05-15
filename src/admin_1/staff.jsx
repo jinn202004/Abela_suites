@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
+import { useState, useEffect, useCallback, useLayoutEffect, useRef, useMemo } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -14,11 +14,13 @@ import {
 } from "../api/staffApi";
 import "./staff.css";
 
+/** Rows per page — UI-only; full list still loads from `fetchStaffList` (no API/DB changes). */
+const STAFF_PAGE_SIZE = 10;
+
 const emptyForm = {
   name: "",
   email: "",
   role: "Front Desk",
-  department: "Operations",
   contact: "",
   status: "Active",
   password: "",
@@ -40,6 +42,7 @@ export default function StaffManagement() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [toast, setToast] = useState({ visible: false, msg: "" });
+  const [page, setPage] = useState(1);
 
   /** Block stray pointer/click activation right after landing on this route (sidebar ghost-click). */
   const suppressModalOpensUntilRef = useRef(0);
@@ -76,17 +79,33 @@ export default function StaffManagement() {
     void loadStaff();
   }, [loadStaff]);
 
-  const filtered = staff.filter((s) => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return (
-      String(s.name ?? "").toLowerCase().includes(q) ||
-      String(s.email ?? "").toLowerCase().includes(q) ||
-      String(s.role ?? "").toLowerCase().includes(q) ||
-      String(s.department ?? "").toLowerCase().includes(q) ||
-      String(s.contact ?? "").includes(q) ||
-      String(s.status ?? "").toLowerCase().includes(q)
-    );
-  });
+    return staff.filter((s) => {
+      return (
+        String(s.name ?? "").toLowerCase().includes(q) ||
+        String(s.email ?? "").toLowerCase().includes(q) ||
+        String(s.role ?? "").toLowerCase().includes(q) ||
+        String(s.contact ?? "").includes(q) ||
+        String(s.status ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [staff, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / STAFF_PAGE_SIZE));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+  const pageStart = (currentPage - 1) * STAFF_PAGE_SIZE;
+  const pagedRows = filtered.slice(pageStart, pageStart + STAFF_PAGE_SIZE);
+  const rangeFrom = filtered.length === 0 ? 0 : pageStart + 1;
+  const rangeTo = filtered.length === 0 ? 0 : pageStart + pagedRows.length;
+
+  useEffect(() => {
+    setPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    setPage((p) => Math.min(Math.max(1, p), totalPages));
+  }, [totalPages]);
 
   const openAdd = () => {
     if (performance.now() < suppressModalOpensUntilRef.current) return;
@@ -103,7 +122,6 @@ export default function StaffManagement() {
       name: row.name ?? "",
       email: row.email ?? "",
       role: row.role ?? "Front Desk",
-      department: row.department ?? "",
       contact: row.contact ?? "",
       status: row.status ?? "Active",
       password: "",
@@ -127,9 +145,9 @@ export default function StaffManagement() {
   };
 
   const saveStaff = async () => {
-    const { name, email, role, department, contact, status, password, confirmPassword } = form;
-    if (!name.trim() || !email.trim() || !department.trim() || !contact.trim()) {
-      setFormErr("Name, email, department, and contact are required.");
+    const { name, email, role, contact, status, password, confirmPassword } = form;
+    if (!name.trim() || !email.trim() || !contact.trim()) {
+      setFormErr("Name, email, and contact are required.");
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
@@ -157,7 +175,6 @@ export default function StaffManagement() {
         name: name.trim(),
         email: email.trim(),
         role,
-        department: department.trim(),
         contact: contact.trim(),
         status,
       };
@@ -209,7 +226,7 @@ export default function StaffManagement() {
   return (
     
     <>
-      <RailPortalShell rootClassName="app-root" mainStyle={mainStyle} sidebar={<AdminSidebarNav />}>
+      <RailPortalShell rootClassName="app-layout admin-app-layout app-root" mainStyle={mainStyle} sidebar={<AdminSidebarNav />}>
         <header className="topbar">
           <div className="topbar-breadcrumb">
             <AdminSidebarToggle />
@@ -262,7 +279,6 @@ export default function StaffManagement() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
-                  <th>Department</th>
                   <th>Contact</th>
                   <th>Status</th>
                   <th>Action</th>
@@ -271,23 +287,22 @@ export default function StaffManagement() {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="7" className="sm-empty">
+                    <td colSpan="6" className="sm-empty">
                       Loading…
                     </td>
                   </tr>
                 ) : filtered.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="sm-empty">
+                    <td colSpan="6" className="sm-empty">
                       No staff found.
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((s) => (
+                  pagedRows.map((s) => (
                     <tr key={s.id}>
                       <td>{s.name}</td>
                       <td>{s.email}</td>
                       <td>{s.role}</td>
-                      <td>{s.department}</td>
                       <td>{s.contact}</td>
                       <td>
                         <span className={`sm-badge ${badgeClass(s.status)}`}>{s.status}</span>
@@ -314,6 +329,34 @@ export default function StaffManagement() {
                 )}
               </tbody>
             </table>
+            {!loading && filtered.length > 0 ? (
+              <div className="sm-pagination-bar" aria-label="Staff list pages">
+                <span className="sm-pagination-info">
+                  Showing {rangeFrom}–{rangeTo} of {filtered.length}
+                </span>
+                <div className="sm-pagination-btns">
+                  <button
+                    type="button"
+                    className="sm-page-btn"
+                    disabled={currentPage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  <span className="sm-pagination-pages">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    className="sm-page-btn"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </main>
       </RailPortalShell>
@@ -358,22 +401,9 @@ export default function StaffManagement() {
 
             <div className="sm-form-row">
               <div className="sm-form-group">
-                <label>Department</label>
-                <input
-                  type="text"
-                  className="sm-input"
-                  placeholder="e.g. Front Office"
-                  value={form.department}
-                  onChange={handleChange("department")}
-                />
-              </div>
-              <div className="sm-form-group">
                 <label>Contact</label>
                 <input type="text" className="sm-input" placeholder="09XXXXXXXXX" maxLength="11" value={form.contact} onChange={handleChange("contact")} />
               </div>
-            </div>
-
-            <div className="sm-form-row">
               <div className="sm-form-group">
                 <label>Status</label>
                 <div className="sm-select-wrap">

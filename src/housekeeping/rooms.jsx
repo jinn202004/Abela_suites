@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -12,9 +8,11 @@ import {
   fetchHousekeepingTasksBackend,
   postHousekeepingReconcileMissingBackend,
   putHousekeepingTaskStatusBackend,
+  deleteHousekeepingTaskBackend,
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
   HOUSEKEEPING_TASKS_STORAGE_PING_KEY,
   dispatchHousekeepingTasksRefresh,
+  dispatchHousekeepingInboxRefresh,
 } from "../api/guestApi";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { useAuthRole } from "../context/AuthRoleContext";
@@ -92,22 +90,28 @@ function formatDateLabel(s) {
 
 function roomRowFromTask(t) {
   const asset = t.room;
-  const num = asset?.roomNumber ?? "—";
-  const pkg = String(asset?.package || asset?.title || "").trim() || "—";
   const b = t.booking;
+  if (!asset || !String(asset.id || "").trim()) return null;
+  const numFromBooking = String(b?.roomNumber ?? "").trim();
+  const num =
+    (asset?.roomNumber != null && String(asset.roomNumber).trim() !== ""
+      ? String(asset.roomNumber).trim()
+      : "") ||
+    numFromBooking ||
+    "—";
+  /** Package label comes only from the Rooms catalog (API `room`), not booking free-text titles. */
+  const pkg = String(asset?.package || asset?.title || "").trim() || "—";
   const guest = b?.customerName?.trim() || "—";
   const email = b?.email?.trim() || "";
   const phone = b?.contactNumber?.trim() || "";
   const checkIn = formatDateLabel(b?.checkIn);
   const checkOut = formatDateLabel(b?.checkOut);
-  const assetLabel = assetStatusToLabel(asset?.status);
-  /** Completed cleaning → show as guest-ready room (matches housekeeping mock). */
+  const assetLabel = assetStatusToLabel(asset.status);
   const displayStatus = t.status === "completed" ? "Available" : assetLabel;
   return {
     taskId: t.id,
     number: num,
     package: pkg,
-    typeLabel: "Room",
     guest,
     guestDetail: [email, phone].filter(Boolean).join(" · ") || "—",
     stayLabel: checkIn !== "—" || checkOut !== "—" ? `${checkIn} → ${checkOut}` : "—",
@@ -133,13 +137,10 @@ export default function RoomCleaning() {
   const [viewReport, setViewReport] = useState(null);
   const [damageByTaskId, setDamageByTaskId] = useState(() => readDamageMap());
 
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { role } = useAuthRole();
   const { needsCleaningCount, displayNotifications, markHousekeepingInboxSeen } =
     useHousekeepingCleaningNotifications();
-  const { topbarProfile } = useTopbarUserProfile("housekeeping");
   const {
     sidebarCollapsed,
     isMobile,
@@ -152,8 +153,6 @@ export default function RoomCleaning() {
     logoWrapStyle,
     logoImgStyle,
   } = useHousekeepingSidebarLayout();
-  const userRef = useRef(null);
-  const notifRef = useRef(null);
   const toastDismissRef = useRef(null);
 
   const loadTasks = useCallback(async (opts = {}) => {
@@ -192,11 +191,11 @@ export default function RoomCleaning() {
   }, [role]);
 
   useEffect(() => {
-    loadTasks({ silent: false, reconcile: true });
+    loadTasks({ silent: false, reconcile: false });
   }, [loadTasks]);
 
   useEffect(() => {
-    const onToken = () => loadTasks({ reconcile: true });
+    const onToken = () => loadTasks({ reconcile: false });
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
   }, [loadTasks]);
@@ -222,9 +221,9 @@ export default function RoomCleaning() {
       lastFocusLoad = now;
       loadTasks();
     };
-    const onHK = () => loadTasks({ reconcile: true });
+    const onHK = () => loadTasks({ silent: true });
     const onStorage = (e) => {
-      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadTasks({ reconcile: true });
+      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadTasks({ silent: true });
     };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onFocus);
@@ -239,16 +238,7 @@ export default function RoomCleaning() {
     };
   }, [loadTasks]);
 
-  useEffect(() => {
-    function handler(e) {
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const rows = useMemo(() => tasks.map(roomRowFromTask), [tasks]);
+  const rows = useMemo(() => tasks.map(roomRowFromTask).filter(Boolean), [tasks]);
 
   const tabMatch = (r, tab) => {
     if (tab === "pending") return r.taskStatus === "pending";
@@ -264,7 +254,6 @@ export default function RoomCleaning() {
       const hay = [
         String(r.number),
         r.package,
-        r.typeLabel,
         r.guest,
         r.guestDetail,
         r.stayLabel,
@@ -282,20 +271,38 @@ export default function RoomCleaning() {
     if (loadError) {
       return { title: "", sub: "" };
     }
-    if (rows.length === 0) {
+    if (loading) {
+      return { title: "", sub: "" };
+    }
+    if (filtered.length === 0) {
+      if (search.trim()) {
+        return { title: "No matches", sub: "Try a different search or clear the search box." };
+      }
+      if (rows.length === 0) {
+        return {
+          title: "No cleaning tasks found",
+          sub: "There are no housekeeping tasks in the database for rooms, or none match your account. Tasks are created from the housekeepingtask collection when linked to a valid room.",
+        };
+      }
+      if (currentTab === "pending") {
+        return {
+          title: "No pending cleaning tasks found.",
+          sub: "Tasks may be in progress, completed, or there are no open room cleaning tasks.",
+        };
+      }
+      if (currentTab === "inprogress") {
+        return {
+          title: "No tasks in progress",
+          sub: "Start a pending task, or check Completed if cleaning was already finished.",
+        };
+      }
       return {
-        title: "No room tasks yet",
-        sub: "Sign in with housekeeping@abela.demo (API). When front desk approves a real booking, this list updates automatically within a few seconds. Sample/offline rows on front desk do not create tasks.",
+        title: "No completed tasks in this view",
+        sub: "Completed tasks roll off the active queue; adjust filters or search if needed.",
       };
     }
-    if (search.trim()) {
-      return { title: "No matches", sub: "Try a different search or clear the search box." };
-    }
-    return {
-      title: "Nothing in this tab",
-      sub: "Switch to In progress or Completed if the task moved already.",
-    };
-  }, [loadError, rows.length, search]);
+    return { title: "", sub: "" };
+  }, [loadError, loading, filtered.length, rows.length, search, currentTab]);
 
   function showToast(title, sub) {
     if (toastDismissRef.current) {
@@ -343,6 +350,33 @@ export default function RoomCleaning() {
     }
   }
 
+  async function handleDelete(taskId) {
+    if (
+      !window.confirm(
+        "Remove this cleaning task from the list? This does not change the room’s catalog status. You can reconcile later if a new task is needed."
+      )
+    ) {
+      return;
+    }
+    setBusyId(taskId);
+    try {
+      await deleteHousekeepingTaskBackend(taskId);
+      setDamageByTaskId((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+      await loadTasks();
+      dispatchHousekeepingTasksRefresh();
+      dispatchHousekeepingInboxRefresh();
+      showToast("Removed", "Task removed from the queue.");
+    } catch (e) {
+      showToast("Delete failed", e?.message || "Request failed.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   function getBadgeClass(displayStatus) {
     if (displayStatus === "Need Clean") return "badge-needclean";
     if (displayStatus === "In Progress") return "badge-inprogress";
@@ -353,6 +387,19 @@ export default function RoomCleaning() {
     if (lower === "pending" || lower.includes("pending")) return "badge-booking-pending";
     if (lower === "rejected" || lower === "declined" || lower === "cancelled") return "badge-booking-rejected";
     return "badge-neutral";
+  }
+
+  /** No room/venue status yet — hide cell so a neutral pill is not mistaken for a control beside Start. */
+  function isUnspecifiedStatus(displayStatus) {
+    const s = String(displayStatus ?? "").trim();
+    if (!s) return true;
+    return /^[\u002D\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]+$/u.test(s);
+  }
+
+  function taskStatusCell(displayStatus) {
+    if (isUnspecifiedStatus(displayStatus)) return null;
+    const s = String(displayStatus ?? "").trim();
+    return <span className={`rc-badge ${getBadgeClass(s)}`}>{s}</span>;
   }
 
   function openDamageModal(taskId) {
@@ -426,45 +473,15 @@ export default function RoomCleaning() {
               </span>,
             ]}
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => {
-                  if (!v) void markHousekeepingInboxSeen();
-                  return !v;
-                });
-              }}
-              notifications={displayNotifications}
-              title="Cleaning queue"
-              bellIconClassName="topbar-icon"
-              dot={needsCleaningCount > 0 ? "active" : null}
-              dotTitle="Cleaning tasks or alerts"
-            />
-
-            <div className="icon-btn" ref={userRef} onClick={() => setUserOpen((v) => !v)}>
-              <TopbarUserIcon className="topbar-icon" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                &#9662;
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.housekeeping.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <StaffTopbarActions
+            roleKey="housekeeping"
+            notifications={displayNotifications}
+            bellTitle="Cleaning queue"
+            dot={needsCleaningCount > 0 ? "active" : null}
+            dotTitle="Cleaning tasks or alerts"
+            onNotificationsPanelOpen={() => void markHousekeepingInboxSeen()}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         <main className="content">
@@ -497,7 +514,7 @@ export default function RoomCleaning() {
               <input
                 type="text"
                 className="rc-search-input"
-                placeholder="Search rooms, type, status…"
+                placeholder="Search rooms, package, status…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -511,7 +528,6 @@ export default function RoomCleaning() {
                   <tr>
                     <th>Number</th>
                     <th>Package</th>
-                    <th>Type</th>
                     <th>Status</th>
                     <th>Action</th>
                   </tr>
@@ -519,13 +535,13 @@ export default function RoomCleaning() {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="rc-empty">
+                      <td colSpan={4} className="rc-empty">
                         Loading…
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="rc-empty" style={{ textAlign: "center", padding: "28px 20px", verticalAlign: "top" }}>
+                      <td colSpan={4} className="rc-empty" style={{ textAlign: "center", padding: "28px 20px", verticalAlign: "top" }}>
                         {loadError ? (
                           <span style={{ fontSize: 13, color: "#9a8060" }}>See the message above.</span>
                         ) : (
@@ -541,11 +557,9 @@ export default function RoomCleaning() {
                       <tr key={r.taskId}>
                         <td>{r.number}</td>
                         <td>{r.package}</td>
-                        <td>{r.typeLabel}</td>
+                        <td>{taskStatusCell(r.displayStatus)}</td>
                         <td>
-                          <span className={`rc-badge ${getBadgeClass(r.displayStatus)}`}>{r.displayStatus}</span>
-                        </td>
-                        <td>
+                          <div className="rc-action-cell">
                           {r.taskStatus === "pending" ? (
                             <button
                               type="button"
@@ -581,6 +595,18 @@ export default function RoomCleaning() {
                               </button>
                             )
                           ) : null}
+                          {(r.taskStatus === "pending" || r.taskStatus === "in_progress") ? (
+                            <button
+                              type="button"
+                              className="rc-action-btn btn-delete-task"
+                              disabled={busyId === r.taskId}
+                              title="Remove this task from the list"
+                              onClick={() => void handleDelete(r.taskId)}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))

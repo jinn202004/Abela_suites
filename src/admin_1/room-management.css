@@ -3,8 +3,6 @@
 .rm-app {
   min-height: 100vh;
   width: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
 .rm-app .content {
@@ -39,6 +37,16 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   width: 100%;
+}
+
+.rm-app.admin-rooms-page .rm-stats-row.rm-stats-row--room-dash {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .rm-app.admin-rooms-page .rm-stats-row.rm-stats-row--room-dash {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 900px) {
@@ -81,6 +89,16 @@
 
   .rm-room-switch {
     width: 100%;
+  }
+
+  .rm-pagination-bar {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+
+  .rm-pagination-btns {
+    justify-content: center;
   }
 }
 
@@ -344,6 +362,64 @@
   padding: 28px 16px !important;
 }
 
+/* ── Table pagination (client-side; Room + Event admin share these classes) ── */
+.rm-pagination-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
+  border-top: 1px solid #f0e8d8;
+  background: #faf8f4;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  color: var(--text-mid);
+}
+
+.rm-pagination-info {
+  flex-shrink: 0;
+}
+
+.rm-pagination-btns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.rm-pagination-pages {
+  font-family: "Montserrat", sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dark);
+  min-width: 7.5rem;
+  text-align: center;
+}
+
+.rm-page-btn {
+  padding: 7px 13px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-dark);
+  background: #fff;
+  border: 1px solid #e8dcc8;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.rm-page-btn:hover:not(:disabled) {
+  border-color: var(--gold);
+  background: #fffdf8;
+}
+
+.rm-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .rm-thumb {
   width: 52px;
   height: 52px;
@@ -370,6 +446,13 @@
   font-family: "Montserrat", sans-serif;
   font-size: 11px;
   font-weight: 700;
+  background: #ebe4d8;
+  color: #3a2e1e;
+}
+
+.rm-badge.badge-neutral {
+  background: #ebe4d8;
+  color: #3a2e1e;
 }
 
 .rm-badge.badge-available {
@@ -755,7 +838,14 @@
   position: fixed;
   bottom: 28px;
   left: 50%;
+  right: auto;
+  top: auto;
   transform: translateX(-50%);
+  width: max-content;
+  max-width: min(420px, calc(100vw - 24px));
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -767,7 +857,13 @@
   font-family: "Roboto", sans-serif;
   font-size: 14px;
   color: var(--text-dark);
-  z-index: 1200;
+  z-index: 10050;
+}
+
+.rm-toast span {
+  min-width: 0;
+  text-align: left;
+  word-break: break-word;
 }
 
 .rm-toast.active {

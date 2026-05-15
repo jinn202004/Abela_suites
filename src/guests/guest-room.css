@@ -14,7 +14,7 @@
     --text-light: #9a8060;
     --border:     #d4b97a;
     --bg-page:    #f5f0e8;
-    --card-bg:    #fdf8f0;
+    --card-bg:    #faf9f6;
   
     --avail-green: #27ae60;
     --avail-red:   #e74c3c;
@@ -133,7 +133,8 @@
   /* ============================================
      PAGE CONTENT
      ============================================ */
-  .guest-room-page.guest-portal-layout .main-wrapper > .content {
+  .guest-room-page.guest-portal-layout .main-wrapper > .content,
+  .guest-events-page.guest-portal-layout .main-wrapper > .content {
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -296,17 +297,24 @@
   /* ============================================
      ROOMS LIST + CARD
      ============================================ */
-  .rooms-list { padding: 24px 32px; display: flex; flex-direction: column; gap: 18px; }
-  
-  .guest-room-page .room-card {
+  .guest-room-page .rooms-list,
+  .guest-events-page .rooms-list {
+    padding: 24px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .guest-room-page .room-card,
+  .guest-events-page .room-card {
     background: var(--card-bg);
-    border-radius: 10px;
-    border: 1px solid #e8dcc8;
+    border-radius: 12px;
+    border: 1px solid #ebe8e2;
     display: flex;
     align-items: stretch;
     min-width: 0;
     overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.07);
     transition: box-shadow 0.25s, border-color 0.25s, opacity 0.3s;
     position: relative;
     container-type: inline-size;
@@ -357,7 +365,8 @@
    * Image column matches full card height (same as .room-info); photo fills the column
    * with object-fit: cover so no empty band below the thumbnail on desktop row layout.
    */
-  .guest-room-page .room-img-wrap {
+  .guest-room-page .room-img-wrap,
+  .guest-events-page .room-img-wrap {
     flex: 0 0 min(220px, 42%);
     width: min(220px, 42%);
     max-width: 46%;
@@ -367,7 +376,8 @@
     min-width: 0;
     min-height: 0;
   }
-  .guest-room-page .room-img-aspect {
+  .guest-room-page .room-img-aspect,
+  .guest-events-page .room-img-aspect {
     position: relative;
     flex: 1 1 auto;
     width: 100%;
@@ -376,7 +386,8 @@
     background: #e8e0d4;
     border-radius: 10px 0 0 10px;
   }
-  .guest-room-page .room-img-aspect img {
+  .guest-room-page .room-img-aspect img,
+  .guest-events-page .room-img-aspect img {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -388,10 +399,10 @@
   .room-info {
     flex: 1;
     min-width: 0;
-    padding: 18px 22px 16px;
+    padding: 20px 22px 18px;
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    gap: 8px;
   }
   .room-name {
     font-family: 'Montserrat', sans-serif;
@@ -406,7 +417,7 @@
   .room-price-new { font-family: 'Montserrat', sans-serif; font-size: 19px; font-weight: 700; color: var(--gold); }
   .room-guests { display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-mid); margin-left: 2px; }
   .room-desc { font-size: 13px; color: var(--text-dark); line-height: 1.5; margin-top: 2px; overflow-wrap: anywhere; word-wrap: break-word; }
-  /* Match .venue-features-label / .venue-features-grid on event page */
+  /* Match .features-label / .features-grid on event venues (same classes as rooms). */
   .room-info .features-label { font-size: 13px; font-weight: 500; color: var(--text-dark); margin-top: 4px; }
   .features-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; min-width: 0; }
   .feature-item { font-size: 12.5px; color: var(--text-mid); overflow-wrap: anywhere; }
@@ -430,7 +441,8 @@
 
   /* Narrow cards: one column of features so labels do not collide with the image column */
   @container room-card (max-width: 540px) {
-    .guest-room-page .features-grid {
+    .guest-room-page .features-grid,
+    .guest-events-page .features-grid {
       grid-template-columns: 1fr;
     }
   }
@@ -475,22 +487,30 @@
     .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
     .breadcrumb-title { font-size: 15px; }
     .notif-dropdown { max-width: min(270px, calc(100vw - 20px)); }
-    .rooms-list { padding: 14px 12px; }
-    .guest-room-page .room-card { flex-direction: column; }
-    .guest-room-page .room-img-wrap {
+    .guest-room-page .rooms-list,
+    .guest-events-page .rooms-list {
+      padding: 14px 12px;
+    }
+    .guest-room-page .room-card,
+    .guest-events-page .room-card {
+      flex-direction: column;
+    }
+    .guest-room-page .room-img-wrap,
+    .guest-events-page .room-img-wrap {
       width: 100%;
       max-width: none;
       flex: 0 0 auto;
       align-self: stretch;
       display: block;
     }
-    .guest-room-page .room-img-aspect {
+    .guest-room-page .room-img-aspect,
+    .guest-events-page .room-img-aspect {
       flex: none;
       width: 100%;
       min-height: 0;
       height: 0;
       padding-bottom: 56.25%;
-      border-radius: 10px 10px 0 0;
+      border-radius: 12px 12px 0 0;
     }
     .availability-bar { gap: 10px; padding: 12px 16px; }
     .avail-error-line { padding-left: 16px; padding-right: 16px; }
@@ -823,6 +843,26 @@
   .booking-form .form-row--stay-calendars {
     align-items: start;
   }
+  .booking-form .form-row--stay-calendars .booking-cal-unavailable-hint {
+    grid-column: 1 / -1;
+    margin: 0;
+    padding: 8px 12px;
+    font-family: "Roboto", sans-serif;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-dark);
+    background: rgba(184, 146, 42, 0.1);
+    border: 1px solid rgba(212, 196, 168, 0.95);
+    border-radius: 8px;
+  }
+  .booking-form .form-row--stay-calendars .booking-cal-unavailable-hint strong {
+    color: var(--gold-dark);
+    font-weight: 700;
+  }
+  .booking-form .form-row--stay-calendars .booking-cal-unavailable-hint__inline {
+    font-weight: 700;
+    color: var(--gold-dark);
+  }
   .booking-day-picker-wrap {
     border: 1.5px solid #d4c4a8;
     border-radius: 10px;
@@ -845,10 +885,87 @@
     --rdp-day_button-border-radius: 8px;
     margin: 0 auto;
   }
-  .booking-form .booking-cal-day-booked .rdp-day_button {
-    background: rgba(192, 57, 43, 0.18) !important;
-    color: #7b241c !important;
+  /*
+   * Front desk dashboard calendar tones (dashboard.css: .fd-cal-cell, --occupied, --reserved)
+   * are applied to react-day-picker day cells via modifiersClassNames. Map colors onto the
+   * outer .rdp-day grid cell and keep the inner button visually transparent so it matches the desk.
+   */
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2px;
+    cursor: default;
+    box-sizing: border-box;
+  }
+  /* Same tones as front desk walk-in / dashboard calendar (explicit so guest modal does not depend on load order). */
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--occupied {
+    background: #e74c3c;
+    border: 1px solid #c0392b;
+    border-radius: 8px;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--reserved {
+    background: #f1c40f;
+    border: 1px solid #d4ac0d;
+    border-radius: 8px;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 40px;
+    width: 100%;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 13px;
     font-weight: 600;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--reserved .rdp-day_button {
+    color: #4a3d08 !important;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--occupied .rdp-day_button {
+    color: #fff !important;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell.rdp-disabled:not(.rdp-selected) {
+    opacity: 1 !important;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell.rdp-disabled .rdp-day_button:disabled {
+    opacity: 1 !important;
+    cursor: default !important;
+  }
+
+  .booking-form-fd-cal-legend {
+    margin: 4px 0 0;
+  }
+  .booking-form-fd-cal-legend .fd-cal-legend {
+    margin-top: 10px;
+  }
+  .booking-cal-legend-help {
+    margin: 10px 0 0;
+    padding: 0;
+    font-family: "Roboto", sans-serif;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-mid);
+    max-width: 52ch;
+  }
+  .booking-cal-legend-help strong {
+    color: var(--text-dark);
+    font-weight: 700;
+  }
+  .booking-form-fd-cal-legend .fd-cal-legend-swatch--occupied {
+    background: #e74c3c;
+    border-color: #c0392b;
+  }
+  .booking-form-fd-cal-legend .fd-cal-legend-swatch--reserved {
+    background: #f1c40f;
+    border-color: #d4ac0d;
+  }
+
+  .booking-form-fd-cal-legend + .booking-schedule-note {
+    margin-top: 12px;
   }
   .booking-cal-hint {
     display: block;
@@ -1001,17 +1118,93 @@
   .btn-clear:hover { border-color: var(--gold); }
   .btn-submit-reservation { padding: 10px 28px; background: var(--gold-dark); color: #ffffff; border: none; border-radius: 6px; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.04em; cursor: pointer; transition: background 0.2s; }
   .btn-submit-reservation:hover { background: var(--gold); }
+
+  .booking-review-summary {
+    margin-top: 8px;
+    padding: 14px 16px;
+    background: #faf8f4;
+    border: 1px solid #ebe2d4;
+    border-radius: 8px;
+    text-align: left;
+  }
+  .booking-review-summary__title {
+    font-family: "Montserrat", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold-dark);
+    margin: 0 0 10px;
+  }
+  .booking-review-summary__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-dark);
+  }
+  .booking-review-summary__list li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    justify-content: space-between;
+    border-bottom: 1px solid #ebe5dc;
+    padding-bottom: 6px;
+  }
+  .booking-review-summary__list li:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+  }
+  .booking-review-summary__k {
+    color: var(--text-mid);
+    font-weight: 500;
+  }
+  .booking-review-summary__v {
+    font-weight: 600;
+    text-align: right;
+    max-width: 65%;
+  }
+  .booking-review-summary__v--muted {
+    font-weight: 500;
+    color: var(--text-mid);
+    font-size: 12px;
+  }
+  .booking-gcash-draft-note {
+    margin: 10px 0 0;
+    padding: 10px 12px;
+    background: #e8f6ee;
+    border: 1px solid #b8dfc8;
+    border-radius: 6px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #1e5a33;
+  }
   
   /* ============================================
      CONFIRM DIALOG
      ============================================ */
   .confirm-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 600; align-items: center; justify-content: center; }
   .confirm-backdrop.active { display: flex; }
-  .confirm-dialog { background: #ffffff; border-radius: 10px; padding: 40px 52px 32px; text-align: center; max-width: 360px; width: 90%; box-shadow: 0 16px 50px rgba(0,0,0,0.28); animation: modalIn 0.25s ease both; }
+  .confirm-dialog { background: #ffffff; border-radius: 10px; padding: 32px 28px 28px; text-align: center; max-width: 440px; width: 92%; max-height: min(90vh, 560px); overflow-y: auto; box-shadow: 0 16px 50px rgba(0,0,0,0.28); animation: modalIn 0.25s ease both; }
   .confirm-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 16px; }
   .confirm-exclaim { position: absolute; font-family: 'Montserrat', sans-serif; font-size: 38px; font-weight: 800; color: #e74c3c; line-height: 1; margin-top: -4px; }
-  .confirm-title { font-family: 'Montserrat', sans-serif; font-size: 20px; font-weight: 700; color: var(--gold); margin-bottom: 28px; }
-  .confirm-btns { display: flex; justify-content: center; gap: 14px; }
+  .confirm-title { font-family: 'Montserrat', sans-serif; font-size: 20px; font-weight: 700; color: var(--gold); margin-bottom: 8px; }
+  .confirm-sub { font-size: 13px; color: var(--text-mid); line-height: 1.45; margin: 0 0 16px; }
+  .confirm-booking-summary {
+    text-align: left;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-dark);
+    background: #faf8f4;
+    border: 1px solid #ebe2d4;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin: 0 0 20px;
+  }
+  .confirm-booking-summary p { margin: 0 0 6px; }
+  .confirm-booking-summary p:last-child { margin-bottom: 0; }
+  .confirm-btns { display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; }
   .btn-cancel-confirm { padding: 10px 32px; background: transparent; color: var(--text-dark); border: 1.5px solid #d4c4a8; border-radius: 6px; font-family: 'Roboto', sans-serif; font-size: 14px; font-weight: 500; cursor: pointer; transition: border-color 0.2s; }
   .btn-cancel-confirm:hover { border-color: var(--gold); }
   .btn-submit-confirm { padding: 10px 32px; background: var(--gold-dark); color: #ffffff; border: none; border-radius: 6px; font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 700; letter-spacing: 0.03em; cursor: pointer; transition: background 0.2s; }
@@ -1022,12 +1215,29 @@
      ============================================ */
   .payment-modal-body {
     display: flex !important;
-    flex-direction: row !important;
-    gap: 28px;
-    padding: 28px 32px 32px;
+    flex-direction: column !important;
+    gap: 16px;
+    padding: 20px 32px 28px;
     overflow-y: auto;
   }
-  
+
+  .payment-modal-lead {
+    margin: 0;
+    padding: 0 0 4px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-mid);
+    text-align: left;
+    border-bottom: 1px solid #ebe2d4;
+  }
+
+  .payment-modal-columns {
+    display: flex;
+    flex-direction: row;
+    gap: 28px;
+    align-items: flex-start;
+  }
+
   .payment-qr-side {
     flex-shrink: 0;
     display: flex;

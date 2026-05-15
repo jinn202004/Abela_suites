@@ -17,7 +17,12 @@ function mergeSnapshot(defaults, snap) {
       snap.phone != null && String(snap.phone).trim()
         ? String(snap.phone).trim()
         : defaults.contact,
-    roleLabel: snap.role != null && String(snap.role).trim() ? String(snap.role).trim() : defaults.roleLabel,
+    /**
+     * Never take `snap.role` into the menu badge. Snapshot is last login’s user.role; it can stay
+     * “admin” after switching to the front desk / cashier / HK shell in the same tab, which mislabels
+     * the portal. The badge always reflects the shell (`TOPBAR[roleKey].profile.roleLabel`).
+     */
+    roleLabel: defaults.roleLabel,
   };
 }
 

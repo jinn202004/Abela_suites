@@ -1,9 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { TopbarUserIcon } from "./frontdeskTopbarIcons";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -17,8 +13,12 @@ import {
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
   patchRoomHousekeepingStatusBackend,
   dispatchHousekeepingTasksRefresh,
+  dispatchHousekeepingInboxRefresh,
 } from "../api/guestApi";
 import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { pdfSafeText, openPdfPrintOrDownload } from "../utils/pdfClientExport";
 import "./frontdesk-housekeeping.css";
 
 const sidebarNav = [
@@ -120,13 +120,62 @@ function displayStatusLabel(statusRaw) {
 /** Values allowed by PATCH /api/rooms/:id/housekeeping-status */
 const HK_OPTIONS = [
   { value: "needs_cleaning", label: "Needs clean" },
-  { value: "ready", label: "Available" },
+  { value: "available", label: "Available" },
 ];
+
+/** PDF of the current filtered list only — read-only; does not PATCH rooms or touch the database. */
+function downloadHousekeepingRoomListPdf(rows, searchFilter, getPendingLabel) {
+  const list = Array.isArray(rows) ? rows : [];
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const margin = 14;
+  let y = 14;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("ABELA SUITES", margin, y);
+  y += 7;
+  doc.setFontSize(11);
+  doc.text("Housekeeping room list (read-only)", margin, y);
+  y += 5;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString("en-PH")}`, 88), margin, y);
+  y += 5;
+  const q = String(searchFilter || "").trim();
+  if (q) {
+    doc.text(pdfSafeText(`Search filter: ${q}`, 80), margin, y);
+    y += 5;
+  }
+  y += 2;
+
+  const head = [["Room #", "Type", "Status", "Pending selection"]];
+  const body =
+    list.length > 0
+      ? list.map((r) => [
+          pdfSafeText(r.number, 16),
+          pdfSafeText(r.type, 48),
+          pdfSafeText(r.displayStatus, 24),
+          pdfSafeText(typeof getPendingLabel === "function" ? getPendingLabel(r) : "—", 28),
+        ])
+      : [["—", "No rooms in this view", "", ""]];
+
+  autoTable(doc, {
+    startY: y,
+    head,
+    body,
+    styles: { fontSize: 8, cellPadding: 1.5 },
+    headStyles: { fillColor: [184, 146, 42], textColor: 255 },
+    margin: { left: margin, right: margin },
+    theme: "striped",
+  });
+
+  const stamp = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(new Date().getDate()).padStart(2, "0")}_${String(new Date().getHours()).padStart(2, "0")}${String(new Date().getMinutes()).padStart(2, "0")}${String(new Date().getSeconds()).padStart(2, "0")}`;
+  openPdfPrintOrDownload(doc, `Abela_Housekeeping_RoomList_${stamp}.pdf`);
+}
 
 function hkBackendFromRaw(raw) {
   const s = String(raw || "").toLowerCase();
   if (s === "needs_cleaning") return "needs_cleaning";
-  if (s === "ready" || s === "available") return "ready";
+  if (s === "ready" || s === "available") return "available";
   /** Legacy DB value: no longer a dropdown option; treat as needs clean for the selector. */
   if (s === "cleaning_in_progress") return "needs_cleaning";
   /** Occupied (and any other state): map to needs clean so the two-option control stays valid. */
@@ -139,15 +188,13 @@ export default function HousekeepingRooms() {
   const { pendingCount, displayNotifications, markStaffNotificationsSeen } = useFrontdeskPendingNotifications({
     bookingType: "all",
   });
-  const { topbarProfile } = useTopbarUserProfile("frontdesk");
-  const userRef = useRef(null);
-  const notifRef = useRef(null);
   const [roomRows, setRoomRows] = useState([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [search, setSearch]       = useState("");
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen]   = useState(false);
+  /** Client-side table pagination only; same `fetchRoomsCatalog` load as before (no API/DB change). */
+  const [hkListPage, setHkListPage] = useState(1);
+  const [hkListPageSize, setHkListPageSize] = useState(10);
   const [statusDraft, setStatusDraft] = useState({});
   const [savingRoomKey, setSavingRoomKey] = useState(null);
   const [rowActionError, setRowActionError] = useState({});
@@ -202,15 +249,6 @@ export default function HousekeepingRooms() {
     };
   }, [loadRooms]);
 
-  useEffect(() => {
-    function handler(e) {
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   const countNeedClean = roomRows.filter(
     (r) => r.rawStatus === "needs_cleaning" || r.rawStatus === "cleaning_in_progress",
   ).length;
@@ -220,14 +258,32 @@ export default function HousekeepingRooms() {
   ).length;
   const countTotal = roomRows.length;
 
-  const filtered = roomRows.filter((r) => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return (
-      r.number.toLowerCase().includes(q) ||
-      r.type.toLowerCase().includes(q) ||
-      r.displayStatus.toLowerCase().includes(q)
+    return roomRows.filter(
+      (r) =>
+        r.number.toLowerCase().includes(q) ||
+        r.type.toLowerCase().includes(q) ||
+        r.displayStatus.toLowerCase().includes(q),
     );
-  });
+  }, [roomRows, search]);
+
+  const hkPageSizeSafe = Math.min(100, Math.max(5, Number(hkListPageSize) || 10));
+  const hkTotalPages = Math.max(1, Math.ceil(filtered.length / hkPageSizeSafe));
+  const hkPageSafe = Math.min(Math.max(1, hkListPage), hkTotalPages);
+
+  const pagedRows = useMemo(() => {
+    const start = (hkPageSafe - 1) * hkPageSizeSafe;
+    return filtered.slice(start, start + hkPageSizeSafe);
+  }, [filtered, hkPageSafe, hkPageSizeSafe]);
+
+  useEffect(() => {
+    setHkListPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    setHkListPage((p) => Math.min(Math.max(1, p), hkTotalPages));
+  }, [hkTotalPages]);
 
   function getBadgeClass(displayStatus) {
     if (displayStatus === "Available") return "hk-badge badge-available";
@@ -246,6 +302,7 @@ export default function HousekeepingRooms() {
     try {
       await patchRoomHousekeepingStatusBackend(r.key, selected);
       dispatchHousekeepingTasksRefresh();
+      dispatchHousekeepingInboxRefresh();
       setStatusDraft((d) => {
         const next = { ...d };
         delete next[r.key];
@@ -282,51 +339,17 @@ export default function HousekeepingRooms() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Housekeeping</span>
           </div>
-          <div className="topbar-actions">
-
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => {
-                  if (!v) void markStaffNotificationsSeen();
-                  return !v;
-                });
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              dot={pendingCount > 0 ? "active" : null}
-              dotTitle="Pending or unread alerts"
-              onItemClick={(n) => {
-                setNotifOpen(false);
-                setUserOpen(false);
-                openStaffNotification(n);
-              }}
-            />
-
-            <div className="icon-btn" ref={userRef} onClick={() => setUserOpen((v) => !v)}>
-              <TopbarUserIcon />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                &#9662;
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.frontdesk.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-
-          </div>
+          <StaffTopbarActions
+            roleKey="frontdesk"
+            notifications={displayNotifications}
+            dot={pendingCount > 0 ? "active" : null}
+            dotTitle="Pending or unread alerts"
+            onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
+            onNotificationItemClick={(n) => {
+              openStaffNotification(n);
+            }}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         {/* ── PAGE CONTENT ── */}
@@ -394,7 +417,22 @@ export default function HousekeepingRooms() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <button className="btn-print" onClick={() => window.print()}>
+            <button
+              type="button"
+              className="btn-print"
+              title="Open room list as PDF (read-only; does not save changes)"
+              onClick={() => {
+                try {
+                  downloadHousekeepingRoomListPdf(filtered, search, (r) => {
+                    const v = statusDraft[r.key] ?? hkBackendFromRaw(r.rawStatus);
+                    const o = HK_OPTIONS.find((x) => x.value === v);
+                    return o ? o.label : String(v);
+                  });
+                } catch (e) {
+                  window.alert(String(e?.message || "Could not build PDF."));
+                }
+              }}
+            >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                 <polyline points="6 9 6 2 18 2 18 9"/>
                 <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
@@ -406,7 +444,9 @@ export default function HousekeepingRooms() {
 
           {loadError ? <p className="hk-inline-error">{loadError}</p> : null}
           <p className="hk-inline-hint">
-            Choose a status from the list (caret), then click Update to save. Housekeeping staff also update tasks from the housekeeping app.
+            Choose a status from the list (caret), then click Update to save. When you set <strong>Needs clean</strong>,
+            housekeeping gets a Room Cleaning task and an inbox alert (same data as the housekeeping app). You cannot
+            mark <strong>Available</strong> while the room is still checked in as occupied — use check-out first.
           </p>
 
           {isMobile ? (
@@ -417,7 +457,7 @@ export default function HousekeepingRooms() {
                 <p className="fd-hk-mobile__empty">No rooms match your search.</p>
               ) : (
                 <ul className="fd-hk-mobile__list">
-                  {filtered.map((r) => (
+                  {pagedRows.map((r) => (
                     <li key={r.key}>
                       <article className="fd-hk-card">
                         <div className="fd-hk-card__top">
@@ -502,7 +542,7 @@ export default function HousekeepingRooms() {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((r) => (
+                    pagedRows.map((r) => (
                       <tr key={r.key}>
                         <td>{r.number}</td>
                         <td>{r.type}</td>
@@ -549,6 +589,70 @@ export default function HousekeepingRooms() {
               </table>
             </div>
           )}
+
+          {!loading && filtered.length > 0 ? (
+            <div className="fd-hk-pagination" role="navigation" aria-label="Housekeeping room list pages">
+              <div className="fd-hk-pagination-meta">
+                <span>
+                  Showing{" "}
+                  <strong>
+                    {filtered.length === 0 ? 0 : (hkPageSafe - 1) * hkPageSizeSafe + 1}
+                  </strong>
+                  –
+                  <strong>{Math.min(hkPageSafe * hkPageSizeSafe, filtered.length)}</strong> of{" "}
+                  <strong>{filtered.length}</strong>
+                </span>
+                <label className="fd-hk-pagination-per">
+                  <span>Rows per page</span>
+                  <select
+                    className="fd-hk-pagination-select"
+                    value={hkPageSizeSafe}
+                    onChange={(e) => {
+                      setHkListPageSize(Number(e.target.value));
+                      setHkListPage(1);
+                    }}
+                  >
+                    {[5, 10, 15, 25, 50].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="fd-hk-pagination-btns">
+                <button
+                  type="button"
+                  className="fd-hk-page-btn"
+                  disabled={hkPageSafe <= 1}
+                  onClick={() =>
+                    setHkListPage((p) => {
+                      const cur = Math.min(Math.max(1, p), hkTotalPages);
+                      return Math.max(1, cur - 1);
+                    })
+                  }
+                >
+                  Previous
+                </button>
+                <span className="fd-hk-page-indicator">
+                  Page {hkPageSafe} of {hkTotalPages}
+                </span>
+                <button
+                  type="button"
+                  className="fd-hk-page-btn"
+                  disabled={hkPageSafe >= hkTotalPages}
+                  onClick={() =>
+                    setHkListPage((p) => {
+                      const cur = Math.min(Math.max(1, p), hkTotalPages);
+                      return Math.min(hkTotalPages, cur + 1);
+                    })
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
 
         </main>
       </RailPortalShell>

@@ -336,11 +336,23 @@
     cursor: pointer; transition: opacity 0.2s; white-space: nowrap;
   }
   .rc-action-btn:hover { opacity: 0.85; }
-  
+  .rc-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   .btn-start     { background: #f1c40f; color: #3a2e1e; }
   .btn-completed { background: #27ae60; color: #fff; }
   .btn-reportdmg { background: var(--gold-dark); color: #fff; }
   .btn-viewreport{ background: #888; color: #fff; }
+  .btn-delete-task { background: #c0392b; color: #fff; }
+
+  .rc-action-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
   
   /* ============================================
      MODAL BACKDROP

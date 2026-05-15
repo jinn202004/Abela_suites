@@ -48,15 +48,18 @@ export async function getDashboardSummary() {
 }
 
 /**
- * Front desk dashboard tables only show three labels for rooms and venues.
- * Maps Mongo asset `status` (rooms + event venues share the same enum).
+ * Room / event venue operational status for the front desk dashboard.
+ * Matches housekeeping-driven `Room.status` / `EventVenue.status` from the API catalog.
+ * Labels align with the housekeeping module: Available, Needs clean, In Progress, Complete (ready), Occupied.
  */
 function dashboardAssetStatusLabel(s) {
   const k = normStatus(s);
   if (!k) return "—";
+  if (k === "available") return "Available";
   if (k === "occupied") return "Occupied";
-  if (k === "needs_cleaning" || k === "cleaning_in_progress") return "Needs clean";
-  if (k === "available" || k === "ready") return "Available";
+  if (k === "needs_cleaning") return "Needs clean";
+  if (k === "cleaning_in_progress") return "In Progress";
+  if (k === "ready") return "Complete";
   return "—";
 }
 

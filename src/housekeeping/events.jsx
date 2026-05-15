@@ -1,9 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -12,9 +8,11 @@ import {
   fetchHousekeepingTasksBackend,
   postHousekeepingReconcileMissingBackend,
   putHousekeepingTaskStatusBackend,
+  deleteHousekeepingTaskBackend,
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
   HOUSEKEEPING_TASKS_STORAGE_PING_KEY,
   dispatchHousekeepingTasksRefresh,
+  dispatchHousekeepingInboxRefresh,
 } from "../api/guestApi";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { useAuthRole } from "../context/AuthRoleContext";
@@ -90,46 +88,23 @@ function formatDateLabel(s) {
   return Number.isNaN(d.getTime()) ? str : d.toLocaleDateString("en-PH");
 }
 
-/** Stable 6-digit display when venue `eventNum` is missing (from Mongo ObjectId tail). */
-function displayNumberFromBookingId(idStr) {
-  const hex = String(idStr || "").replace(/[^a-fA-F0-9]/g, "");
-  if (hex.length < 6) return "";
-  const n = parseInt(hex.slice(-6), 16);
-  if (!Number.isFinite(n)) return "";
-  const compact = (n % 900_000) + 100_000;
-  return String(compact);
-}
-
+/** Venue code from Event Venues catalog only — no synthetic numbers from booking ids. */
 function venueRowFromTask(t) {
   const asset = t.eventVenue;
   const b = t.booking;
-  const numFromVenue =
+  if (!asset || !String(asset.id || "").trim()) return null;
+  const num =
     asset?.eventNum != null && String(asset.eventNum).trim() !== ""
       ? String(asset.eventNum).trim()
-      : "";
-  const numFromBookingId = b?.id ? displayNumberFromBookingId(b.id) : "";
-  /** Number = venue code when linked; otherwise a numeric booking ref. */
-  const num = numFromVenue || numFromBookingId || "—";
-  const pkg =
-    String(
-      asset?.name ||
-        asset?.package ||
-        b?.venueName ||
-        b?.eventTitle ||
-        ""
-    ).trim() || "—";
+      : "—";
+  /** Same rule as room cleaning: catalog `package` first, then display name (never booking venueName/eventTitle). */
+  const pkg = String(asset?.package || asset?.name || "").trim() || "—";
   const guest = b?.customerName?.trim() || "—";
   const email = b?.email?.trim() || "";
   const phone = b?.contactNumber?.trim() || "";
   const checkIn = formatDateLabel(b?.checkIn);
   const checkOut = formatDateLabel(b?.checkOut);
-  const assetLabel = asset
-    ? assetStatusToLabel(asset.status)
-    : b?.bookingStatus
-      ? String(b.bookingStatus)
-          .replace(/_/g, " ")
-          .replace(/\b\w/g, (c) => c.toUpperCase())
-      : "—";
+  const assetLabel = assetStatusToLabel(asset.status);
   const displayStatus = t.status === "completed" ? "Available" : assetLabel;
   return {
     taskId: t.id,
@@ -161,13 +136,10 @@ export default function EventCleaning() {
   const [viewReport, setViewReport] = useState(null);
   const [damageByTaskId, setDamageByTaskId] = useState(() => readDamageMap());
 
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { role } = useAuthRole();
   const { needsCleaningCount, displayNotifications, markHousekeepingInboxSeen } =
     useHousekeepingCleaningNotifications();
-  const { topbarProfile } = useTopbarUserProfile("housekeeping");
   const {
     sidebarCollapsed,
     isMobile,
@@ -180,8 +152,6 @@ export default function EventCleaning() {
     logoWrapStyle,
     logoImgStyle,
   } = useHousekeepingSidebarLayout();
-  const userRef = useRef(null);
-  const notifRef = useRef(null);
   const toastDismissRef = useRef(null);
 
   const loadTasks = useCallback(async (opts = {}) => {
@@ -220,11 +190,11 @@ export default function EventCleaning() {
   }, [role]);
 
   useEffect(() => {
-    loadTasks({ silent: false, reconcile: true });
+    loadTasks({ silent: false, reconcile: false });
   }, [loadTasks]);
 
   useEffect(() => {
-    const onToken = () => loadTasks({ reconcile: true });
+    const onToken = () => loadTasks({ reconcile: false });
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
   }, [loadTasks]);
@@ -250,9 +220,9 @@ export default function EventCleaning() {
       lastFocusLoad = now;
       loadTasks();
     };
-    const onHK = () => loadTasks({ reconcile: true });
+    const onHK = () => loadTasks({ silent: true });
     const onStorage = (e) => {
-      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadTasks({ reconcile: true });
+      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadTasks({ silent: true });
     };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("focus", onFocus);
@@ -267,16 +237,7 @@ export default function EventCleaning() {
     };
   }, [loadTasks]);
 
-  useEffect(() => {
-    function handler(e) {
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const rows = useMemo(() => tasks.map(venueRowFromTask), [tasks]);
+  const rows = useMemo(() => tasks.map(venueRowFromTask).filter(Boolean), [tasks]);
 
   const tabMatch = (r, tab) => {
     if (tab === "pending") return r.taskStatus === "pending";
@@ -310,20 +271,38 @@ export default function EventCleaning() {
     if (loadError) {
       return { title: "", sub: "" };
     }
-    if (rows.length === 0) {
+    if (loading) {
+      return { title: "", sub: "" };
+    }
+    if (filtered.length === 0) {
+      if (search.trim()) {
+        return { title: "No matches", sub: "Try a different search or clear the search box." };
+      }
+      if (rows.length === 0) {
+        return {
+          title: "No cleaning tasks found",
+          sub: "No housekeeping tasks available for event venues, or no tasks are assigned to your account.",
+        };
+      }
+      if (currentTab === "pending") {
+        return {
+          title: "No pending cleaning tasks found.",
+          sub: "Tasks may be in progress, completed, or there are no open venue cleaning tasks.",
+        };
+      }
+      if (currentTab === "inprogress") {
+        return {
+          title: "No tasks in progress",
+          sub: "Start a pending task, or check Completed if cleaning was already finished.",
+        };
+      }
       return {
-        title: "No event venue tasks yet",
-        sub: "Sign in with housekeeping@abela.demo (API). When front desk approves an event booking, tasks appear here automatically. Sample/offline rows on front desk do not create tasks.",
+        title: "No completed tasks in this view",
+        sub: "Completed tasks roll off the active queue; adjust filters or search if needed.",
       };
     }
-    if (search.trim()) {
-      return { title: "No matches", sub: "Try a different search or clear the search box." };
-    }
-    return {
-      title: "Nothing in this tab",
-      sub: "Switch to In progress or Completed if the task moved already.",
-    };
-  }, [loadError, rows.length, search]);
+    return { title: "", sub: "" };
+  }, [loadError, loading, filtered.length, rows.length, search, currentTab]);
 
   function showToast(title, sub) {
     setToast({ title, sub });
@@ -358,6 +337,33 @@ export default function EventCleaning() {
     }
   }
 
+  async function handleDelete(taskId) {
+    if (
+      !window.confirm(
+        "Remove this cleaning task from the list? This does not change the venue’s catalog status. You can reconcile later if a new task is needed."
+      )
+    ) {
+      return;
+    }
+    setBusyId(taskId);
+    try {
+      await deleteHousekeepingTaskBackend(taskId);
+      setDamageByTaskId((prev) => {
+        const next = { ...prev };
+        delete next[taskId];
+        return next;
+      });
+      await loadTasks();
+      dispatchHousekeepingTasksRefresh();
+      dispatchHousekeepingInboxRefresh();
+      showToast("Removed", "Task removed from the queue.");
+    } catch (e) {
+      showToast("Delete failed", e?.message || "Request failed.");
+    } finally {
+      setBusyId("");
+    }
+  }
+
   function getBadgeClass(displayStatus) {
     if (displayStatus === "Need Clean") return "badge-needclean";
     if (displayStatus === "In Progress") return "badge-inprogress";
@@ -368,6 +374,18 @@ export default function EventCleaning() {
     if (lower === "pending" || lower.includes("pending")) return "badge-booking-pending";
     if (lower === "rejected" || lower === "declined" || lower === "cancelled") return "badge-booking-rejected";
     return "badge-neutral";
+  }
+
+  function isUnspecifiedStatus(displayStatus) {
+    const s = String(displayStatus ?? "").trim();
+    if (!s) return true;
+    return /^[\u002D\u2010-\u2015\u2212\uFE58\uFE63\uFF0D]+$/u.test(s);
+  }
+
+  function taskStatusCell(displayStatus) {
+    if (isUnspecifiedStatus(displayStatus)) return null;
+    const s = String(displayStatus ?? "").trim();
+    return <span className={`rc-badge ${getBadgeClass(s)}`}>{s}</span>;
   }
 
   function openDamageModal(taskId) {
@@ -441,45 +459,15 @@ export default function EventCleaning() {
               </span>,
             ]}
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => {
-                  if (!v) void markHousekeepingInboxSeen();
-                  return !v;
-                });
-              }}
-              notifications={displayNotifications}
-              title="Cleaning queue"
-              bellIconClassName="topbar-icon"
-              dot={needsCleaningCount > 0 ? "active" : null}
-              dotTitle="Cleaning tasks or alerts"
-            />
-
-            <div className="icon-btn" ref={userRef} onClick={() => setUserOpen((v) => !v)}>
-              <TopbarUserIcon className="topbar-icon" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                &#9662;
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.housekeeping.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <StaffTopbarActions
+            roleKey="housekeeping"
+            notifications={displayNotifications}
+            bellTitle="Cleaning queue"
+            dot={needsCleaningCount > 0 ? "active" : null}
+            dotTitle="Cleaning tasks or alerts"
+            onNotificationsPanelOpen={() => void markHousekeepingInboxSeen()}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         <main className="content">
@@ -552,15 +540,14 @@ export default function EventCleaning() {
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((r, idx) => (
+                    filtered.map((r) => (
                       <tr key={r.taskId}>
-                        <td>{idx + 1}</td>
+                        <td>{r.number}</td>
                         <td>{r.package}</td>
                         <td>{r.typeLabel}</td>
+                        <td>{taskStatusCell(r.displayStatus)}</td>
                         <td>
-                          <span className={`rc-badge ${getBadgeClass(r.displayStatus)}`}>{r.displayStatus}</span>
-                        </td>
-                        <td>
+                          <div className="rc-action-cell">
                           {r.taskStatus === "pending" ? (
                             <button
                               type="button"
@@ -596,6 +583,18 @@ export default function EventCleaning() {
                               </button>
                             )
                           ) : null}
+                          {(r.taskStatus === "pending" || r.taskStatus === "in_progress") ? (
+                            <button
+                              type="button"
+                              className="rc-action-btn btn-delete-task"
+                              disabled={busyId === r.taskId}
+                              title="Remove this task from the list"
+                              onClick={() => void handleDelete(r.taskId)}
+                            >
+                              Delete
+                            </button>
+                          ) : null}
+                          </div>
                         </td>
                       </tr>
                     ))

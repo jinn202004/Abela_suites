@@ -1,10 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { TopbarUserIcon } from "./frontdeskTopbarIcons";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
@@ -26,16 +22,10 @@ import {
   dispatchHousekeepingTasksRefresh,
 } from "../api/guestApi";
 import { getSessionRole, getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
+import { pdfSafeText, openPdfPrintOrDownload } from "../utils/pdfClientExport";
 import "./frontdesk-bills.css";
-
-/** Demo rows: filterAtMs aligns with check-in (DD-MM-YYYY) for time-range filter. */
-const initialBills = [
-  { id: 1, customer: "James", room: 4,  package: "Twin Bed",      checkin: "11-02-2026", checkout: "15-02-2026", amount: 0,    roomType: "Single suite",    date: "19/02/2026", addGuest: 0, totalPaid: 0,    balance: 0,    bookingType: "room", filterAtMs: new Date(2026, 1, 11, 12, 0, 0).getTime() },
-  { id: 2, customer: "Jay",   room: 10, package: "Single Suites",  checkin: "17-02-2026", checkout: "18-02-2026", amount: 576,  roomType: "Single Suites",   date: "17/02/2026", addGuest: 0, totalPaid: 576,  balance: 0,    bookingType: "room", filterAtMs: new Date(2026, 1, 17, 12, 0, 0).getTime() },
-  { id: 3, customer: "Maria", room: 3,  package: "Twin Bed",       checkin: "10-02-2026", checkout: "12-02-2026", amount: 800,  roomType: "Twin Bed",         date: "10/02/2026", addGuest: 1, totalPaid: 400,  balance: 400,  bookingType: "room", filterAtMs: new Date(2026, 1, 10, 12, 0, 0).getTime() },
-  { id: 4, customer: "Pedro", room: 7,  package: "Family",         checkin: "05-02-2026", checkout: "08-02-2026", amount: 2205, roomType: "Family",           date: "05/02/2026", addGuest: 2, totalPaid: 661,  balance: 1544, bookingType: "room", filterAtMs: new Date(2026, 1, 5, 12, 0, 0).getTime() },
-  { id: 5, customer: "Ana",   room: 2,  package: "Double Std",     checkin: "20-02-2026", checkout: "22-02-2026", amount: 1400, roomType: "Double Standard",  date: "20/02/2026", addGuest: 0, totalPaid: 1400, balance: 0,    bookingType: "room", filterAtMs: new Date(2026, 1, 20, 12, 0, 0).getTime() },
-];
 
 const filterOptions = ["All Time", "Today", "Last 7 Days", "Last 30 Days"];
 
@@ -167,6 +157,206 @@ function billPassesTimeFilter(filterLabel, ms) {
   return true;
 }
 
+/** Compact page list for client-side table paging (same idea as admin bills). */
+function visibleClientPageNumbers(currentPage, totalPages) {
+  const t = Math.max(1, Math.min(5000, Number(totalPages) || 1));
+  const c = Math.min(Math.max(1, Number(currentPage) || 1), t);
+  if (t <= 9) return Array.from({ length: t }, (_, i) => i + 1);
+  const set = new Set([1, t, c, c - 1, c + 1]);
+  return [...set].filter((p) => p >= 1 && p <= t).sort((a, b) => a - b);
+}
+
+function fmtPdfMoney(n) {
+  return `PHP ${Number(n || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+/** Check-in or event date on a bill row (ISO or localized string). */
+function parsePrimaryBillDate(raw) {
+  const s = String(raw || "").trim();
+  if (!s || s === "—") return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+    const t = new Date(`${s.slice(0, 10)}T12:00:00`);
+    return Number.isNaN(t.getTime()) ? null : t;
+  }
+  const t = new Date(s);
+  return Number.isNaN(t.getTime()) ? null : t;
+}
+
+/** @param {string} monthYm `YYYY-MM` from `<input type="month" />`, or "" for all */
+function rowMatchesReportMonth(row, monthYm) {
+  if (!monthYm) return true;
+  const d = parsePrimaryBillDate(row.checkin);
+  if (!d) return false;
+  const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return ym === monthYm;
+}
+
+function roomBillRowsForReport(allRows, monthYm) {
+  return (Array.isArray(allRows) ? allRows : []).filter(
+    (r) => String(r?.bookingType || "").toLowerCase() !== "event" && rowMatchesReportMonth(r, monthYm),
+  );
+}
+
+/**
+ * @param {Array<object>} rows
+ * @param {string} monthYm
+ */
+function downloadRoomTransactionsPdf(rows, monthYm) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const margin = 12;
+  let y = 14;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(15);
+  doc.text("ABELA SUITES", margin, y);
+  y += 6;
+  doc.setFontSize(10);
+  doc.text("All room transactions", margin, y);
+  y += 4;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(100, 80, 60);
+  const period = monthYm
+    ? `Month: ${monthYm} (check-in / event date on file)`
+    : "All dates — room bills currently loaded";
+  doc.text(pdfSafeText(period, 140), margin, y);
+  y += 4;
+  doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString("en-PH")}`, 120), margin, y);
+  y += 7;
+  doc.setTextColor(0, 0, 0);
+
+  const body = rows.map((r) => [
+    String(r.id ?? "—"),
+    pdfSafeText(r.customer, 28),
+    pdfSafeText(String(r.room), 10),
+    pdfSafeText(String(r.package), 24),
+    pdfSafeText(String(r.checkin), 12),
+    pdfSafeText(String(r.checkout), 12),
+    fmtPdfMoney(r.amount),
+    fmtPdfMoney(r.totalPaid),
+    fmtPdfMoney(r.balance),
+    pdfSafeText(String(r.paymentStatus || "—"), 10),
+  ]);
+
+  autoTable(doc, {
+    startY: y,
+    head: [["#", "Customer", "Room", "Package", "Check-in", "Check-out", "Amount", "Paid", "Balance", "Pay status"]],
+    body,
+    styles: { fontSize: 7.5, cellPadding: 1.2 },
+    headStyles: { fillColor: [150, 116, 35], textColor: 255 },
+    columnStyles: {
+      0: { cellWidth: 10, halign: "center" },
+      6: { halign: "right" },
+      7: { halign: "right" },
+      8: { halign: "right" },
+    },
+    margin: { left: margin, right: margin },
+    theme: "grid",
+  });
+
+  const stamp = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(new Date().getDate()).padStart(2, "0")}_${String(new Date().getHours()).padStart(2, "0")}${String(new Date().getMinutes()).padStart(2, "0")}`;
+  const mtag = monthYm ? `_${monthYm}` : "_all";
+  openPdfPrintOrDownload(doc, `Abela_Room_Transactions${mtag}_${stamp}.pdf`);
+}
+
+/**
+ * @param {object} row - mapped bill row from `loadBillingRows`
+ * @param {object|null} details - optional payload from `fetchFrontdeskBookingDetailsBackend`
+ */
+function downloadFrontdeskBillPdf(row, details) {
+  const bk = details?.booking || {};
+  const bill = details?.billing || {};
+  const guest = details?.guest || {};
+
+  const totalAmount = Number(
+    bill.totalAmount != null ? bill.totalAmount : row.amount ?? 0,
+  );
+  const amountPaid = Number(
+    bill.amountPaid != null ? bill.amountPaid : row.totalPaid ?? 0,
+  );
+  const balance = Number(
+    bill.balance != null ? bill.balance : Math.max(0, totalAmount - amountPaid),
+  );
+  const paymentStatus = String(
+    bill.paymentStatus || row.paymentStatus || "—",
+  );
+
+  const customer = pdfSafeText(guest?.name || bk.customerName || row.customer || "Guest", 120);
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const margin = 14;
+  let y = 16;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.text("ABELA SUITES", margin, y);
+  y += 7;
+  doc.setFontSize(12);
+  doc.text("Guest bill / statement", margin, y);
+  y += 9;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString("en-PH")}`, 80), margin, y);
+  y += 6;
+
+  const infoBody = [
+    ["Display bill #", pdfSafeText(row.id ?? "—", 40)],
+    ["Billing record ID", pdfSafeText(row.billId || bill.id || "—", 48)],
+    ["Booking ID", pdfSafeText(row.bookingId || bk.id || "—", 48)],
+    ["Customer", customer],
+    ["Room / venue", pdfSafeText(row.room || "—", 80)],
+    ["Package", pdfSafeText(row.package || "—", 80)],
+    ["Room type / label", pdfSafeText(row.roomType || "—", 80)],
+    ["Check-in / event date", pdfSafeText(row.checkin || "—", 40)],
+    ["Check-out", pdfSafeText(row.checkout || "—", 40)],
+    ["Bill activity date", pdfSafeText(row.date || "—", 40)],
+    ["Booking status", pdfSafeText(bk.status || "—", 32)],
+    ["Payment status", pdfSafeText(paymentStatus, 32)],
+  ];
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Field", "Value"]],
+    body: infoBody,
+    styles: { fontSize: 9, cellPadding: 1.8 },
+    headStyles: { fillColor: [92, 74, 54], textColor: 255 },
+    columnStyles: { 0: { cellWidth: 52 }, 1: { cellWidth: 124 } },
+    margin: { left: margin, right: margin },
+    theme: "grid",
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 6;
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Summary", "Amount"]],
+    body: [
+      ["Total amount", fmtPdfMoney(totalAmount)],
+      ["Total paid", fmtPdfMoney(amountPaid)],
+      ["Remaining balance", fmtPdfMoney(balance)],
+    ],
+    styles: { fontSize: 10, cellPadding: 2 },
+    headStyles: { fillColor: [184, 146, 42], textColor: 255 },
+    columnStyles: { 0: { cellWidth: 110 }, 1: { cellWidth: 66, halign: "right" } },
+    margin: { left: margin, right: margin },
+    theme: "striped",
+  });
+
+  y = (doc.lastAutoTable?.finalY || y) + 8;
+  doc.setFontSize(9);
+  doc.setTextColor(100, 80, 60);
+  doc.text("Thank you for staying with Abela Suites.", margin, y);
+
+  const stamp = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(new Date().getDate()).padStart(2, "0")}_${String(new Date().getHours()).padStart(2, "0")}${String(new Date().getMinutes()).padStart(2, "0")}${String(new Date().getSeconds()).padStart(2, "0")}`;
+  const safeId = String(row.bookingId || row.billId || row.id || "bill")
+    .replace(/[^a-zA-Z0-9-_]/g, "_")
+    .slice(0, 48);
+  const fname = `Abela_Bill_${safeId}_${stamp}.pdf`;
+  openPdfPrintOrDownload(doc, fname);
+}
+
 function billingLoadErrorMessage(err) {
   const code = err && err.code;
   const msg = err && err.message ? String(err.message) : String(err || "Unknown error");
@@ -190,17 +380,16 @@ export default function BillsPage() {
   const { pendingCount, displayNotifications, markStaffNotificationsSeen } = useFrontdeskPendingNotifications({
     bookingType: "all",
   });
-  const { topbarProfile } = useTopbarUserProfile("frontdesk");
-  const userRef = useRef(null);
-  const notifRef = useRef(null);
+  const staffTopbarRef = useRef(null);
 
   const [search, setSearch]             = useState("");
+  /** `YYYY-MM` or "" = all loaded bills (month filter applies to room reports only). */
+  const [reportMonth, setReportMonth]   = useState("");
   const [filter, setFilter]             = useState("All Time");
   const [filterOpen, setFilterOpen]     = useState(false);
-  const [notifOpen, setNotifOpen]       = useState(false);
-  const [userOpen, setUserOpen]         = useState(false);
-  const [billRows, setBillRows]         = useState(initialBills);
-  const [rowsLoading, setRowsLoading]   = useState(false);
+  const [billRows, setBillRows]         = useState([]);
+  /** Start true so we never flash sample rows; cleared in `loadBillingRows` `finally`. */
+  const [rowsLoading, setRowsLoading]   = useState(true);
   /** Set when API fails so we do not look like a “dead DB” with a blank table. */
   const [rowsError, setRowsError]       = useState(null);
   const [selectedBill, setSelectedBill] = useState(null);
@@ -208,6 +397,9 @@ export default function BillsPage() {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [detailsBusy, setDetailsBusy] = useState(false);
   const [paymentDraft, setPaymentDraft] = useState("");
+  /** Client-side table pagination only (full list still loaded once; PDFs & stats use full filtered set). */
+  const [billsPage, setBillsPage] = useState(1);
+  const [billsPageSize, setBillsPageSize] = useState(10);
   const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
 
   const loadBillingRows = useCallback(async () => {
@@ -229,7 +421,7 @@ export default function BillsPage() {
         const roomCell = billRoomColumnFromBooking(bk);
         const packageCell = billPackageColumnFromBooking(bk);
         const bill = r?.billing || {};
-        const filterAtMs = msFromIsoFields(bill.updatedAt, bill.createdAt);
+        const filterAtMs = msFromIsoFields(bk?.updatedAt, bill.updatedAt, bill.createdAt);
         return {
           id: idx + 1,
           billId: rid,
@@ -260,8 +452,8 @@ export default function BillsPage() {
       const bookings = await fetchBookingsBackend().catch(() => []);
       const bookingRows = (Array.isArray(bookings) ? bookings : [])
         .sort((a, b) => {
-          const ta = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
-          const tb = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+          const ta = msFromIsoFields(a?.updatedAt, a?.createdAt) ?? 0;
+          const tb = msFromIsoFields(b?.updatedAt, b?.createdAt) ?? 0;
           return tb - ta;
         })
         .slice(0, 50)
@@ -338,6 +530,43 @@ export default function BillsPage() {
     await loadBillingRows();
   }
 
+  function printBillRowToPdf(row) {
+    try {
+      downloadFrontdeskBillPdf(row, null);
+    } catch (e) {
+      console.error("[frontdesk-bills] PDF error", e);
+      window.alert(
+        String(
+          e?.message ||
+            "Could not open or save the PDF. Allow pop-ups for this site, or check download permissions.",
+        ),
+      );
+    }
+  }
+
+  function printAllRoomTransactionsPdf() {
+    const subset = roomBillRowsForReport(billRows, reportMonth);
+    if (!subset.length) {
+      window.alert(
+        reportMonth
+          ? "No room bills have a check-in date in that month (or dates could not be read)."
+          : "No room bills are loaded yet.",
+      );
+      return;
+    }
+    try {
+      downloadRoomTransactionsPdf(subset, reportMonth);
+    } catch (e) {
+      console.error("[frontdesk-bills] room transactions PDF", e);
+      window.alert(
+        String(
+          e?.message ||
+            "Could not open or save the PDF. Allow pop-ups for this site, or check download permissions.",
+        ),
+      );
+    }
+  }
+
   const openBookingFromBillNotification = useCallback(
     async (notif) => {
       const bookingId = String(notif?.bookingId || "").trim();
@@ -345,8 +574,7 @@ export default function BillsPage() {
       const bookingType = String(notif?.bookingType || "").toLowerCase();
       const notifText = `${String(notif?.msg || "")} ${String(notif?.detail || "")}`.toLowerCase();
       const isEventNotif = bookingType === "event" || notifText.includes("event") || notifText.includes("venue");
-      setNotifOpen(false);
-      setUserOpen(false);
+      staffTopbarRef.current?.hideMenusOnly?.();
       const row = billRows.find((x) => String(x.bookingId || "") === bookingId);
       if (row) {
         await openBillDetails(row);
@@ -361,37 +589,52 @@ export default function BillsPage() {
     [billRows, navigate],
   );
 
-  useEffect(() => {
-    function handler(e) {
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  const timeFilteredRows = billRows.filter((b) =>
-    billPassesTimeFilter(filter, billRowFilterTimeMs(b))
+  const timeFilteredRows = useMemo(
+    () => billRows.filter((b) => billPassesTimeFilter(filter, billRowFilterTimeMs(b))),
+    [billRows, filter],
   );
 
-  const countRoom  = timeFilteredRows.filter((b) => b.bookingType !== "event").length;
-  const countEvent = timeFilteredRows.filter((b) => b.bookingType === "event").length;
+  const countRoom = useMemo(
+    () => timeFilteredRows.filter((b) => b.bookingType !== "event").length,
+    [timeFilteredRows],
+  );
+  const countEvent = useMemo(
+    () => timeFilteredRows.filter((b) => b.bookingType === "event").length,
+    [timeFilteredRows],
+  );
   const countTotal = countRoom + countEvent;
 
-  const filtered = timeFilteredRows.filter((b) => {
+  const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return (
-      b.customer.toLowerCase().includes(q) ||
-      b.package.toLowerCase().includes(q) ||
-      b.room.toString().includes(q) ||
-      b.id.toString().includes(q)
+    return timeFilteredRows.filter(
+      (b) =>
+        b.customer.toLowerCase().includes(q) ||
+        b.package.toLowerCase().includes(q) ||
+        b.room.toString().includes(q) ||
+        b.id.toString().includes(q),
     );
-  });
+  }, [timeFilteredRows, search]);
+
+  const billsPageSizeSafe = Math.min(100, Math.max(5, Number(billsPageSize) || 10));
+  const billsTotalPages = Math.max(1, Math.ceil(filtered.length / billsPageSizeSafe));
+  const billsPageSafe = Math.min(Math.max(1, billsPage), billsTotalPages);
+
+  const pagedBills = useMemo(() => {
+    const start = (billsPageSafe - 1) * billsPageSizeSafe;
+    return filtered.slice(start, start + billsPageSizeSafe);
+  }, [filtered, billsPageSafe, billsPageSizeSafe]);
+
+  useEffect(() => {
+    setBillsPage(1);
+  }, [search, filter, billRows.length]);
+
+  useEffect(() => {
+    setBillsPage((p) => Math.min(Math.max(1, p), billsTotalPages));
+  }, [billsTotalPages]);
 
   function closeAll() {
     setFilterOpen(false);
-    setNotifOpen(false);
-    setUserOpen(false);
+    staffTopbarRef.current?.hideMenusOnly?.();
   }
 
   const { mainStyle } = useFrontdeskShell();
@@ -429,51 +672,19 @@ export default function BillsPage() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Bills</span>
           </div>
-          <div className="topbar-actions">
-
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => {
-                  if (!v) void markStaffNotificationsSeen();
-                  return !v;
-                });
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              dot={pendingCount > 0 ? "active" : null}
-              dotTitle="Pending or unread alerts"
-              onItemClick={(n) => {
-                setNotifOpen(false);
-                setUserOpen(false);
-                openStaffNotification(n);
-              }}
-            />
-
-            <div className="icon-btn" ref={userRef} onClick={(e) => { e.stopPropagation(); setUserOpen((v) => !v); setNotifOpen(false); }}>
-              <TopbarUserIcon />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>&#9662;</span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.frontdesk.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  closeAll();
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  closeAll();
-                  requestLogout();
-                }}
-              />
-            </div>
-
-          </div>
+          <StaffTopbarActions
+            ref={staffTopbarRef}
+            roleKey="frontdesk"
+            notifications={displayNotifications}
+            dot={pendingCount > 0 ? "active" : null}
+            dotTitle="Pending or unread alerts"
+            onMenusClosedExtra={closeAll}
+            onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
+            onNotificationItemClick={(n) => {
+              openStaffNotification(n);
+            }}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         {/* ── PAGE CONTENT ── */}
@@ -552,50 +763,133 @@ export default function BillsPage() {
             </div>
           ) : null}
 
-          {/* Toolbar */}
-          <div className="bills-toolbar">
-            <div className="search-wrap">
-              <svg className="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-              </svg>
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Search reservations..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onClick={(e) => e.stopPropagation()}
-              />
+          {/* Toolbar: search | month | print (same row layout as staff attendance toolbars) */}
+          <div className="fd-bills-main-toolbar">
+            <div className="fd-bills-toolbar-search-col">
+              <div className="fd-bills-toolbar-search-wrap">
+                <svg
+                  className="fd-bills-toolbar-search-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  width="17"
+                  height="17"
+                  aria-hidden
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="search"
+                  className="fd-bills-toolbar-search-input"
+                  placeholder="Search by guest, room, package, bill number…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Search bills"
+                />
+              </div>
             </div>
-
-            {/* Filter — sits beside search, dropdown anchored to it */}
-            <div
-              className="filter-wrap"
-              onClick={(e) => { e.stopPropagation(); setFilterOpen(v => !v); setNotifOpen(false); setUserOpen(false); }}
-            >
-              <span>{filter}</span>
-              <svg
-                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"
-                style={{ transform: filterOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+            <div className="fd-bills-toolbar-month-col">
+              <div className="fd-bills-toolbar-month-head">
+                <span className="fd-bills-toolbar-month-label">Select month</span>
+                {reportMonth ? (
+                  <button
+                    type="button"
+                    className="fd-bills-toolbar-month-clear"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setReportMonth("");
+                    }}
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+              <div className="fd-bills-toolbar-month-input-wrap">
+                <input
+                  type="month"
+                  className="fd-bills-toolbar-month-input"
+                  value={reportMonth}
+                  onChange={(e) => setReportMonth(e.target.value)}
+                  onClick={(e) => e.stopPropagation()}
+                  aria-label="Select month for printed room transaction report"
+                />
+              </div>
+            </div>
+            <div className="fd-bills-toolbar-print-col">
+              <button
+                type="button"
+                className="fd-bills-toolbar-print-btn"
+                onClick={printAllRoomTransactionsPdf}
+                title="Print PDF of all loaded room bills for the selected month (or all months if empty). Uses check-in or event date on each row; event-only bills are excluded."
               >
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-
-              {/* Dropdown rendered only when open — prevents it being visible in the DOM */}
-              {filterOpen && (
-                <div className="filter-dropdown open">
-                  {filterOptions.map((opt) => (
-                    <div
-                      key={opt}
-                      className={`filter-option${filter === opt ? " active" : ""}`}
-                      onClick={(e) => { e.stopPropagation(); setFilter(opt); setFilterOpen(false); }}
-                    >
-                      {opt}
-                    </div>
-                  ))}
-                </div>
-              )}
+                <svg
+                  className="fd-bills-toolbar-print-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  width="18"
+                  height="18"
+                  aria-hidden
+                >
+                  <polyline points="6 9 6 2 18 2 18 9" />
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                  <rect x="6" y="14" width="12" height="8" />
+                </svg>
+                Print
+              </button>
             </div>
+          </div>
+
+          <div className="fd-bills-toolbar-subrow">
+            <div className="fd-bills-toolbar-subrow-filters">
+              <span className="fd-bills-toolbar-range-label">Time range</span>
+              <div
+                className="filter-wrap fd-bills-filter-wrap"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setFilterOpen((v) => !v);
+                  staffTopbarRef.current?.hideMenusOnly?.();
+                }}
+              >
+                <span>{filter}</span>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  width="14"
+                  height="14"
+                  style={{ transform: filterOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                {filterOpen && (
+                  <div className="filter-dropdown open">
+                    {filterOptions.map((opt) => (
+                      <div
+                        key={opt}
+                        className={`filter-option${filter === opt ? " active" : ""}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFilter(opt);
+                          setFilterOpen(false);
+                        }}
+                      >
+                        {opt}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            <p className="fd-bills-toolbar-hint">
+              Month applies to the <strong>Print</strong> PDF only. The table uses <strong>Time range</strong> plus search.
+              Room check-in (or event date on the row); event-only bills are not in the printed room report.
+            </p>
           </div>
 
           {/* Table */}
@@ -609,8 +903,9 @@ export default function BillsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((b) => (
-                  <tr key={b.id}>
+                {!rowsLoading &&
+                  pagedBills.map((b) => (
+                  <tr key={String(b.bookingId || b.billId || b.id)}>
                     <td>{b.id}</td>
                     <td>{b.customer}</td>
                     <td>{b.room}</td>
@@ -623,7 +918,12 @@ export default function BillsPage() {
                         <button type="button" className="action-btn view-btn" title="View details" onClick={() => void openBillDetails(b)}>
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
-                        <button type="button" className="action-btn print-btn" title="Print" onClick={() => window.print()}>
+                        <button
+                          type="button"
+                          className="action-btn print-btn"
+                          title="Open bill PDF for printing (allow pop-ups if nothing happens)"
+                          onClick={() => printBillRowToPdf(b)}
+                        >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
                         </button>
                       </div>
@@ -644,6 +944,89 @@ export default function BillsPage() {
             </table>
           </div>
 
+          {!rowsLoading && filtered.length > 0 ? (
+            <div className="fd-bills-pagination" role="navigation" aria-label="Bills table pages">
+              <div className="fd-bills-pagination-meta">
+                <span>
+                  Showing{" "}
+                  <strong>
+                    {filtered.length === 0 ? 0 : (billsPageSafe - 1) * billsPageSizeSafe + 1}
+                  </strong>
+                  –
+                  <strong>{Math.min(billsPageSafe * billsPageSizeSafe, filtered.length)}</strong> of{" "}
+                  <strong>{filtered.length}</strong>
+                </span>
+                <label className="fd-bills-pagination-per">
+                  <span>Rows per page</span>
+                  <select
+                    className="fd-bills-pagination-select"
+                    value={billsPageSizeSafe}
+                    onChange={(e) => {
+                      setBillsPageSize(Number(e.target.value));
+                      setBillsPage(1);
+                    }}
+                  >
+                    {[5, 10, 15, 25, 50, 100].map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="fd-bills-pagination-btns">
+                <button
+                  type="button"
+                  className="fd-bills-page-btn"
+                  disabled={billsPageSafe <= 1}
+                  onClick={() =>
+                    setBillsPage((p) => {
+                      const cur = Math.min(Math.max(1, p), billsTotalPages);
+                      return Math.max(1, cur - 1);
+                    })
+                  }
+                >
+                  Previous
+                </button>
+                {visibleClientPageNumbers(billsPageSafe, billsTotalPages).map((pNum, idx, arr) => {
+                  const prev = arr[idx - 1];
+                  const showEllipsis = prev != null && pNum - prev > 1;
+                  return (
+                    <span key={pNum} className="fd-bills-page-num-wrap">
+                      {showEllipsis ? (
+                        <span className="fd-bills-page-ellipsis" aria-hidden>
+                          …
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        className={`fd-bills-page-num${pNum === billsPageSafe ? " fd-bills-page-num--active" : ""}`}
+                        aria-label={`Page ${pNum}`}
+                        {...(pNum === billsPageSafe ? { "aria-current": "page" } : {})}
+                        onClick={() => setBillsPage(pNum)}
+                      >
+                        {pNum}
+                      </button>
+                    </span>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="fd-bills-page-btn"
+                  disabled={billsPageSafe >= billsTotalPages}
+                  onClick={() =>
+                    setBillsPage((p) => {
+                      const cur = Math.min(Math.max(1, p), billsTotalPages);
+                      return Math.min(billsTotalPages, cur + 1);
+                    })
+                  }
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
+
         </main>
       </RailPortalShell>
 
@@ -660,11 +1043,6 @@ export default function BillsPage() {
       >
           {selectedBill ? (
             <>
-              <div className="bill-modal-alert">
-                <svg viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="2.5" width="36" height="36">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="0.5" fill="#e74c3c"/>
-                </svg>
-              </div>
               <button className="bill-modal-close" onClick={() => setSelectedBill(null)}>×</button>
               <h3 className="bill-modal-title">Bill Details</h3>
               <hr className="bill-modal-hr" />
@@ -757,7 +1135,7 @@ export default function BillsPage() {
                       </button>
                       <button
                         type="button"
-                        className="action-btn print-btn"
+                        className="bill-modal-reject-btn"
                         disabled={detailsBusy}
                         onClick={async () => {
                           const reason = window.prompt("Reject reason (optional):", "") ?? "";

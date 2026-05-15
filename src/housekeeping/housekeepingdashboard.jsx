@@ -1,9 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
+import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import {
@@ -72,18 +68,6 @@ const NAV_ITEMS = [
   },
 ];
 
-const HK_STAFF = ["Joanah Cultura", "Jujenn Nabo", "Janah Cultura"];
-
-function hashString(s) {
-  let h = 0;
-  for (let i = 0; i < s.length; i++) h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
-  return h;
-}
-
-function staffForSeed(seed) {
-  return HK_STAFF[Math.abs(hashString(String(seed))) % HK_STAFF.length];
-}
-
 function sortKey(n) {
   const v = parseInt(String(n).replace(/\D/g, ""), 10);
   return Number.isNaN(v) ? 99999 : v;
@@ -128,7 +112,7 @@ function buildInventoryRows(rooms, venues) {
   const roomRows = (rooms || []).map((r) => ({
     key: `room-${r.id}`,
     number: r.roomNumber,
-    housekeeping: staffForSeed(`room-${r.roomNumber}`),
+    housekeeping: "—",
     package: String(r.package || r.title || "—").trim() || "—",
     type: "Room",
     displayStatus: displayStatusLabel(r.status),
@@ -137,10 +121,7 @@ function buildInventoryRows(rooms, venues) {
   const venueRows = (venues || []).map((v) => ({
     key: `venue-${v.id}`,
     number: v.eventNum ?? "—",
-    housekeeping:
-      Array.isArray(v.housekeeping) && v.housekeeping.length
-        ? String(v.housekeeping[0]).trim()
-        : staffForSeed(`venue-${v.eventNum}`),
+    housekeeping: "—",
     package: String(v.name || v.package || "—").trim() || "—",
     type: "Event",
     displayStatus: displayStatusLabel(v.status),
@@ -158,14 +139,11 @@ export default function Dashboard() {
   const [damageCount, setDamageCount] = useState(() => readDamageReportCount());
   const [search, setSearch] = useState("");
   const [activeNav, setActiveNav] = useState("");
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { role } = useAuthRole();
 
   const { needsCleaningCount, displayNotifications, markHousekeepingInboxSeen } =
     useHousekeepingCleaningNotifications();
-  const { topbarProfile } = useTopbarUserProfile("housekeeping");
   const {
     sidebarCollapsed,
     isMobile,
@@ -178,8 +156,6 @@ export default function Dashboard() {
     logoWrapStyle,
     logoImgStyle,
   } = useHousekeepingSidebarLayout();
-  const userRef = useRef(null);
-  const notifRef = useRef(null);
   const tableScrollRef = useRef(null);
 
   const syncDamageCount = useCallback(() => {
@@ -238,11 +214,11 @@ export default function Dashboard() {
   );
 
   useEffect(() => {
-    loadAll({ silent: false, reconcile: true });
+    loadAll({ silent: false, reconcile: false });
   }, [loadAll]);
 
   useEffect(() => {
-    const onToken = () => loadAll({ reconcile: true });
+    const onToken = () => loadAll({ reconcile: false });
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onToken);
   }, [loadAll]);
@@ -260,9 +236,9 @@ export default function Dashboard() {
       lastFocusLoad = now;
       loadAll();
     };
-    const onHK = () => loadAll({ reconcile: true });
+    const onHK = () => loadAll({ silent: true, reconcile: false });
     const onStorage = (e) => {
-      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadAll({ reconcile: true });
+      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadAll({ silent: true, reconcile: false });
       if (e.key === DAMAGE_STORAGE_KEY || e.key === null) syncDamageCount();
     };
     document.addEventListener("visibilitychange", onVis);
@@ -310,15 +286,6 @@ export default function Dashboard() {
     if (el) el.scrollLeft = 0;
   }, [isMobile, loading, search, inventoryRows.length, filtered.length]);
 
-  useEffect(() => {
-    function handler(e) {
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
   return (
     <>
       <RailPortalShell
@@ -358,49 +325,15 @@ export default function Dashboard() {
             ]}
           </div>
 
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((p) => {
-                  if (!p) void markHousekeepingInboxSeen();
-                  return !p;
-                });
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              title="Rooms & venues waiting to be cleaned"
-              bellIconClassName="topbar-icon"
-              dot={needsCleaningCount > 0 ? "active" : null}
-              dotTitle="Cleaning tasks or alerts"
-            />
-
-            <div className="icon-btn" ref={userRef} onClick={() => setUserOpen((p) => !p)} style={{ position: "relative" }}>
-              <TopbarUserIcon className="topbar-icon" />
-              <span
-                className="user-arrow"
-                style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-              >
-                &#9662;
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.housekeeping.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <StaffTopbarActions
+            roleKey="housekeeping"
+            notifications={displayNotifications}
+            bellTitle="Rooms & venues waiting to be cleaned"
+            dot={needsCleaningCount > 0 ? "active" : null}
+            dotTitle="Cleaning tasks or alerts"
+            onNotificationsPanelOpen={() => void markHousekeepingInboxSeen()}
+            onRequestLogout={requestLogout}
+          />
         </header>
 
         <main className="content">

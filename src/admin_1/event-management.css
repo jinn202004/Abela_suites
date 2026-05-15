@@ -64,3 +64,13 @@
   background: #f8d7da;
   color: #721c24;
 }
+
+.rm-badge.badge-occupied {
+  background: #cce5ff;
+  color: #004085;
+}
+
+.rm-badge.badge-neutral {
+  background: #ebe4d8;
+  color: #3a2e1e;
+}

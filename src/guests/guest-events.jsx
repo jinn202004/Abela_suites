@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
 import { TOPBAR } from "../topbar/roleTopbarData";
@@ -7,14 +7,40 @@ import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { isVenueAvailableForDates } from "./guestAvailability";
-import { createBookingBackend, bookingSaveAlertMessage, dispatchFrontdeskNotificationsRefresh } from "../api/guestApi";
+import {
+  isVenueAvailableForDates,
+  eventBookedRangesFromBookings,
+  guestEventCalendarNightsFromBookedRanges,
+} from "./guestAvailability";
+import { DayPicker, DayButton, labelDayButton as defaultLabelDayButton } from "react-day-picker";
+import "react-day-picker/style.css";
+import "../frontdesks/dashboard.css";
+import { parseLocalYmd, formatLocalYmd, addLocalDays } from "./roomStayDates";
+import {
+  EVENT_BASE_INCLUDED_HOURS,
+  EVENT_EXTRA_HOUR_FLAT_RATE,
+  durationHoursDecimalFromTimes,
+  buildEventTimeSlotLabel,
+  eventNewRangeOverlapsExisting,
+  parseEventStartEndMinutes,
+} from "./eventVenueTimeShared";
+import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import {
+  createBookingBackend,
+  bookingSaveAlertMessage,
+  dispatchFrontdeskNotificationsRefresh,
+  dispatchGuestBookingsRefreshPing,
+  GUEST_BOOKINGS_STORAGE_PING_KEY,
+  fetchGuestEventCalendarBookings,
+  fetchEventVenuesBackend,
+} from "../api/guestApi";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import GuestSidebar from "./GuestSidebar";
 import { GuestArchiveIcon } from "./guestArchiveIcon";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
+import "./guest-room.css";
 import "./guest-events.css";
 
 /** GCash mark: `public/Gcash.png`. Scan-to-pay QR: `public/QR.png`. */
@@ -102,12 +128,22 @@ const navItems = [
   { label: "Settings",     icon: <SettingsIcon />, href: "/settings"   },
 ];
 
+function eventCalendarRowAccent(statusRaw) {
+  const s = String(statusRaw || "").toLowerCase();
+  if (s === "occupied") return "#e74c3c";
+  if (s === "pending") return "#f1c40f";
+  if (s === "approved" || s === "confirmed") return "#3498db";
+  return "#95a5a6";
+}
+
 // --- Venue Data ---
 const VENUES = [
   {
     id: "skybar",
     name: "Mini Sky Bar",
+    typeLabel: "Rooftop venue",
     price: "₱1,148",
+    priceNum: 1148,
     guests: "30–40 Guests",
     maxGuests: 40,
     desc: "Perfect for debuts, seminars, meetings, birthdays, and more.",
@@ -117,7 +153,9 @@ const VENUES = [
   {
     id: "hall",
     name: "Function Hall",
+    typeLabel: "Banquet hall",
     price: "₱2,205",
+    priceNum: 2205,
     guests: "20–30 Guests",
     maxGuests: 30,
     desc: "With free Breakfast, private toilet and bath, aircon, and wifi.",
@@ -126,12 +164,11 @@ const VENUES = [
   },
 ];
 
-// --- Booking Database ---
-const INITIAL_BOOKED_DATES = [
-  { venueId: "skybar", startDate: "2026-04-05", endDate: "2026-04-05" },
-  { venueId: "skybar", startDate: "2026-04-20", endDate: "2026-04-22" },
-  { venueId: "hall",   startDate: "2026-04-10", endDate: "2026-04-11" },
-];
+/** Use only real API rows for occupancy / calendar (no synthetic demo ranges). */
+function resolveEventOccupancyRangesFromRows(apiRows) {
+  const list = Array.isArray(apiRows) ? apiRows : [];
+  return eventBookedRangesFromBookings(list);
+}
 
 // --- Helpers ---
 function isVenueAvailable(venueId, wantStart, wantEnd, bookedDates) {
@@ -148,17 +185,103 @@ function parsePriceToNumber(priceStr) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function buildEventBookingPayload(form, resVenue, { paymentAmountNum = 0, transactionId = "", idDataUrl = null } = {}) {
-  const venue = VENUES.find((v) => v.name === resVenue);
-  const total = parsePriceToNumber(venue?.price);
+/** Map GET /api/event-venues row → guest Event Venues card (same shape as legacy VENUES). */
+function mapApiEventVenueToGuestCard(v) {
+  const id = String(v?.id ?? v?._id ?? "").trim();
+  const priceNum =
+    typeof v?.price === "number" && Number.isFinite(v.price)
+      ? v.price
+      : parsePriceToNumber(String(v?.price ?? "0"));
+  const name = String(v?.name || v?.venueName || v?.package || "Event venue").trim();
+  const capacity = Number(v?.capacity);
+  const maxGuests = Number.isFinite(capacity) && capacity > 0 ? capacity : 100;
+  const limitStr = String(v?.limit || "").trim();
+  const guests = limitStr && /\d/.test(limitStr) ? limitStr : `${maxGuests} guests`;
+  const desc = String(v?.description || "").trim() || "Reserve this venue for your special event.";
+  const rawFeatures = Array.isArray(v?.features) ? v.features : Array.isArray(v?.amenities) ? v.amenities : [];
+  const features = rawFeatures.length ? rawFeatures : ["See venue details"];
+  const img =
+    String(v?.imageUrl || v?.image || "").trim() ||
+    "https://images.unsplash.com/photo-1519167758481-83f29da34588?w=800";
+  const priceLabel = priceNum > 0 ? `₱${Math.round(priceNum).toLocaleString("en-PH")}` : "₱0";
+  const typeLabel =
+    String(v?.package || "").trim() ||
+    String(v?.venueType || v?.type || "").trim() ||
+    "Event venue";
+  return { id, name, typeLabel, price: priceLabel, priceNum, guests, maxGuests, desc, features, img };
+}
+
+/** Listed venue price = base for the first N hours; each hour beyond that is a flat add-on. */
+
+function roundMoney(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return 0;
+  return Math.round(x * 100) / 100;
+}
+
+function computeEventVenueBill(basePriceNum, durationHoursStr) {
+  const parsed = parseFloat(String(durationHoursStr ?? "").replace(/,/g, ""));
+  const durationHours =
+    Number.isFinite(parsed) && parsed > 0 ? parsed : EVENT_BASE_INCLUDED_HOURS;
+  const base = Number.isFinite(basePriceNum) && basePriceNum > 0 ? basePriceNum : 0;
+  const extraHoursRaw = Math.max(0, durationHours - EVENT_BASE_INCLUDED_HOURS);
+  const hourlyRate = EVENT_EXTRA_HOUR_FLAT_RATE;
+  const additionalCharge = roundMoney(extraHoursRaw * hourlyRate);
+  const total = roundMoney(base + additionalCharge);
+  return {
+    basePrice: base,
+    includedHours: EVENT_BASE_INCLUDED_HOURS,
+    durationHours,
+    extraHours: roundMoney(extraHoursRaw),
+    hourlyRate: roundMoney(hourlyRate),
+    additionalCharge,
+    total,
+  };
+}
+
+function formatEvPeso(n) {
+  const x = roundMoney(n);
+  return `₱${x.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function buildEventPricingFootnote(bill) {
+  return (
+    `[Venue hire ${bill.durationHours} h — base (${EVENT_BASE_INCLUDED_HOURS} h) ${formatEvPeso(bill.basePrice)}; ` +
+    `extra ${bill.extraHours} h @ ${formatEvPeso(bill.hourlyRate)}/h = ${formatEvPeso(bill.additionalCharge)}; ` +
+    `total ${formatEvPeso(bill.total)}]`
+  );
+}
+
+function buildEventBookingPayload(
+  form,
+  venuePick,
+  { paymentAmountNum = 0, transactionId = "", idDataUrl = null, paymentProofData = "", paymentDate = "" } = {},
+) {
+  if (!venuePick?.id) {
+    const err = new Error("Missing event venue. Please pick a venue again.");
+    err.code = "NO_VENUE";
+    throw err;
+  }
+  const baseListed =
+    typeof venuePick.priceNum === "number" && Number.isFinite(venuePick.priceNum)
+      ? venuePick.priceNum
+      : parsePriceToNumber(venuePick.price);
+  const durH = durationHoursDecimalFromTimes(form.startTime, form.endTime);
+  const bill = computeEventVenueBill(baseListed, String(durH > 0 ? durH : EVENT_BASE_INCLUDED_HOURS));
+  const totalStr = bill.total.toFixed(2);
+  const foot = buildEventPricingFootnote(bill);
+  const req = (form.requests || "").trim();
+  const additionalRequests = req ? `${req}\n\n${foot}` : foot;
   const email = form.email.trim().toLowerCase();
   const pax = Math.max(1, parseInt(form.attendees, 10) || 1);
   const hasId = typeof idDataUrl === "string" && idDataUrl.startsWith("data:image");
+  const hasProof = typeof paymentProofData === "string" && paymentProofData.startsWith("data:image");
+  const slotLabel = buildEventTimeSlotLabel(form.startTime, form.endTime);
   return {
-    eventVenueId: String(venue?.id ?? ""),
-    venueName: resVenue,
-    venuePrice: String(total),
-    totalAmount: String(total),
+    eventVenueId: String(venuePick.id),
+    venueName: venuePick.name,
+    venuePrice: totalStr,
+    totalAmount: totalStr,
     customerName: form.customerName.trim(),
     email,
     customerEmail: email,
@@ -168,8 +291,10 @@ function buildEventBookingPayload(form, resVenue, { paymentAmountNum = 0, transa
     eventDate: form.date,
     eventEndDate: form.date,
     expectedPax: pax,
-    additionalRequests: (form.requests || "").trim(),
-    timeSlot: form.timeSlot || "",
+    additionalRequests,
+    timeSlot: slotLabel || "",
+    startTime: String(form.startTime || "").trim(),
+    endTime: String(form.endTime || "").trim(),
     createdAt: new Date().toISOString(),
     status: "pending",
     paymentAmount: String(paymentAmountNum),
@@ -177,6 +302,9 @@ function buildEventBookingPayload(form, resVenue, { paymentAmountNum = 0, transa
     ...(transactionId ? { transactionId } : {}),
     guestIdPhotoName: hasId ? "uploaded" : "",
     guestIdPhotoData: hasId ? idDataUrl : "",
+    paymentDate: String(paymentDate || "").trim(),
+    paymentProofData: hasProof ? paymentProofData : "",
+    paymentProofName: hasProof ? "uploaded" : "",
   };
 }
 
@@ -197,11 +325,16 @@ function eventPayloadToApi(p) {
     expectedPax: p.expectedPax,
     additionalRequests: p.additionalRequests,
     timeSlot: p.timeSlot,
+    startTime: p.startTime,
+    endTime: p.endTime,
     paymentAmount: p.paymentAmount,
     paymentMethod: p.paymentMethod,
     transactionId: p.transactionId || "",
     guestIdPhotoName: p.guestIdPhotoName,
     guestIdPhotoData: p.guestIdPhotoData,
+    paymentDate: p.paymentDate || "",
+    paymentProofData: p.paymentProofData || "",
+    paymentProofName: p.paymentProofName || "",
   };
 }
 
@@ -225,9 +358,13 @@ export default function EventVenues() {
   const { topbarProfile } = useTopbarUserProfile("guest");
   const userRef = useRef(null);
   const [userOpen, setUserOpen] = useState(false);
-  const [bookedDates, setBookedDates] = useState(INITIAL_BOOKED_DATES);
-
-  // Availability bar
+  const [bookedDates, setBookedDates] = useState(() => []);
+  /** Raw rows from GET /api/bookings/event-calendar (for time overlap + schedule list). */
+  const [eventCalRowsRaw, setEventCalRowsRaw] = useState([]);
+  /** Catalog: API venues when logged in; demo VENUES when logged out or before load. */
+  const [venueCatalog, setVenueCatalog] = useState(VENUES);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [resPick, setResPick] = useState(null);
   const [barStart, setBarStart]         = useState("");
   const [barEnd, setBarEnd]             = useState("");
   const [barGuests, setBarGuests]       = useState("30");
@@ -236,16 +373,19 @@ export default function EventVenues() {
 
   // Reservation modal
   const [resOpen, setResOpen]   = useState(false);
-  const [resVenue, setResVenue] = useState("");
   const [form, setForm] = useState({
     eventName: "", customerName: "", contact: "", email: "",
-    date: "", timeSlot: "", attendees: "", requests: "",
+    date: "", startTime: "09:00", endTime: "12:00", attendees: "", requests: "",
     payment: "cash", chkTerms: false, chkPrivacy: false, chkTOS: false,
   });
   const [idFile, setIdFile]         = useState(null);
   const [idPreview, setIdPreview]   = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [showBanner, setShowBanner] = useState(false);
+  /** Same as guest-room: refetch event calendar when this tab or another tab signals a booking change. */
+  const [guestBookingsPing, setGuestBookingsPing] = useState(0);
+  const [eventCalLoading, setEventCalLoading] = useState(false);
+  const [eventCalErr, setEventCalErr] = useState("");
 
   // Payment modal
   const [payOpen, setPayOpen]   = useState(false);
@@ -254,11 +394,13 @@ export default function EventVenues() {
   const [proofFile, setProofFile]       = useState(null);
   const [proofPreview, setProofPreview] = useState(null);
   const [payErrors, setPayErrors]       = useState({});
+  /** GCash details + proof kept in the form until final confirmation (no API until then). */
+  const [pendingGcash, setPendingGcash] = useState(null);
 
-  // Confirm & success
+  // Confirm & success (toast only — same pattern as guest-room; no full-screen dim overlay)
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [resSuccess, setResSuccess]   = useState(false);
-  const [paySuccess, setPaySuccess]   = useState(false);
+  /** null | "event" (cash / direct submit) | "gcash" */
+  const [bookingSuccessToast, setBookingSuccessToast] = useState(null);
   const [resSubmitting, setResSubmitting] = useState(false);
   const {
     sidebarCollapsed,
@@ -273,6 +415,175 @@ export default function EventVenues() {
     logoImgStyle,
   } = useGuestSidebarLayout();
 
+  /** Local calendar date (avoid UTC off-by-one from `toISOString().slice(0,10)`). */
+  const eventCalToday = useMemo(() => formatLocalYmd(new Date()), [resOpen]);
+  const eventCalWindowEnd = useMemo(() => addLocalDays(eventCalToday, 540), [eventCalToday]);
+  const guestEventVenueId = resPick?.id ? String(resPick.id) : "";
+
+  const {
+    eventGuestOccupiedNightSet,
+    eventGuestReservedNightSet,
+    guestEventDayLabelSuffixByKey,
+    guestEventDayTitleByKey,
+  } = useMemo(() => {
+    const { occupied, reserved, dayLabelSuffixByKey, dayTitleByKey } = guestEventCalendarNightsFromBookedRanges(
+      bookedDates,
+      guestEventVenueId,
+    );
+    return {
+      eventGuestOccupiedNightSet: occupied,
+      eventGuestReservedNightSet: reserved,
+      guestEventDayLabelSuffixByKey: dayLabelSuffixByKey,
+      guestEventDayTitleByKey: dayTitleByKey,
+    };
+  }, [bookedDates, guestEventVenueId]);
+
+  const guestEventCalendarComponents = useMemo(
+    () => ({
+      DayButton: function GuestEventDayButton(props) {
+        const key = formatLocalYmd(props.day.date);
+        const tip =
+          guestEventVenueId && guestEventDayTitleByKey.has(key) ? guestEventDayTitleByKey.get(key) : undefined;
+        return <DayButton {...props} title={tip} />;
+      },
+    }),
+    [guestEventVenueId, guestEventDayTitleByKey],
+  );
+
+  const eventGuestDateCalendarLabels = useMemo(
+    () => ({
+      labelDayButton(date, modifiers, options, dateLib) {
+        let label = defaultLabelDayButton(date, modifiers, options, dateLib);
+        const key = formatLocalYmd(date);
+        if (guestEventVenueId && guestEventDayLabelSuffixByKey.has(key)) {
+          label = `${label}.${guestEventDayLabelSuffixByKey.get(key)}`;
+        }
+        return label;
+      },
+    }),
+    [guestEventVenueId, guestEventDayLabelSuffixByKey],
+  );
+
+  const checkGuestEventDateDisabledMatchers = useMemo(() => {
+    const t0 = parseLocalYmd(eventCalToday);
+    return [t0 ? { before: t0 } : { before: new Date() }];
+  }, [eventCalToday]);
+
+  const handleSelectGuestEventDate = useCallback((d) => {
+    const s = d ? formatLocalYmd(d) : "";
+    setForm((f) => ({ ...f, date: s }));
+    setFormErrors((fe) => ({ ...fe, date: false }));
+    setShowBanner(false);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCatalog() {
+      /** Real occupancy for all guests' event bookings (GET /api/bookings is user-scoped only). */
+      const calPromise = fetchGuestEventCalendarBookings().catch(() => []);
+
+      if (!getStoredAuthToken()) {
+        setVenueCatalog(VENUES);
+        try {
+          const calRows = await calPromise;
+          const list = Array.isArray(calRows) ? calRows : [];
+          setEventCalRowsRaw(list);
+          setBookedDates(resolveEventOccupancyRangesFromRows(list));
+        } catch {
+          setEventCalRowsRaw([]);
+          setBookedDates(resolveEventOccupancyRangesFromRows([]));
+        }
+        setCatalogLoading(false);
+        return;
+      }
+      setCatalogLoading(true);
+      try {
+        const [venuesRaw, calRows] = await Promise.all([fetchEventVenuesBackend(), calPromise]);
+        if (cancelled) return;
+        const mapped = (Array.isArray(venuesRaw) ? venuesRaw : [])
+          .map(mapApiEventVenueToGuestCard)
+          .filter((x) => x.id);
+        setVenueCatalog(mapped);
+        const list = Array.isArray(calRows) ? calRows : [];
+        setEventCalRowsRaw(list);
+        setBookedDates(resolveEventOccupancyRangesFromRows(list));
+      } catch {
+        if (!cancelled) {
+          setVenueCatalog(VENUES);
+          try {
+            const calRows = await fetchGuestEventCalendarBookings().catch(() => []);
+            const list = Array.isArray(calRows) ? calRows : [];
+            setEventCalRowsRaw(list);
+            setBookedDates(resolveEventOccupancyRangesFromRows(list));
+          } catch {
+            setEventCalRowsRaw([]);
+            setBookedDates(resolveEventOccupancyRangesFromRows([]));
+          }
+        }
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    }
+
+    loadCatalog();
+    function onAuthChange() {
+      loadCatalog();
+    }
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChange);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    function bumpGuestBookingsPing() {
+      setGuestBookingsPing((n) => n + 1);
+    }
+    window.addEventListener("abela-guest-bookings-ping", bumpGuestBookingsPing);
+    function onStorage(e) {
+      if (e.key === GUEST_BOOKINGS_STORAGE_PING_KEY) bumpGuestBookingsPing();
+    }
+    window.addEventListener("storage", onStorage);
+    return () => {
+      window.removeEventListener("abela-guest-bookings-ping", bumpGuestBookingsPing);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  /** Refresh occupancy when opening the reservation modal (and on ping while open), matching guest-room modal pattern. */
+  useEffect(() => {
+    if (!resOpen) return undefined;
+    let cancelled = false;
+    setEventCalLoading(true);
+    setEventCalErr("");
+    (async () => {
+      let failed = false;
+      try {
+        const calRows = await fetchGuestEventCalendarBookings().catch(() => {
+          failed = true;
+          return [];
+        });
+        if (cancelled) return;
+        const list = Array.isArray(calRows) ? calRows : [];
+        setEventCalRowsRaw(list);
+        const ranges = resolveEventOccupancyRangesFromRows(list);
+        setBookedDates(ranges);
+        setEventCalErr(failed && ranges.length === 0 ? "Could not load event availability." : "");
+      } catch (e) {
+        if (!cancelled) {
+          setEventCalErr(e?.message || "Could not load event availability.");
+        }
+      } finally {
+        if (!cancelled) setEventCalLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resOpen, venueCatalog, guestBookingsPing]);
+
   useEffect(() => {
     const onMouseDown = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
@@ -285,6 +596,30 @@ export default function EventVenues() {
   useEffect(() => {
     if (payOpen) setPayQrMissing(false);
   }, [payOpen]);
+
+  useEffect(() => {
+    if (!bookingSuccessToast) return undefined;
+    const t = window.setTimeout(() => setBookingSuccessToast(null), 5200);
+    return () => window.clearTimeout(t);
+  }, [bookingSuccessToast]);
+
+  useEffect(() => {
+    if (!payOpen || !resPick) return;
+    if (pendingGcash) {
+      setPayForm({
+        amount: pendingGcash.amount,
+        date: pendingGcash.date,
+        txId: pendingGcash.txId,
+      });
+      setProofPreview(pendingGcash.proofPreview || null);
+      setProofFile(null);
+      return;
+    }
+    const dh = durationHoursDecimalFromTimes(form.startTime, form.endTime);
+    const bill = computeEventVenueBill(resPick.priceNum, String(dh > 0 ? dh : EVENT_BASE_INCLUDED_HOURS));
+    const amt = bill.total.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    setPayForm((f) => ({ ...f, amount: amt }));
+  }, [payOpen, resPick, form.startTime, form.endTime, pendingGcash]);
 
   // --- Availability ---
   function checkAvailability() {
@@ -301,7 +636,8 @@ export default function EventVenues() {
     const guests = parseInt(barGuests, 10);
     const statuses = {};
     let availCount = 0;
-    for (const v of VENUES) {
+    const n = venueCatalog.length;
+    for (const v of venueCatalog) {
       const guestOk = guests <= v.maxGuests;
       const dateOk  = isVenueAvailable(v.id, barStart, effectiveEnd, bookedDates);
       const ok = guestOk && dateOk;
@@ -315,18 +651,35 @@ export default function EventVenues() {
     const effectiveLabel = effectiveEnd !== barStart
       ? fmtDate(barStart) + " – " + fmtDate(effectiveEnd)
       : fmtDate(barStart);
-    if (availCount === VENUES.length)
+    if (n === 0) {
+      setAvailResult({ dot: "#9a8060", text: "No event venues are available in the catalog yet." });
+      return;
+    }
+    if (availCount === n)
       setAvailResult({ dot: "#27ae60", text: `All venues are available for ${effectiveLabel} (${guests} guests)` });
     else if (availCount === 0)
       setAvailResult({ dot: "#e74c3c", text: "No venues available for the selected dates / guest count." });
     else
-      setAvailResult({ dot: "#e6a817", text: `${availCount} of ${VENUES.length} venues available for ${effectiveLabel}` });
+      setAvailResult({ dot: "#e6a817", text: `${availCount} of ${n} venues available for ${effectiveLabel}` });
     setForm(f => ({ ...f, date: barStart }));
   }
 
   // --- Reservation ---
-  function openRes(name) { setResVenue(name); setResOpen(true); }
-  function closeRes()    { setResOpen(false); }
+  function openRes(venueRow) {
+    setPendingGcash(null);
+    setPayOpen(false);
+    setConfirmOpen(false);
+    clearPayForm();
+    setEventCalErr("");
+    setResPick(venueRow);
+    setForm((f) => ({ ...f, startTime: "09:00", endTime: "12:00" }));
+    setResOpen(true);
+  }
+  function closeRes() {
+    setResOpen(false);
+    setResPick(null);
+    setEventCalErr("");
+  }
 
   function handleFormChange(e) {
     const { name, value } = e.target;
@@ -350,8 +703,25 @@ export default function EventVenues() {
     if (!form.customerName.trim()) errs.customerName = true;
     if (!form.contact.trim() || !/^[0-9]{10,11}$/.test(form.contact.trim())) errs.contact = true;
     if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errs.email = true;
-    if (!form.date.trim())     errs.date = true;
-    if (!form.timeSlot.trim()) errs.timeSlot = true;
+    if (!form.date.trim()) errs.date = true;
+    const tOk = parseEventStartEndMinutes(form.startTime, form.endTime);
+    if (!tOk) {
+      errs.startTime = true;
+      errs.endTime = true;
+    } else {
+      const dh = durationHoursDecimalFromTimes(form.startTime, form.endTime);
+      if (!Number.isFinite(dh) || dh < 0.5 || dh > 72) {
+        errs.startTime = true;
+        errs.endTime = true;
+      } else if (
+        resPick?.id &&
+        form.date.trim() &&
+        eventNewRangeOverlapsExisting(String(resPick.id), form.date.trim(), form.startTime, form.endTime, eventCalRowsRaw)
+      ) {
+        errs.startTime = true;
+        errs.endTime = true;
+      }
+    }
     if (!idFile)               errs.id = true;
     if (!form.attendees || parseInt(form.attendees) < 1) errs.attendees = true;
     if (!form.chkTerms)   errs.chkTerms = true;
@@ -362,34 +732,109 @@ export default function EventVenues() {
     return true;
   }
 
-  function handleSubmitRes() { if (validateRes()) setConfirmOpen(true); }
+  function preparePayModalFromDraft() {
+    setPayErrors({});
+    if (!pendingGcash) clearPayForm();
+  }
+
+  function openGcashPaymentModal() {
+    preparePayModalFromDraft();
+    setPayOpen(true);
+  }
+
+  function handleSubmitRes() {
+    if (!validateRes()) return;
+    if (form.payment === "gcash" && !pendingGcash) {
+      openGcashPaymentModal();
+      return;
+    }
+    setConfirmOpen(true);
+  }
 
   async function confirmSubmit() {
-    const venueMeta = VENUES.find((v) => v.name === resVenue);
-    if (!venueMeta || !form.date) {
+    if (!getStoredAuthToken()) {
+      window.alert(bookingSaveAlertMessage({ code: "NO_TOKEN" }));
+      setConfirmOpen(false);
+      return;
+    }
+    if (!resPick || !form.date) {
+      setConfirmOpen(false);
+      return;
+    }
+    if (
+      eventNewRangeOverlapsExisting(String(resPick.id), form.date.trim(), form.startTime, form.endTime, eventCalRowsRaw)
+    ) {
+      window.alert(
+        "This venue is unavailable during the selected time because it overlaps with an existing booking or cleaning schedule.",
+      );
       setConfirmOpen(false);
       return;
     }
     if (form.payment === "gcash") {
-      setConfirmOpen(false);
-      setPayOpen(true);
+      if (!pendingGcash) {
+        setConfirmOpen(false);
+        openGcashPaymentModal();
+        return;
+      }
+      setResSubmitting(true);
+      try {
+        const payload = buildEventBookingPayload(form, resPick, {
+          paymentAmountNum: pendingGcash.paidNum,
+          transactionId: pendingGcash.txId,
+          idDataUrl: idPreview,
+          paymentProofData: pendingGcash.proofPreview || "",
+          paymentDate: pendingGcash.date,
+        });
+        await saveEventBooking(payload);
+        dispatchFrontdeskNotificationsRefresh();
+        dispatchGuestBookingsRefreshPing();
+        try {
+          sessionStorage.setItem("abela_guest_email", payload.email);
+        } catch {
+          /* ignore */
+        }
+        try {
+          const calRows = await fetchGuestEventCalendarBookings();
+          const list = Array.isArray(calRows) ? calRows : [];
+          setEventCalRowsRaw(list);
+          setBookedDates(resolveEventOccupancyRangesFromRows(list));
+        } catch {
+          /* ignore */
+        }
+        setConfirmOpen(false);
+        setResOpen(false);
+        clearResForm();
+        setBookingSuccessToast("gcash");
+      } catch (err) {
+        window.alert(bookingSaveAlertMessage(err));
+      } finally {
+        setResSubmitting(false);
+      }
       return;
     }
     setResSubmitting(true);
     try {
-      const payload = buildEventBookingPayload(form, resVenue, { paymentAmountNum: 0, idDataUrl: idPreview });
+      const payload = buildEventBookingPayload(form, resPick, { paymentAmountNum: 0, idDataUrl: idPreview });
       await saveEventBooking(payload);
       dispatchFrontdeskNotificationsRefresh();
+      dispatchGuestBookingsRefreshPing();
       try {
         sessionStorage.setItem("abela_guest_email", payload.email);
       } catch {
         /* ignore */
       }
-      setBookedDates((bd) => [...bd, { venueId: venueMeta.id, startDate: form.date, endDate: form.date }]);
+      try {
+        const calRows = await fetchGuestEventCalendarBookings();
+        const list = Array.isArray(calRows) ? calRows : [];
+        setEventCalRowsRaw(list);
+        setBookedDates(resolveEventOccupancyRangesFromRows(list));
+      } catch {
+        /* ignore */
+      }
       setConfirmOpen(false);
       setResOpen(false);
       clearResForm();
-      setResSuccess(true);
+      setBookingSuccessToast("event");
     } catch (err) {
       window.alert(bookingSaveAlertMessage(err));
     } finally {
@@ -398,10 +843,26 @@ export default function EventVenues() {
   }
 
   function clearResForm() {
-    setForm({ eventName:"", customerName:"", contact:"", email:"", date:"", timeSlot:"", attendees:"", requests:"", payment:"cash", chkTerms:false, chkPrivacy:false, chkTOS:false });
+    setForm({
+      eventName: "",
+      customerName: "",
+      contact: "",
+      email: "",
+      date: "",
+      startTime: "09:00",
+      endTime: "12:00",
+      attendees: "",
+      requests: "",
+      payment: "cash",
+      chkTerms: false,
+      chkPrivacy: false,
+      chkTOS: false,
+    });
     setIdFile(null); setIdPreview(null);
     setFormErrors({}); setShowBanner(false);
+    setResPick(null);
     setPayOpen(false);
+    setPendingGcash(null);
     clearPayForm();
   }
 
@@ -415,10 +876,10 @@ export default function EventVenues() {
   function selectPayment(val) {
     setForm(f => ({ ...f, payment: val }));
     if (val === "gcash") {
-      setPayErrors({});
-      setPayOpen(true);
+      openGcashPaymentModal();
     } else {
       setPayOpen(false);
+      setPendingGcash(null);
       clearPayForm();
     }
   }
@@ -444,29 +905,35 @@ export default function EventVenues() {
     reader.readAsDataURL(file);
   }
 
-  async function submitPayment() {
+  function submitPayment() {
     const errs = {};
     if (!payForm.amount.trim()) errs.amount = true;
     if (!payForm.date.trim())   errs.date = true;
     if (!payForm.txId.trim())   errs.txId = true;
-    if (!proofFile)             errs.proof = true;
+    const hasProof =
+      Boolean(proofFile) ||
+      (typeof proofPreview === "string" && proofPreview.startsWith("data:image"));
+    if (!hasProof) errs.proof = true;
     setPayErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
     if (form.payment !== "gcash") {
       closePay();
-      setPaySuccess(true);
       return;
     }
 
-    const venueMeta = VENUES.find((v) => v.name === resVenue);
-    if (!venueMeta || !form.date) {
+    if (!resPick || !form.date) {
       window.alert("Booking details are missing. Please start your reservation again.");
+      return;
+    }
+    if (!getStoredAuthToken()) {
+      window.alert(bookingSaveAlertMessage({ code: "NO_TOKEN" }));
       return;
     }
 
     const paid = parsePriceToNumber(payForm.amount);
-    const eventTotal = parsePriceToNumber(venueMeta?.price);
+    const dh = durationHoursDecimalFromTimes(form.startTime, form.endTime);
+    const eventTotal = computeEventVenueBill(resPick.priceNum, String(dh > 0 ? dh : EVENT_BASE_INCLUDED_HOURS)).total;
     if (Number.isFinite(eventTotal) && eventTotal > 0 && paid > eventTotal) {
       window.alert(
         `Amount paid cannot be greater than the booking total (₱${eventTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`,
@@ -474,31 +941,23 @@ export default function EventVenues() {
       return;
     }
 
-    setResSubmitting(true);
-    try {
-      const payload = buildEventBookingPayload(form, resVenue, {
-        paymentAmountNum: paid,
-        transactionId: payForm.txId.trim(),
-        idDataUrl: idPreview,
-      });
-      await saveEventBooking(payload);
-      dispatchFrontdeskNotificationsRefresh();
-      try {
-        sessionStorage.setItem("abela_guest_email", payload.email);
-      } catch {
-        /* ignore */
-      }
-      setBookedDates((bd) => [...bd, { venueId: venueMeta.id, startDate: form.date, endDate: form.date }]);
-      closePay();
-      setResOpen(false);
-      clearResForm();
-      setPaySuccess(true);
-    } catch (err) {
-      window.alert(bookingSaveAlertMessage(err));
-    } finally {
-      setResSubmitting(false);
-    }
+    setPendingGcash({
+      amount: payForm.amount.trim(),
+      date: payForm.date.trim(),
+      txId: payForm.txId.trim(),
+      proofPreview: proofPreview || "",
+      paidNum: paid,
+    });
+    setPayOpen(false);
+    clearPayForm();
   }
+
+  const activeVenueMeta = resPick;
+  const durationHoursForBill = String(
+    durationHoursDecimalFromTimes(form.startTime, form.endTime) || EVENT_BASE_INCLUDED_HOURS,
+  );
+  const eventVenueBill =
+    activeVenueMeta != null ? computeEventVenueBill(activeVenueMeta.priceNum, durationHoursForBill) : null;
 
   return (
     <>
@@ -615,42 +1074,60 @@ export default function EventVenues() {
             </div>
           )}
 
-          {/* Venue Cards */}
-          <div className="venue-list">
-            {VENUES.map(v => {
+          {catalogLoading && getStoredAuthToken() && (
+            <p style={{ margin: "0 0 12px", color: "#9a8060", fontSize: 14 }}>Loading venues from the server…</p>
+          )}
+
+          {/* Venue cards — same shell classes as guest Rooms for consistent shape & responsive image band */}
+          <div className="rooms-list">
+            {venueCatalog.length === 0 && !catalogLoading ? (
+              <p style={{ padding: "1.5rem", color: "#9a8060", textAlign: "center" }}>
+                No event venues are in the catalog yet. Please check back later, or log out to see sample venues for
+                demo browsing.
+              </p>
+            ) : (
+              venueCatalog.map((v) => {
               const st = venueStatuses[v.id];
-              const isUnavailable = st && !st.ok;
+              const isUnavailable = Boolean(st && !st.ok);
               return (
-                <div key={v.id} className={`venue-card${isUnavailable ? " unavailable" : ""}`}>
+                <div key={v.id} className={`room-card${isUnavailable ? " unavailable" : ""}`}>
                   <span className={`avail-badge${st ? (st.ok ? " badge-available" : " badge-unavailable") : ""}`}>
                     {st && !st.ok ? <XIcon /> : <CheckIcon />}
                     <span>{st ? st.label : "Available"}</span>
                   </span>
-                  <div className="venue-img-wrap">
-                    <div className="venue-img-aspect">
+                  <div className="room-img-wrap">
+                    <div className="room-img-aspect">
                       <img src={v.img} alt={v.name} decoding="async" />
                     </div>
                   </div>
-                  <div className="venue-info">
-                    <h2 className="venue-name">{v.name}</h2>
-                    <div className="venue-pricing">
-                      <span className="venue-price-new">{v.price}</span>
-                      <span className="venue-guests"><GuestsIcon /> {v.guests}</span>
+                  <div className="room-info">
+                    <h2 className="room-name">{v.name}</h2>
+                    <p className="room-type-line">
+                      <span className="room-type-label">Type</span>{" "}
+                      <span className="room-type-value">{v.typeLabel}</span>
+                    </p>
+                    <div className="room-pricing">
+                      <span className="room-price-new">{v.price}</span>
+                      <span className="venue-price-note">Base · {EVENT_BASE_INCLUDED_HOURS} h</span>
+                      <span className="room-guests"><GuestsIcon /> {v.guests}</span>
                     </div>
-                    <p className="venue-desc">{v.desc}</p>
-                    <p className="venue-features-label">Features:</p>
-                    <div className="venue-features-grid">
-                      {v.features.map(f => <span key={f} className="venue-feature-item">✔ {f}</span>)}
+                    <p className="room-desc">{v.desc}</p>
+                    <p className="features-label">Features:</p>
+                    <div className="features-grid">
+                      {v.features.map((f, i) => (
+                        <span key={`${v.id}-f-${i}`} className="feature-item">✔ {f}</span>
+                      ))}
                     </div>
-                    <div className="venue-footer">
+                    <div className="room-footer">
                       <span className="dates-tag">{st?.dateLabel || ""}</span>
-                      <button className="btn-reserve" disabled={isUnavailable}
-                        onClick={() => openRes(v.name)}>Reserve</button>
+                      <button type="button" className="btn-book-now" disabled={isUnavailable}
+                        onClick={() => openRes(v)}>Reserve</button>
                     </div>
                   </div>
                 </div>
               );
-            })}
+              })
+            )}
           </div>
         </main>
       </RailPortalShell>
@@ -661,7 +1138,7 @@ export default function EventVenues() {
           onClick={e => { if (e.target === e.currentTarget) closeRes(); }}>
           <div className="ev-modal ev-modal--reservation" role="dialog" aria-modal="true" aria-labelledby="ev-reservation-modal-title">
             <div className="ev-modal-header ev-modal-header--reservation">
-              <h2 id="ev-reservation-modal-title" className="ev-modal-title">{resVenue} — Reservation</h2>
+              <h2 id="ev-reservation-modal-title" className="ev-modal-title">{resPick?.name || "Venue"} — Reservation</h2>
               <button type="button" className="ev-modal-close" onClick={closeRes} aria-label="Close">✕</button>
             </div>
             <div className="ev-modal-body ev-modal-body--reservation">
@@ -709,23 +1186,207 @@ export default function EventVenues() {
                 </div>
               </div>
 
-              <div className="ev-form-row">
+              <div className="ev-form-row ev-form-row--guest-event-date-cal">
                 <div className="ev-form-group">
-                  <label>Date <span style={{ color: "#e74c3c" }}>*</span></label>
-                  <input type="date" name="date" value={form.date}
-                    className={formErrors.date ? "ev-error" : ""}
-                    onChange={handleFormChange} />
-                  <span className={`ev-field-err${formErrors.date ? " visible" : ""}`}>Please select a date.</span>
+                  <p className="ev-field-hint ev-field-hint--calendar-lead">
+                    Past dates are disabled. Full-day holds appear in red or gold when no detailed times exist yet. When
+                    times are on file, pick the same date and choose a start/end that does not overlap another booking or
+                    the 2-hour cleaning buffer after it. See the list below for this venue on the selected date.
+                  </p>
+                  <span className="ev-form-label-static" id="ev-guest-date-label">
+                    Date <span style={{ color: "#e74c3c" }}>*</span>
+                  </span>
+                  <div
+                    className={
+                      formErrors.date ? "ev-guest-ev-day-picker-wrap ev-guest-ev-day-picker-wrap--error" : "ev-guest-ev-day-picker-wrap"
+                    }
+                  >
+                    <DayPicker
+                      mode="single"
+                      components={guestEventCalendarComponents}
+                      selected={form.date ? parseLocalYmd(form.date) : undefined}
+                      onSelect={handleSelectGuestEventDate}
+                      startMonth={parseLocalYmd(eventCalToday) ?? undefined}
+                      endMonth={parseLocalYmd(eventCalWindowEnd) ?? undefined}
+                      defaultMonth={parseLocalYmd(form.date) ?? parseLocalYmd(eventCalToday) ?? undefined}
+                      disabled={checkGuestEventDateDisabledMatchers}
+                      labels={eventGuestDateCalendarLabels}
+                      modifiers={{
+                        evGuestOccupied: (date) =>
+                          Boolean(guestEventVenueId) && eventGuestOccupiedNightSet.has(formatLocalYmd(date)),
+                        evGuestReserved: (date) =>
+                          Boolean(guestEventVenueId) && eventGuestReservedNightSet.has(formatLocalYmd(date)),
+                      }}
+                      modifiersClassNames={{
+                        evGuestOccupied: "fd-cal-cell fd-cal-cell--occupied",
+                        evGuestReserved: "fd-cal-cell fd-cal-cell--reserved",
+                      }}
+                      className="ev-guest-ev-day-picker"
+                      id="ev-guest-date-calendar"
+                      aria-labelledby="ev-guest-date-label"
+                    />
+                  </div>
+                  {eventCalLoading && <span className="booking-cal-hint">Loading availability…</span>}
+                  {eventCalErr ? (
+                    <p className="booking-occupancy-warn" role="status">
+                      Could not load booked dates for event venues ({eventCalErr}). You can still submit; the front desk
+                      will confirm availability. Double booking is possible until dates load — try again or pick dates
+                      you know are open.
+                    </p>
+                  ) : null}
+                  <span className={`ev-field-err${formErrors.date ? " visible" : ""}`}>
+                    Please select a date (not in the past).
+                  </span>
                 </div>
                 <div className="ev-form-group">
-                  <label>Time Slot <span style={{ color: "#e74c3c" }}>*</span></label>
-                  <input type="text" name="timeSlot" value={form.timeSlot}
-                    placeholder="e.g. 9:00 AM - 5:00 PM"
-                    className={formErrors.timeSlot ? "ev-error" : ""}
-                    onChange={handleFormChange} />
-                  <span className={`ev-field-err${formErrors.timeSlot ? " visible" : ""}`}>Please specify a time slot.</span>
+                  <label>
+                    Event start time <span style={{ color: "#e74c3c" }}>*</span>
+                  </label>
+                  <input
+                    type="time"
+                    name="startTime"
+                    value={form.startTime}
+                    className={formErrors.startTime ? "ev-error" : ""}
+                    onChange={handleFormChange}
+                  />
+                  <label style={{ marginTop: 10 }}>
+                    Event end time <span style={{ color: "#e74c3c" }}>*</span>
+                  </label>
+                  <input
+                    type="time"
+                    name="endTime"
+                    value={form.endTime}
+                    className={formErrors.endTime ? "ev-error" : ""}
+                    onChange={handleFormChange}
+                  />
+                  <span className={`ev-field-err${formErrors.startTime || formErrors.endTime ? " visible" : ""}`}>
+                    Choose end after start (0.5–72 hours). Times must not overlap another booking or the 2-hour cleaning
+                    buffer after an existing event.
+                  </span>
+                  <p className="ev-field-hint ev-field-hint--time">
+                    The first {EVENT_BASE_INCLUDED_HOURS} hours are covered by the listed base rate. Each additional hour
+                    adds {formatEvPeso(EVENT_EXTRA_HOUR_FLAT_RATE)}. Duration is calculated from your start and end times.
+                  </p>
                 </div>
               </div>
+              <div className="ev-guest-ev-cal-legend-wrap">
+                <div className="fd-cal-legend" aria-label="Schedule legend">
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch" style={{ background: "#3498db", border: "1px solid #2980b9" }} aria-hidden /> Approved / Confirmed
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Pending
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch" style={{ background: "#bdc3c7", border: "1px solid #95a5a6" }} aria-hidden /> Cleaning buffer (2 h after events)
+                  </span>
+                </div>
+              </div>
+
+              {form.date && guestEventVenueId ? (
+                <div className="ev-guest-ev-day-schedule" style={{ marginTop: 4 }}>
+                  <p className="ev-field-hint" style={{ marginBottom: 10 }}>
+                    <strong>Booked times on {form.date}</strong> (live from hotel reservations). Full-day holds show when
+                    no start/end times are stored yet.
+                  </p>
+                  <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+                    {eventCalRowsRaw
+                      .filter((r) => {
+                        const vid = String(r.eventVenueId || "").trim();
+                        if (vid !== String(guestEventVenueId).trim()) return false;
+                        const d0 = String(r.eventDate || "").slice(0, 10);
+                        const d1 = String(r.eventEndDate || r.eventDate || "").slice(0, 10);
+                        const fd = form.date.trim();
+                        return fd >= d0 && fd <= d1;
+                      })
+                      .map((r) => {
+                        const label =
+                          buildEventTimeSlotLabel(r.startTime, r.endTime) ||
+                          String(r.timeSlot || "").trim() ||
+                          "Time on file";
+                        const accent = eventCalendarRowAccent(r.status);
+                        return (
+                          <li
+                            key={String(r.id || `${r.eventDate}-${r.status}-${label}`)}
+                            style={{
+                              borderLeft: `4px solid ${accent}`,
+                              padding: "8px 10px",
+                              marginBottom: 8,
+                              background: "#faf9f6",
+                              borderRadius: 6,
+                            }}
+                          >
+                            <strong>{label}</strong>
+                            <span style={{ color: "#6b5a3e", marginLeft: 8 }}>
+                              · {String(r.status || "").trim() || "—"}
+                            </span>
+                            {r.customerName ? (
+                              <span style={{ color: "#6b5a3e", marginLeft: 6 }}>({r.customerName})</span>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                  </ul>
+                  {eventCalRowsRaw.filter(
+                    (r) =>
+                      String(r.eventVenueId || "").trim() === String(guestEventVenueId).trim() &&
+                      form.date.trim() >= String(r.eventDate || "").slice(0, 10) &&
+                      form.date.trim() <= String(r.eventEndDate || r.eventDate || "").slice(0, 10),
+                  ).length === 0 ? (
+                    <p className="ev-field-hint">No blocking reservations on this date for this venue.</p>
+                  ) : null}
+                </div>
+              ) : null}
+
+              <div className="ev-form-row">
+                <div className="ev-form-group ev-full-width">
+                  <label>
+                    Hire length (from your times) <span style={{ color: "#e74c3c" }}>*</span>
+                  </label>
+                  <p className="ev-field-hint" style={{ marginTop: 0 }}>
+                    {Number(durationHoursForBill) > 0
+                      ? `${durationHoursForBill} hours (computed from start and end).`
+                      : "Set valid start and end times to see duration."}
+                  </p>
+                </div>
+              </div>
+
+              {eventVenueBill ? (
+                <section className="ev-billing-summary" aria-live="polite">
+                  <h3 className="ev-billing-summary__title">Billing summary</h3>
+                  <dl className="ev-billing-summary__grid">
+                    <div className="ev-billing-summary__row">
+                      <dt>Base price ({EVENT_BASE_INCLUDED_HOURS} h included)</dt>
+                      <dd>{formatEvPeso(eventVenueBill.basePrice)}</dd>
+                    </div>
+                    <div className="ev-billing-summary__row">
+                      <dt>Additional hours</dt>
+                      <dd>
+                        {eventVenueBill.extraHours > 0
+                          ? `${eventVenueBill.extraHours} h beyond base`
+                          : "—"}
+                      </dd>
+                    </div>
+                    <div className="ev-billing-summary__row">
+                      <dt>Additional charges</dt>
+                      <dd>
+                        {eventVenueBill.extraHours > 0
+                          ? `${formatEvPeso(eventVenueBill.hourlyRate)}/h × ${eventVenueBill.extraHours} h = ${formatEvPeso(
+                              eventVenueBill.additionalCharge,
+                            )}`
+                          : formatEvPeso(0)}
+                      </dd>
+                    </div>
+                    <div className="ev-billing-summary__row ev-billing-summary__row--total">
+                      <dt>Final total</dt>
+                      <dd>{formatEvPeso(eventVenueBill.total)}</dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : null}
 
               <div className="ev-form-row">
                 <div className="ev-form-group">
@@ -761,7 +1422,9 @@ export default function EventVenues() {
                   <CardIcon aria-hidden />
                   <h3 className="ev-form-section__title">Payment options</h3>
                 </div>
-                <p className="ev-form-section__desc">Pay with cash on arrival, or choose GCash to scan and complete the payment form. A deposit may be required per your agreement with the venue.</p>
+                <p className="ev-form-section__desc">
+                  Pay with cash on arrival, or choose GCash to scan and save your payment details in this form. Saving GCash details does not send your booking until you click Submit Reservation and confirm.
+                </p>
                 <div className="ev-payment-options">
                   <label className={`ev-payment-card${form.payment === "cash" ? " ev-selected" : ""}`}
                     onClick={() => selectPayment("cash")}>
@@ -827,9 +1490,81 @@ export default function EventVenues() {
                 <span className={`ev-field-err${formErrors.chkTOS ? " visible" : ""}`}>Please agree to the Terms &amp; Conditions of Stay.</span>
               </div>
 
+              {resPick && (form.date || form.eventName.trim() || form.customerName.trim()) ? (
+                <div className="ev-booking-review-summary" aria-labelledby="ev-booking-review-title">
+                  <h3 id="ev-booking-review-title" className="ev-booking-review-summary__title">
+                    Booking summary
+                  </h3>
+                  <ul className="ev-booking-review-summary__list">
+                    <li>
+                      <span className="ev-booking-review-summary__k">Venue</span>
+                      <span className="ev-booking-review-summary__v">{resPick.name}</span>
+                    </li>
+                    <li>
+                      <span className="ev-booking-review-summary__k">Event</span>
+                      <span className="ev-booking-review-summary__v">{form.eventName.trim() || "—"}</span>
+                    </li>
+                    <li>
+                      <span className="ev-booking-review-summary__k">Date</span>
+                      <span className="ev-booking-review-summary__v">{form.date || "—"}</span>
+                    </li>
+                    <li>
+                      <span className="ev-booking-review-summary__k">Time</span>
+                      <span className="ev-booking-review-summary__v">
+                        {buildEventTimeSlotLabel(form.startTime, form.endTime) || "—"}
+                      </span>
+                    </li>
+                    <li>
+                      <span className="ev-booking-review-summary__k">Duration</span>
+                      <span className="ev-booking-review-summary__v">
+                        {Number(durationHoursForBill) > 0 ? `${durationHoursForBill} h` : "—"}
+                      </span>
+                    </li>
+                    <li>
+                      <span className="ev-booking-review-summary__k">Contact</span>
+                      <span className="ev-booking-review-summary__v">{form.customerName.trim() || "—"}</span>
+                    </li>
+                    {eventVenueBill ? (
+                      <li>
+                        <span className="ev-booking-review-summary__k">Total due</span>
+                        <span className="ev-booking-review-summary__v">{formatEvPeso(eventVenueBill.total)}</span>
+                      </li>
+                    ) : null}
+                    <li>
+                      <span className="ev-booking-review-summary__k">Payment</span>
+                      <span className="ev-booking-review-summary__v">{form.payment === "gcash" ? "GCash" : "Cash on arrival"}</span>
+                    </li>
+                    {form.payment === "gcash" && pendingGcash ? (
+                      <li>
+                        <span className="ev-booking-review-summary__k">GCash</span>
+                        <span className="ev-booking-review-summary__v">
+                          {formatEvPeso(pendingGcash.paidNum)} on {pendingGcash.date}, ref. {pendingGcash.txId}
+                          {pendingGcash.proofPreview ? " · Proof attached" : ""}
+                        </span>
+                      </li>
+                    ) : form.payment === "gcash" ? (
+                      <li>
+                        <span className="ev-booking-review-summary__k">GCash</span>
+                        <span className="ev-booking-review-summary__v ev-booking-review-summary__v--muted">
+                          Not saved yet — click Submit Reservation to open the payment form.
+                        </span>
+                      </li>
+                    ) : null}
+                  </ul>
+                </div>
+              ) : null}
+
+              {form.payment === "gcash" && pendingGcash ? (
+                <p className="ev-gcash-draft-note" role="status">
+                  GCash details are saved in this form only. Review the summary above, then click Submit Reservation to send your request.
+                </p>
+              ) : null}
+
               <div className="ev-modal-actions">
                 <button type="button" className="ev-btn-clear" onClick={clearResForm}>Clear</button>
-                <button type="button" className="ev-btn-submit" onClick={handleSubmitRes}>Submit Reservation</button>
+                <button type="button" className="ev-btn-submit" onClick={handleSubmitRes} disabled={resSubmitting}>
+                  {resSubmitting ? "Sending…" : "Submit Reservation"}
+                </button>
               </div>
               </div>
             </div>
@@ -870,48 +1605,70 @@ export default function EventVenues() {
                 <p className="ev-gcash-handle">@Abela Suites</p>
               </div>
               <div className="ev-payment-form-side">
-                <h3 className="ev-payment-form-title">Fill this Form</h3>
-                <div className="ev-payment-form-grid">
-                  <div className="ev-form-group">
-                    <label>Amount Paid <span style={{ color: "#e74c3c" }}>*</span></label>
-                    <input type="text" name="amount" value={payForm.amount}
-                      placeholder="e.g. 1,148"
-                      className={payErrors.amount ? "ev-error" : ""}
-                      onChange={handlePayFormChange} />
-                    <span className={`ev-field-err${payErrors.amount ? " visible" : ""}`}>Amount paid is required.</span>
+                <p className="ev-payment-modal-lead">
+                  Enter your transfer details and proof here. This only saves them in your booking form — your reservation is not sent until you click Submit Reservation and confirm.
+                </p>
+                <div className="ev-payment-form-scroll">
+                  <h3 className="ev-payment-form-title">Fill this Form</h3>
+                  {eventVenueBill ? (
+                    <div className="ev-pay-billing-recap" aria-live="polite">
+                      <p className="ev-pay-billing-recap__label">Amount due (this booking)</p>
+                      <p className="ev-pay-billing-recap__total">{formatEvPeso(eventVenueBill.total)}</p>
+                      <ul className="ev-pay-billing-recap__list">
+                        <li>Base ({EVENT_BASE_INCLUDED_HOURS} h): {formatEvPeso(eventVenueBill.basePrice)}</li>
+                        {eventVenueBill.extraHours > 0 ? (
+                          <li>
+                            Extra {eventVenueBill.extraHours} h @ {formatEvPeso(eventVenueBill.hourlyRate)}/h:{" "}
+                            {formatEvPeso(eventVenueBill.additionalCharge)}
+                          </li>
+                        ) : (
+                          <li>No extra-hour charges</li>
+                        )}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <div className="ev-payment-form-grid">
+                    <div className="ev-form-group">
+                      <label>Amount Paid <span style={{ color: "#e74c3c" }}>*</span></label>
+                      <input type="text" name="amount" value={payForm.amount}
+                        placeholder="e.g. 1,148"
+                        className={payErrors.amount ? "ev-error" : ""}
+                        onChange={handlePayFormChange} />
+                      <span className={`ev-field-err${payErrors.amount ? " visible" : ""}`}>Amount paid is required.</span>
+                    </div>
+                    <div className="ev-form-group">
+                      <label>Date <span style={{ color: "#e74c3c" }}>*</span></label>
+                      <input type="date" name="date" value={payForm.date}
+                        className={payErrors.date ? "ev-error" : ""}
+                        onChange={handlePayFormChange} />
+                      <span className={`ev-field-err${payErrors.date ? " visible" : ""}`}>Payment date is required.</span>
+                    </div>
                   </div>
-                  <div className="ev-form-group">
-                    <label>Date <span style={{ color: "#e74c3c" }}>*</span></label>
-                    <input type="date" name="date" value={payForm.date}
-                      className={payErrors.date ? "ev-error" : ""}
+                  <div className="ev-form-group ev-payment-form-group--spaced">
+                    <label>Transaction ID <span style={{ color: "#e74c3c" }}>*</span></label>
+                    <input type="text" name="txId" value={payForm.txId}
+                      placeholder="Enter transaction ID"
+                      className={payErrors.txId ? "ev-error" : ""}
                       onChange={handlePayFormChange} />
-                    <span className={`ev-field-err${payErrors.date ? " visible" : ""}`}>Payment date is required.</span>
+                    <span className={`ev-field-err${payErrors.txId ? " visible" : ""}`}>Transaction ID is required.</span>
                   </div>
-                </div>
-                <div className="ev-form-group" style={{ marginTop: "10px" }}>
-                  <label>Transaction ID <span style={{ color: "#e74c3c" }}>*</span></label>
-                  <input type="text" name="txId" value={payForm.txId}
-                    placeholder="Enter transaction ID"
-                    className={payErrors.txId ? "ev-error" : ""}
-                    onChange={handlePayFormChange} />
-                  <span className={`ev-field-err${payErrors.txId ? " visible" : ""}`}>Transaction ID is required.</span>
-                </div>
-                <div className="ev-form-group" style={{ marginTop: "10px" }}>
-                  <label>Proof of Payment <span style={{ color: "#e74c3c" }}>*</span></label>
-                  <label className={`ev-upload-box ev-proof-upload${payErrors.proof ? " ev-error" : ""}`}>
-                    <input type="file" accept="image/*" onChange={handleProofUpload} />
-                    {proofPreview
-                      ? <img src={proofPreview} className="ev-upload-preview" alt="Proof Preview" />
-                      : <div className="ev-upload-placeholder"><UploadIcon /><span>Upload your proof of payment here...</span></div>}
-                  </label>
-                  <span className={`ev-field-err${payErrors.proof ? " visible" : ""}`}>Please upload proof of payment.</span>
+                  <div className="ev-form-group ev-payment-form-group--spaced">
+                    <label>Proof of Payment <span style={{ color: "#e74c3c" }}>*</span></label>
+                    <label className={`ev-upload-box ev-proof-upload${payErrors.proof ? " ev-error" : ""}`}>
+                      <input type="file" accept="image/*" onChange={handleProofUpload} />
+                      {proofPreview
+                        ? <img src={proofPreview} className="ev-upload-preview" alt="Proof Preview" />
+                        : <div className="ev-upload-placeholder"><UploadIcon /><span>Upload your proof of payment here...</span></div>}
+                    </label>
+                    <span className={`ev-field-err${payErrors.proof ? " visible" : ""}`}>Please upload proof of payment.</span>
+                  </div>
                 </div>
                 <div className="ev-payment-form-actions">
-                  <button type="button" className="ev-btn-clear" onClick={clearPayForm} disabled={resSubmitting}>
+                  <button type="button" className="ev-btn-clear" onClick={clearPayForm}>
                     Clear
                   </button>
-                  <button type="button" className="ev-btn-submit" onClick={submitPayment} disabled={resSubmitting}>
-                    {resSubmitting ? "Saving…" : "Submit"}
+                  <button type="button" className="ev-btn-submit" onClick={submitPayment}>
+                    Save payment details
                   </button>
                 </div>
               </div>
@@ -930,56 +1687,67 @@ export default function EventVenues() {
               </svg>
               <span className="ev-confirm-exclaim">!</span>
             </div>
-            <h3 className="ev-confirm-title">Submit Reservation?</h3>
+            <h3 className="ev-confirm-title">Submit reservation?</h3>
+            <p className="ev-confirm-sub">Please confirm the details below. This sends your request to the venue.</p>
+            {resPick ? (
+              <div className="ev-confirm-booking-summary">
+                <p><strong>Venue</strong> {resPick.name}</p>
+                <p><strong>Event</strong> {form.eventName.trim() || "—"}</p>
+                <p>
+                  <strong>Date</strong> {form.date || "—"} · <strong>Time</strong>{" "}
+                  {buildEventTimeSlotLabel(form.startTime, form.endTime) || "—"}
+                </p>
+                {eventVenueBill ? (
+                  <p><strong>Total due</strong> {formatEvPeso(eventVenueBill.total)}</p>
+                ) : null}
+                <p><strong>Payment</strong> {form.payment === "gcash" ? "GCash" : "Cash on arrival"}</p>
+                {form.payment === "gcash" && pendingGcash ? (
+                  <p>
+                    <strong>GCash</strong> {formatEvPeso(pendingGcash.paidNum)} on {pendingGcash.date} · Ref. {pendingGcash.txId}
+                    {pendingGcash.proofPreview ? " · Proof attached" : ""}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="ev-confirm-btns">
               <button type="button" className="ev-btn-cancel-confirm" onClick={() => setConfirmOpen(false)} disabled={resSubmitting}>
                 Cancel
               </button>
               <button type="button" className="ev-btn-submit-confirm" onClick={confirmSubmit} disabled={resSubmitting}>
-                {resSubmitting ? "Saving…" : "Submit"}
+                {resSubmitting ? "Sending…" : "Confirm & submit"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ══ RESERVATION SUCCESS ══ */}
-      {resSuccess && (
-        <div className="success-overlay visible">
-          <div className="success-card">
-            <div className="success-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#27ae60" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      {/* ══ Booking submitted toast (same UX as Rooms — no full-page scrim) ══ */}
+      {bookingSuccessToast && (
+        <div className="booking-success-toast-anchor" aria-live="polite">
+          <div className="booking-success-toast" role="status">
+            <button
+              type="button"
+              className="booking-success-toast__close"
+              aria-label="Dismiss notification"
+              onClick={() => setBookingSuccessToast(null)}
+            >
+              ×
+            </button>
+            <div className="booking-success-toast__icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>
-            <h1 className="success-title">Reservation Submitted!</h1>
-            <p className="success-msg">
-              Your reservation has been submitted successfully.<br />
-              We will confirm your booking shortly.<br />
-              <a href="#" onClick={e => { e.preventDefault(); setResSuccess(false); }}>Back to Venues</a>
+            <h2 className="booking-success-toast__title">Submitted Successfully!</h2>
+            <p className="booking-success-toast__text">
+              {bookingSuccessToast === "gcash"
+                ? "Your booking and GCash payment are under review. Please wait for an SMS confirmation."
+                : "Your booking is under review. Please wait for an SMS confirmation."}
             </p>
           </div>
         </div>
       )}
 
-      {/* ══ PAYMENT SUCCESS ══ */}
-      {paySuccess && (
-        <div className="success-overlay visible">
-          <div className="success-card">
-            <div className="success-icon">
-              <svg viewBox="0 0 24 24" fill="none" stroke="#27ae60" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-            <h1 className="success-title">GCash payment submitted!</h1>
-            <p className="success-msg">
-              Your GCash payment details were received.<br />
-              We will verify your payment shortly.<br />
-              <a href="#" onClick={e => { e.preventDefault(); setPaySuccess(false); }}>Back to Venues</a>
-            </p>
-          </div>
-        </div>
-      )}
       <LogoutConfirmModal
         open={logoutModalOpen}
         onClose={closeLogoutModal}

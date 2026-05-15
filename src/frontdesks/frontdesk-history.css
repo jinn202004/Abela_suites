@@ -327,6 +327,125 @@
   .action-btn:hover { transform: translateY(-1px); }
   .view-btn { background: #e8f4fd; color: #2980b9; }
   .view-btn:hover { background: #cce4f6; }
+
+  /* Client-side reservation list pagination (this page only; same booking fetch as before) */
+  .fd-rh-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 16px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #e8dcc8;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .fd-rh-pagination-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+  .fd-rh-pagination-meta strong {
+    color: var(--text-dark);
+    font-weight: 700;
+  }
+  .fd-rh-pagination-per {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-mid);
+  }
+  .fd-rh-pagination-select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #d4c4a0;
+    font-family: "Roboto", sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    background: #fff;
+    cursor: pointer;
+  }
+  .fd-rh-pagination-btns {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .fd-rh-page-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #c4a86a;
+    background: #fff;
+    color: var(--gold-dark);
+    font-family: "Montserrat", sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .fd-rh-page-btn:hover:not(:disabled) {
+    background: #fdf8f0;
+    border-color: var(--gold);
+  }
+  .fd-rh-page-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .fd-rh-page-num-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .fd-rh-page-ellipsis {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-mid);
+    padding: 0 2px;
+    user-select: none;
+  }
+  .fd-rh-page-num {
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0 8px;
+    border-radius: 8px;
+    border: 1px solid #c4a86a;
+    background: #fff;
+    color: var(--gold-dark);
+    font-family: "Montserrat", sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .fd-rh-page-num:hover {
+    background: #fdf8f0;
+    border-color: var(--gold);
+  }
+  .fd-rh-page-num--active {
+    background: var(--gold-dark);
+    border-color: var(--gold-dark);
+    color: #fff;
+  }
+  .fd-rh-page-num--active:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #fff;
+  }
+
+  @media print {
+    .fd-rh-pagination {
+      display: none !important;
+    }
+  }
   
   /* ── MODAL OVERLAY ── */
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 500; align-items: flex-start; justify-content: center; padding: 50px 16px 32px; overflow-y: auto; }
@@ -369,6 +488,61 @@
   .billing-card { background: #fdf8f0; }
   .billing-list { display: flex; flex-direction: column; gap: 10px; }
   .bl-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; color: var(--text-dark); font-weight: 500; }
+  .bl-row--emph { font-weight: 700; color: var(--text-dark); }
+  .bl-row--muted { font-size: 12.5px; font-weight: 500; color: var(--text-mid); }
+
+  .fd-history-addon-wrap {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #e8dcc8;
+  }
+  .fd-history-addon-heading {
+    font-family: "Montserrat", sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gold-dark, #8a6f3a);
+    margin-bottom: 8px;
+  }
+  .fd-history-addon-list {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .fd-history-addon-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text-dark);
+  }
+  .fd-history-addon-item__label { flex: 1; min-width: 0; line-height: 1.4; }
+  .fd-history-addon-item__amt { font-weight: 700; white-space: nowrap; }
+  .fd-history-addon-subtotal { margin-top: 4px; }
+  .fd-history-addon-empty {
+    margin: 0 0 14px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-mid);
+  }
+  .fd-history-base-est { margin-bottom: 10px; }
+  .fd-history-notes-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 14px;
+    padding: 10px 12px;
+    background: #fff;
+    border: 1px solid #e8dcc8;
+    border-radius: 8px;
+    font-size: 12.5px;
+  }
+  .fd-history-billing-core { margin-top: 4px; }
 
   /* Keep reservation-history details modal compact and prevent stretched cards */
   .fd-history-modal.fd-history-details-modal.abel-modal-panel {
@@ -458,6 +632,13 @@
     .modal-two-col { grid-template-columns: 1fr; }
     .breadcrumb-title { font-size: 15px; }
     .notif-dropdown { max-width: min(260px, calc(100vw - 20px)); }
+    .fd-rh-pagination {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .fd-rh-pagination-btns {
+      justify-content: center;
+    }
   }
 
   @media (max-width: 480px) {

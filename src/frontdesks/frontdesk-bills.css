@@ -112,16 +112,201 @@
   .stat-icon { color: var(--gold); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .stat-label { font-size: 11.5px; color: var(--text-mid); font-weight: 500; }
   .stat-value { font-family: 'Montserrat', sans-serif; font-size: 28px; font-weight: 800; color: var(--gold); line-height: 1; }
+
+  /* ── Bills: main toolbar (search | month | print — one row) ── */
+  .fd-bills-main-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px 24px;
+    background: #fff;
+    border-radius: 10px;
+    border: 1px solid #e8dcc8;
+    padding: 16px 18px 18px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.06);
+  }
+  .fd-bills-toolbar-search-col {
+    flex: 1 1 38%;
+    min-width: min(100%, 220px);
+    max-width: 100%;
+  }
+  .fd-bills-toolbar-search-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+  }
+  .fd-bills-toolbar-search-icon {
+    position: absolute;
+    left: 14px;
+    color: #b0a090;
+    pointer-events: none;
+  }
+  .fd-bills-toolbar-search-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 14px 0 42px;
+    border: 1px solid #d8d0c4;
+    border-radius: 10px;
+    font-family: "Roboto", sans-serif;
+    font-size: 14px;
+    color: var(--text-dark);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .fd-bills-toolbar-search-input::placeholder {
+    color: #a8a098;
+    font-size: 13px;
+  }
+  .fd-bills-toolbar-search-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(184, 146, 42, 0.12);
+  }
+
+  .fd-bills-toolbar-month-col {
+    flex: 0 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    min-width: 0;
+  }
+  .fd-bills-toolbar-month-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .fd-bills-toolbar-month-label {
+    font-family: "Montserrat", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+  }
+  .fd-bills-toolbar-month-clear {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: "Roboto", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gold-dark);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .fd-bills-toolbar-month-clear:hover {
+    color: var(--gold);
+  }
+  .fd-bills-toolbar-month-input-wrap {
+    position: relative;
+    width: 100%;
+    min-width: 188px;
+    max-width: 220px;
+  }
+  .fd-bills-toolbar-month-input {
+    width: 100%;
+    height: 44px;
+    padding: 0 12px;
+    border: 1px solid #d8d0c4;
+    border-radius: 10px;
+    font-family: "Roboto", sans-serif;
+    font-size: 14px;
+    color: var(--text-dark);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .fd-bills-toolbar-month-input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 2px rgba(184, 146, 42, 0.12);
+  }
+
+  .fd-bills-toolbar-print-col {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: flex-end;
+    margin-left: auto;
+  }
+  .fd-bills-toolbar-print-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 44px;
+    padding: 0 22px;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-family: "Montserrat", sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #fff;
+    background: var(--gold);
+    box-shadow: 0 2px 6px rgba(154, 117, 32, 0.35);
+    transition: background 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+    white-space: nowrap;
+  }
+  .fd-bills-toolbar-print-btn:hover {
+    background: var(--gold-dark);
+    box-shadow: 0 3px 10px rgba(154, 117, 32, 0.4);
+  }
+  .fd-bills-toolbar-print-btn:active {
+    transform: translateY(1px);
+  }
+  .fd-bills-toolbar-print-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.45);
+  }
+  .fd-bills-toolbar-print-icon {
+    flex-shrink: 0;
+    stroke: #fff;
+  }
+
+  /* Second row: time range + short hint */
+  .fd-bills-toolbar-subrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    margin-top: 4px;
+  }
+  .fd-bills-toolbar-subrow-filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .fd-bills-toolbar-range-label {
+    font-family: "Montserrat", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+  }
+  .fd-bills-filter-wrap.filter-wrap {
+    min-width: 140px;
+  }
+  .fd-bills-toolbar-hint {
+    flex: 1 1 220px;
+    margin: 0;
+    font-size: 11.5px;
+    line-height: 1.45;
+    color: var(--text-light);
+    min-width: 0;
+  }
+  .fd-bills-toolbar-hint strong {
+    color: var(--text-mid);
+    font-weight: 600;
+  }
   
-  /* ── TOOLBAR ── */
-  .bills-toolbar { display: flex; align-items: center; gap: 12px; }
-  .search-wrap { position: relative; display: flex; align-items: center; flex: 1; }
-  .search-icon { position: absolute; left: 11px; color: var(--text-light); pointer-events: none; }
-  .search-input { width: 100%; height: 38px; padding: 0 12px 0 34px; border: 1.5px solid #d4c4a8; border-radius: 7px; font-family: 'Roboto', sans-serif; font-size: 13px; color: var(--text-dark); background: #fff; outline: none; transition: border-color 0.2s; }
-  .search-input:focus { border-color: var(--gold); }
-  .search-input::placeholder { color: #bbb; font-size: 12.5px; }
-  
-  /* ── FILTER DROPDOWN ── */
+  /* ── FILTER DROPDOWN (shared with bills sub-row) ── */
   .filter-wrap {
     position: relative;
     display: flex; align-items: center; gap: 8px;
@@ -178,6 +363,25 @@
   .view-btn:hover { background: #d9ecff; color: #1186da; }
   .print-btn { background: #f3efe6; color: #a87d1f; }
   .print-btn:hover { background: #e9e1d2; color: #926a15; }
+
+  .bill-modal-reject-btn {
+    padding: 8px 14px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 13px;
+    background: #fdecea;
+    color: #c0392b;
+    transition: background 0.15s ease, opacity 0.15s ease;
+  }
+  .bill-modal-reject-btn:hover:not(:disabled) {
+    background: #fad4d1;
+  }
+  .bill-modal-reject-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
   
   /* ── BILL DETAILS MODAL ── */
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 500; align-items: center; justify-content: center; }
@@ -192,15 +396,6 @@
     position: relative;
   }
   @keyframes modalIn { from { opacity:0; transform:translateY(16px) scale(0.97); } to { opacity:1; transform:translateY(0) scale(1); } }
-  
-  .bill-modal-alert {
-    display: flex; justify-content: center; margin-bottom: 12px;
-  }
-  .bill-modal-alert svg {
-    width: 52px; height: 52px;
-    border: 2.5px solid #e74c3c; border-radius: 50%;
-    padding: 8px; color: #e74c3c;
-  }
   
   .bill-modal-close {
     position: absolute; top: 14px; right: 16px;
@@ -225,6 +420,125 @@
   .bms-row { display: flex; justify-content: space-between; align-items: center; font-size: 13.5px; font-weight: 500; color: var(--text-dark); }
   .bms-red   { color: #e74c3c; font-weight: 700; }
   .bms-green { color: #27ae60; font-weight: 700; }
+
+  /* ── Bills table pagination (client-side slice; same API + DB load as before) ── */
+  .fd-bills-pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 16px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: #fff;
+    border: 1px solid #e8dcc8;
+    border-radius: 10px;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.05);
+    flex-shrink: 0;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .fd-bills-pagination-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+  .fd-bills-pagination-meta strong {
+    color: var(--text-dark);
+    font-weight: 700;
+  }
+  .fd-bills-pagination-per {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-mid);
+  }
+  .fd-bills-pagination-select {
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1px solid #d4c4a0;
+    font-family: "Roboto", sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    background: #fff;
+    cursor: pointer;
+  }
+  .fd-bills-pagination-btns {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .fd-bills-page-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #c4a86a;
+    background: #fff;
+    color: var(--gold-dark);
+    font-family: "Montserrat", sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .fd-bills-page-btn:hover:not(:disabled) {
+    background: #fdf8f0;
+    border-color: var(--gold);
+  }
+  .fd-bills-page-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .fd-bills-page-num-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .fd-bills-page-ellipsis {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-mid);
+    padding: 0 2px;
+    user-select: none;
+  }
+  .fd-bills-page-num {
+    min-width: 2.25rem;
+    height: 2.25rem;
+    padding: 0 8px;
+    border-radius: 8px;
+    border: 1px solid #c4a86a;
+    background: #fff;
+    color: var(--gold-dark);
+    font-family: "Montserrat", sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .fd-bills-page-num:hover {
+    background: #fdf8f0;
+    border-color: var(--gold);
+  }
+  .fd-bills-page-num--active {
+    background: var(--gold-dark);
+    border-color: var(--gold-dark);
+    color: #fff;
+  }
+  .fd-bills-page-num--active:hover {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #fff;
+  }
+
+  @media print {
+    .fd-bills-pagination {
+      display: none !important;
+    }
+  }
   
   /* ── RESPONSIVE ── */
   @media (max-width: 900px) { .stat-cards { grid-template-columns: 1fr 1fr; } }
@@ -235,9 +549,42 @@
     .sidebar-logo-img { width: 44px; height: 44px; }
     .main-wrapper { margin-left: 64px; width: calc(100% - 64px); }
     .frontdesk-app .main-wrapper > .content { padding: 14px 12px; }
-    .bills-toolbar { flex-direction: column; align-items: stretch; }
-    .search-wrap { flex: 1 1 100%; min-width: 0; }
-    .filter-wrap { width: 100%; justify-content: space-between; }
+    .fd-bills-main-toolbar {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .fd-bills-toolbar-search-col {
+      flex: 1 1 100%;
+      max-width: none;
+    }
+    .fd-bills-toolbar-month-col {
+      width: 100%;
+    }
+    .fd-bills-toolbar-month-input-wrap {
+      max-width: none;
+    }
+    .fd-bills-toolbar-print-col {
+      margin-left: 0;
+      width: 100%;
+    }
+    .fd-bills-toolbar-print-btn {
+      width: 100%;
+    }
+    .fd-bills-toolbar-subrow {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .fd-bills-filter-wrap.filter-wrap {
+      width: 100%;
+      justify-content: space-between;
+    }
+    .fd-bills-pagination {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .fd-bills-pagination-btns {
+      justify-content: center;
+    }
     .bills-table-wrap { -webkit-overflow-scrolling: touch; min-height: 160px; max-height: none; }
     .bills-table { min-width: 760px; font-size: 12px; }
     .bills-table thead th, .bills-table tbody td { padding: 9px 10px; }

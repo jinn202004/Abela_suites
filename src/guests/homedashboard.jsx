@@ -1,5 +1,6 @@
-import { useState, useLayoutEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { fetchRoomsCatalog } from "../api/guestApi";
 import "./homedashboard.css";
 
 // Public URLs (Vite serves `public/` at `/` — no `/public/` prefix; local assets were missing)
@@ -9,11 +10,47 @@ const RESTO_IMAGES = [
   "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=80",
 ];
 
-const ROOMS_EVENTS_SLIDES = [
+/** Used only when the public room API is unreachable or returns no rows. */
+const FALLBACK_SERVICES_SLIDES = [
   { image: "/room-single-suite.png", name: "Single Suite", price: 824 },
   { image: "/room-executive.png", name: "Executive", price: 2940 },
   { image: "/venue-function-hall.png", name: "Function Hall", price: 12500 },
 ];
+
+const VENUE_SLIDE = {
+  image: "/venue-function-hall.png",
+  name: "Function Hall",
+  price: 12500,
+};
+
+function catalogRoomsToSlides(rooms) {
+  const list = Array.isArray(rooms) ? rooms : [];
+  const mapped = list
+    .slice()
+    .sort((a, b) => {
+      const na = parseInt(String(a.roomNumber ?? "").replace(/\D/g, ""), 10);
+      const nb = parseInt(String(b.roomNumber ?? "").replace(/\D/g, ""), 10);
+      if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+      return String(a.roomNumber ?? "").localeCompare(String(b.roomNumber ?? ""));
+    })
+    .map((r) => {
+      const price = Number(r.price);
+      const name =
+        String(r.package ?? "").trim() ||
+        String(r.title ?? "").trim() ||
+        `Room ${String(r.roomNumber ?? "").trim() || "—"}`;
+      const image =
+        String(r.image ?? "").trim() ||
+        "https://placehold.co/900x600/f5f0e8/6b5a3e?text=Room";
+      return {
+        image,
+        name,
+        price: Number.isFinite(price) ? price : 0,
+      };
+    });
+  if (mapped.length === 0) return null;
+  return [...mapped, VENUE_SLIDE];
+}
 
 // --- Why Choose Us Cards ---
 const WHY_CARDS = [
@@ -85,9 +122,34 @@ export default function HomeDashboard() {
   const [restoIndex, setRestoIndex] = useState(0);
   const [restoFade, setRestoFade]   = useState(true);
 
-  // Rooms & events carousel
+  // Rooms & events carousel (room slides from GET /api/rooms; venue slide is static marketing)
+  const [servicesSlides, setServicesSlides] = useState(FALLBACK_SERVICES_SLIDES);
   const [servicesIndex, setServicesIndex] = useState(0);
   const [servicesFade, setServicesFade]   = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchRoomsCatalog()
+      .then((list) => {
+        if (cancelled) return;
+        const built = catalogRoomsToSlides(list);
+        if (built && built.length > 0) setServicesSlides(built);
+      })
+      .catch(() => {
+        /* keep FALLBACK_SERVICES_SLIDES */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    setServicesIndex((i) => {
+      const len = servicesSlides.length;
+      if (len === 0) return 0;
+      return Math.min(i, len - 1);
+    });
+  }, [servicesSlides]);
 
   /* Pixel min-height for hero <main> — fixes cream band below hero when global CSS
      from admin/booking (body flex, html/body height:100%) makes 100dvh/max() unreliable. */
@@ -143,7 +205,11 @@ export default function HomeDashboard() {
   function servicesSlide(direction) {
     setServicesFade(false);
     setTimeout(() => {
-      setServicesIndex(i => (i + direction + ROOMS_EVENTS_SLIDES.length) % ROOMS_EVENTS_SLIDES.length);
+      setServicesIndex((i) => {
+        const len = servicesSlides.length;
+        if (len === 0) return 0;
+        return (i + direction + len) % len;
+      });
       setServicesFade(true);
     }, 280);
   }
@@ -243,8 +309,8 @@ export default function HomeDashboard() {
             <button className="services-arrow services-prev" onClick={() => servicesSlide(-1)} aria-label="Previous">&#8249;</button>
             <div className="services-img-wrapper">
               <img
-                src={ROOMS_EVENTS_SLIDES[servicesIndex].image}
-                alt={ROOMS_EVENTS_SLIDES[servicesIndex].name}
+                src={servicesSlides[servicesIndex].image}
+                alt={servicesSlides[servicesIndex].name}
                 className="services-img"
                 style={{
                   opacity: servicesFade ? 1 : 0,
@@ -259,9 +325,9 @@ export default function HomeDashboard() {
             <span className="services-label">Accommodations &amp; Events</span>
             <h2 className="services-title">Rooms &amp; Events</h2>
             <p className="services-room-pill">
-              {ROOMS_EVENTS_SLIDES[servicesIndex].name}
+              {servicesSlides[servicesIndex].name}
               <span className="services-room-pill__price">
-                ₱{ROOMS_EVENTS_SLIDES[servicesIndex].price.toLocaleString("en-PH")}
+                ₱{servicesSlides[servicesIndex].price.toLocaleString("en-PH")}
               </span>
             </p>
             <div className="services-rule"></div>

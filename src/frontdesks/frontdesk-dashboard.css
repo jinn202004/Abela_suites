@@ -79,7 +79,7 @@
     white-space: nowrap;
     min-width: 0;
   }
-  .topbar-actions    { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  .topbar-actions    { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
   .icon-btn { position: relative; display: flex; align-items: center; gap: 4px; cursor: pointer; padding: 6px; border-radius: 50%; transition: background 0.2s; user-select: none; }
   .icon-btn:hover { background: rgba(184,146,42,0.10); }
   .topbar-icon { width: 28px; height: 28px; object-fit: contain; }

@@ -8,8 +8,9 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin, on
   const titleId = useId()
   const [email, setEmail] = useState('')
   const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     const trimmed = email.trim()
@@ -21,7 +22,15 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin, on
       setError('Please enter a valid email address.')
       return
     }
-    onSubmitted?.(trimmed.toLowerCase())
+    setPending(true)
+    try {
+      await Promise.resolve(onSubmitted?.(trimmed.toLowerCase()))
+    } catch (err) {
+      const msg = err && typeof err === 'object' && 'message' in err ? String(err.message) : 'Something went wrong.'
+      setError(msg || 'Something went wrong.')
+    } finally {
+      setPending(false)
+    }
   }
 
   return (
@@ -58,8 +67,8 @@ export default function ForgotPasswordModal({ isOpen, onClose, onBackToLogin, on
           </p>
         ) : null}
 
-        <Button type="submit" variant="cta" className="login-modal__btn-primary forgot-modal__submit">
-          Submit
+        <Button type="submit" variant="cta" className="login-modal__btn-primary forgot-modal__submit" disabled={pending}>
+          {pending ? 'Sending…' : 'Submit'}
         </Button>
       </form>
 

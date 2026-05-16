@@ -387,7 +387,7 @@ export async function patchMyPassword({ currentPassword, newPassword }) {
   return data;
 }
 
-/* ── Password reset (OTP) — session keys + `/api/auth/forgot-password` … `/reset-password` ── */
+/* ── Password reset (email OTP + short-lived JWT) ── */
 
 const PASSWORD_RESET_EMAIL_KEY = "abela_pw_reset_email";
 const PASSWORD_RESET_TOKEN_KEY = "abela_pw_reset_token";
@@ -441,7 +441,7 @@ export function setPasswordResetToken(token) {
 
 /**
  * @param {string} email
- * @returns {Promise<unknown>} Parsed JSON (e.g. `{ message }`).
+ * @returns {Promise<{ message?: string, expiresInMinutes?: number }>}
  */
 export async function requestPasswordReset(email) {
   const em = String(email ?? "").trim().toLowerCase();
@@ -460,7 +460,9 @@ export async function requestPasswordReset(email) {
     const msg =
       typeof data.error === "string" && data.error.trim()
         ? data.error.trim()
-        : `Could not send reset code (${res.status}).`;
+        : res.status === 404
+          ? "No account found with this email address."
+          : `Could not send verification code (${res.status}).`;
     const err = new Error(msg);
     err.status = res.status;
     throw err;
@@ -471,21 +473,23 @@ export async function requestPasswordReset(email) {
 /**
  * @param {string} [email] — optional if already stored via `setPasswordResetEmail`
  * @param {string} otp
- * @returns {Promise<string>} `resetToken`
+ * @returns {Promise<string>} `resetToken` (JWT)
  */
 export async function verifyPasswordResetOtp(email, otp) {
   const em =
     String(email ?? "").trim().toLowerCase() || getPasswordResetEmail();
   const code = String(otp ?? "").replace(/\D/g, "");
   if (!em) {
-    throw new Error("Session expired. Start again from Forgot password.");
+    const err = new Error("Session expired. Start again from Forgot password.");
+    err.status = 400;
+    throw err;
   }
-  if (code.length < 6) {
+  if (code.length !== 6) {
     const err = new Error("Enter the 6-digit code.");
     err.status = 400;
     throw err;
   }
-  const res = await fetch(backendUrl("/api/auth/verify-otp"), {
+  const res = await fetch(backendUrl("/api/auth/verify-reset-otp"), {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ email: em, otp: code }),
@@ -509,11 +513,14 @@ export async function verifyPasswordResetOtp(email, otp) {
 }
 
 /**
- * @param {string} [token] — optional if already stored after verify-otp
- * @param {string} password
+ * @param {{ resetToken?: string, password: string }} opts
  */
-export async function resetPasswordWithToken(token, password) {
-  const t = String(token ?? "").trim() || getPasswordResetToken();
+export async function resetPasswordWithToken(opts) {
+  const password = typeof opts === "string" ? opts : String(opts?.password ?? "");
+  const t =
+    (typeof opts === "object" && opts?.resetToken != null
+      ? String(opts.resetToken).trim()
+      : "") || getPasswordResetToken();
   if (!t) {
     const err = new Error("Session expired. Start again from Forgot password.");
     err.status = 401;
@@ -535,5 +542,61 @@ export async function resetPasswordWithToken(token, password) {
     throw err;
   }
   clearPasswordResetFlow();
+  return data;
+}
+
+/**
+ * @param {{ email: string, token: string }} body
+ */
+export async function verifyEmailAccount({ email, token }) {
+  const em = String(email ?? "").trim().toLowerCase();
+  const t = String(token ?? "").trim();
+  if (!em || !t) {
+    const err = new Error("Invalid verification link.");
+    err.status = 400;
+    throw err;
+  }
+  const res = await fetch(backendUrl("/api/auth/verify-email"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ email: em, token: t }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      typeof data.error === "string" && data.error.trim()
+        ? data.error.trim()
+        : "Could not verify email.";
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
+  return data;
+}
+
+/**
+ * Resend verification: signed-in user needs no body; otherwise pass `{ email }`.
+ * @param {{ email?: string }} [opts]
+ */
+export async function sendVerificationEmail(opts = {}) {
+  const token = getStoredAuthToken();
+  const headers = { "Content-Type": "application/json", Accept: "application/json" };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const email = opts.email != null ? String(opts.email).trim().toLowerCase() : "";
+  const res = await fetch(backendUrl("/api/auth/send-verification-email"), {
+    method: "POST",
+    headers,
+    body: JSON.stringify(email ? { email } : {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg =
+      typeof data.error === "string" && data.error.trim()
+        ? data.error.trim()
+        : `Could not send verification email (${res.status}).`;
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }

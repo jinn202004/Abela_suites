@@ -39,6 +39,7 @@ export default function SignUp() {
   const [modalActive, setModalActive] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showEmailVerifyHint, setShowEmailVerifyHint] = useState(false);
 
   useAuthRouteScroll();
 
@@ -119,7 +120,7 @@ export default function SignUp() {
     const emailTrim = fields.email.trim().toLowerCase();
     let registered = false;
     try {
-      await registerUser({
+      const newUser = await registerUser({
         email: emailTrim,
         password: fields.password,
         firstName: fields.firstName,
@@ -127,6 +128,7 @@ export default function SignUp() {
         phone: fields.phone,
       });
       registered = true;
+      setShowEmailVerifyHint(Boolean(newUser && newUser.emailVerified === false));
     } catch (err) {
       const st = Number(err?.status);
       if (st === 409) {
@@ -159,6 +161,7 @@ export default function SignUp() {
   /* ── MODAL CLOSE ── */
   const closeModal = () => {
     setModalVisible(false);
+    setShowEmailVerifyHint(false);
     setTimeout(() => setModalActive(false), 300);
   };
 
@@ -231,6 +234,13 @@ export default function SignUp() {
           <p className={styles.modalMessage}>
             Welcome to <strong>Abela Suites</strong>.<br />
             Your account is saved and you&apos;re logged in.<br />
+            {showEmailVerifyHint ? (
+              <>
+                Check your email for a verification link. If you did not receive it, you can resend from account
+                settings while signed in.
+                <br />
+              </>
+            ) : null}
             Continue to your guest home to start booking.
           </p>
           <button type="button" className={styles.modalBtn} onClick={goToGuestHome}>

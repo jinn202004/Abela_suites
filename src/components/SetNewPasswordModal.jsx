@@ -37,7 +37,14 @@ function passwordMeetsAllRules(p) {
   return PASSWORD_RULES.every((r) => r.test(p))
 }
 
-export default function SetNewPasswordModal({ isOpen, onClose, onBackToLogin, onPasswordSet }) {
+export default function SetNewPasswordModal({
+  isOpen,
+  onClose,
+  onBackToLogin,
+  onPasswordSet,
+  serverError = '',
+  onDismissServerError,
+}) {
   const titleId = useId()
   const rulesId = useId()
   const mismatchId = useId()
@@ -49,11 +56,11 @@ export default function SetNewPasswordModal({ isOpen, onClose, onBackToLogin, on
     [password],
   )
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!passwordMeetsAllRules(password)) return
     if (password !== confirm) return
-    onPasswordSet?.(password)
+    if (onPasswordSet) await Promise.resolve(onPasswordSet(password))
   }
 
   const showRules = password.length > 0
@@ -72,7 +79,10 @@ export default function SetNewPasswordModal({ isOpen, onClose, onBackToLogin, on
           name="password"
           autoComplete="new-password"
           value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          onChange={(e) => {
+            onDismissServerError?.()
+            setPassword(e.target.value)
+          }}
           ariaDescribedBy={showRules ? rulesId : undefined}
         >
           {showRules && (
@@ -98,7 +108,10 @@ export default function SetNewPasswordModal({ isOpen, onClose, onBackToLogin, on
           name="confirmPassword"
           autoComplete="new-password"
           value={confirm}
-          onChange={(e) => setConfirm(e.target.value)}
+          onChange={(e) => {
+            onDismissServerError?.()
+            setConfirm(e.target.value)
+          }}
           inputClassName={passwordsMismatch ? 'set-password-modal__input--error' : ''}
           ariaInvalid={passwordsMismatch}
           ariaDescribedBy={passwordsMismatch ? mismatchId : undefined}
@@ -111,6 +124,12 @@ export default function SetNewPasswordModal({ isOpen, onClose, onBackToLogin, on
             </p>
           )}
         </PasswordField>
+
+        {serverError ? (
+          <p className="login-modal__error" role="alert" style={{ margin: '0 0 0.5rem' }}>
+            {serverError}
+          </p>
+        ) : null}
 
         <Button type="submit" variant="cta" className="login-modal__btn-primary set-password-modal__confirm">
           Confirm

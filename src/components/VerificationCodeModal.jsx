@@ -11,6 +11,9 @@ export default function VerificationCodeModal({
   onClose,
   onResend,
   onValidCode,
+  submissionError = '',
+  resendError = '',
+  onClearSubmissionError,
 }) {
   const titleId = useId()
   const [digits, setDigits] = useState(() => Array(CODE_LEN).fill(''))
@@ -18,11 +21,13 @@ export default function VerificationCodeModal({
 
   useEffect(() => {
     if (!isOpen) return
+    setDigits(Array(CODE_LEN).fill(''))
     const id = requestAnimationFrame(() => inputRefs.current[0]?.focus())
     return () => cancelAnimationFrame(id)
   }, [isOpen])
 
   const setDigitAt = (index, value) => {
+    onClearSubmissionError?.()
     const d = value.replace(/\D/g, '').slice(-1)
     setDigits((prev) => {
       const next = [...prev]
@@ -61,6 +66,7 @@ export default function VerificationCodeModal({
 
   const handlePaste = (e) => {
     e.preventDefault()
+    onClearSubmissionError?.()
     const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, CODE_LEN)
     if (!text) return
     const chars = text.split('')
@@ -75,10 +81,10 @@ export default function VerificationCodeModal({
     requestAnimationFrame(() => inputRefs.current[focusIndex]?.focus())
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     if (!digits.every((d) => d !== '')) return
-    onValidCode?.(digits.join(''))
+    if (onValidCode) await Promise.resolve(onValidCode(digits.join('')))
   }
 
   const handleResend = (e) => {
@@ -97,6 +103,17 @@ export default function VerificationCodeModal({
       </h2>
 
       <p className="verify-modal__hint">A code has been sent to your email address.</p>
+
+      {submissionError ? (
+        <p className="login-modal__error" role="alert" style={{ margin: '0.35rem 0 0', textAlign: 'center' }}>
+          {submissionError}
+        </p>
+      ) : null}
+      {resendError ? (
+        <p className="login-modal__error" role="alert" style={{ margin: '0.35rem 0 0', textAlign: 'center' }}>
+          {resendError}
+        </p>
+      ) : null}
 
       <form className="verify-modal__form" onSubmit={handleSubmit} noValidate>
         <fieldset className="verify-modal__fieldset">

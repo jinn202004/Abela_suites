@@ -8,6 +8,10 @@ export default function LandingAuthModals({
   forgotOpen,
   verifyOpen,
   newPasswordOpen,
+  loginNotice,
+  codeError,
+  newPwError,
+  resendError,
   closeModals,
   openLogin,
   openForgot,
@@ -15,6 +19,8 @@ export default function LandingAuthModals({
   onResendResetCode,
   onVerifyResetCode,
   onSetNewPassword,
+  onClearNewPwError,
+  onClearCodeError,
   handleLoginSuccess,
 }) {
   return (
@@ -25,18 +31,22 @@ export default function LandingAuthModals({
         onClose={closeModals}
         onForgotPassword={openForgot}
         onLoginSuccess={handleLoginSuccess}
+        notice={loginNotice}
       />
       <ForgotPasswordModal
         key={forgotOpen ? 'forgot-open' : 'forgot-closed'}
         isOpen={forgotOpen}
         onClose={closeModals}
         onBackToLogin={openLogin}
-        onSubmitted={(email) => void onRequestPasswordReset?.(email)}
+        onSubmitted={onRequestPasswordReset}
       />
       <VerificationCodeModal
         key={verifyOpen ? 'verify-open' : 'verify-closed'}
         isOpen={verifyOpen}
         onClose={closeModals}
+        submissionError={codeError}
+        resendError={resendError}
+        onClearSubmissionError={onClearCodeError}
         onResend={() => void onResendResetCode?.()}
         onValidCode={(code) => void onVerifyResetCode?.(code)}
       />
@@ -45,6 +55,8 @@ export default function LandingAuthModals({
         isOpen={newPasswordOpen}
         onClose={closeModals}
         onBackToLogin={openLogin}
+        serverError={newPwError}
+        onDismissServerError={onClearNewPwError}
         onPasswordSet={(password) => void onSetNewPassword?.(password)}
       />
     </>

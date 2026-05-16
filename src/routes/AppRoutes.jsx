@@ -17,7 +17,6 @@ import {
   requestPasswordReset,
   resetPasswordWithToken,
   setPasswordResetEmail,
-  setPasswordResetToken,
   verifyPasswordResetOtp,
 } from '../api/authApi'
 
@@ -104,6 +103,8 @@ import SignUp from '../logIn/signUp'
 import ForgotPassword from '../logIn/forgotPass'
 
 import SetPassword from '../logIn/setPass'
+
+import VerifyEmailPage from '../logIn/verifyEmail'
 
 import EnterCode from '../logIn/enterCode'
 
@@ -242,7 +243,11 @@ const GUEST_PORTAL_ROUTES = [
 
   <Route key="forgot-password" path="/forgot-password" element={<ForgotPassword />} />,
 
+  <Route key="reset-password" path="/reset-password" element={<Navigate to="/forgot-password" replace />} />,
+
   <Route key="set-password" path="/set-password" element={<SetPassword />} />,
+
+  <Route key="verify-email" path="/verify-email" element={<VerifyEmailPage />} />,
 
   <Route key="enter-code" path="/enter-code" element={<EnterCode />} />,
 
@@ -267,6 +272,14 @@ export default function AppRoutes() {
   const [verifyOpen, setVerifyOpen] = useState(false)
 
   const [newPasswordOpen, setNewPasswordOpen] = useState(false)
+
+  const [loginNotice, setLoginNotice] = useState('')
+
+  const [codeError, setCodeError] = useState('')
+
+  const [newPwError, setNewPwError] = useState('')
+
+  const [resendError, setResendError] = useState('')
 
 
 
@@ -298,6 +311,14 @@ export default function AppRoutes() {
 
     setNewPasswordOpen(false)
 
+    setLoginNotice('')
+
+    setCodeError('')
+
+    setNewPwError('')
+
+    setResendError('')
+
     clearPasswordResetFlow()
 
   }
@@ -313,6 +334,14 @@ export default function AppRoutes() {
     setVerifyOpen(false)
 
     setNewPasswordOpen(false)
+
+    setLoginNotice('')
+
+    setCodeError('')
+
+    setNewPwError('')
+
+    setResendError('')
 
     setLoginOpen(true)
 
@@ -330,6 +359,14 @@ export default function AppRoutes() {
 
     setNewPasswordOpen(false)
 
+    setLoginNotice('')
+
+    setCodeError('')
+
+    setNewPwError('')
+
+    setResendError('')
+
     setForgotOpen(true)
 
   }
@@ -341,6 +378,10 @@ export default function AppRoutes() {
     await requestPasswordReset(email)
 
     setPasswordResetEmail(email)
+
+    setResendError('')
+
+    setCodeError('')
 
     setNewPasswordOpen(false)
 
@@ -358,11 +399,23 @@ export default function AppRoutes() {
 
     if (!em) {
 
-      throw new Error('Session expired. Start again from Forgot password.')
+      setResendError('Session expired. Start again from Forgot password.')
+
+      return
 
     }
 
-    await requestPasswordReset(em)
+    setResendError('')
+
+    try {
+
+      await requestPasswordReset(em)
+
+    } catch (e) {
+
+      setResendError(e && typeof e === 'object' && 'message' in e ? String(e.message) : 'Could not resend code.')
+
+    }
 
   }, [])
 
@@ -374,17 +427,27 @@ export default function AppRoutes() {
 
     if (!em) {
 
-      throw new Error('Session expired. Start again from Forgot password.')
+      setCodeError('Session expired. Start again from Forgot password.')
+
+      return
 
     }
 
-    const token = await verifyPasswordResetOtp(em, code)
+    setCodeError('')
 
-    setPasswordResetToken(token)
+    try {
 
-    setVerifyOpen(false)
+      await verifyPasswordResetOtp(em, code)
 
-    setNewPasswordOpen(true)
+      setVerifyOpen(false)
+
+      setNewPasswordOpen(true)
+
+    } catch (e) {
+
+      setCodeError(e && typeof e === 'object' && 'message' in e ? String(e.message) : 'Invalid code.')
+
+    }
 
   }, [])
 
@@ -396,17 +459,31 @@ export default function AppRoutes() {
 
     if (!token) {
 
-      throw new Error('Session expired. Start again from Forgot password.')
+      setNewPwError('Session expired. Start again from Forgot password.')
+
+      return
 
     }
 
-    await resetPasswordWithToken(token, password)
+    setNewPwError('')
 
-    clearPasswordResetFlow()
+    try {
 
-    setNewPasswordOpen(false)
+      await resetPasswordWithToken({ resetToken: token, password })
 
-    setLoginOpen(true)
+      clearPasswordResetFlow()
+
+      setNewPasswordOpen(false)
+
+      setLoginNotice('Your password was reset successfully. You can sign in now.')
+
+      setLoginOpen(true)
+
+    } catch (e) {
+
+      setNewPwError(e && typeof e === 'object' && 'message' in e ? String(e.message) : 'Could not reset password.')
+
+    }
 
   }, [])
 
@@ -484,6 +561,14 @@ export default function AppRoutes() {
 
         newPasswordOpen={newPasswordOpen}
 
+        loginNotice={loginNotice}
+
+        codeError={codeError}
+
+        newPwError={newPwError}
+
+        resendError={resendError}
+
         closeModals={closeModals}
 
         openLogin={openLogin}
@@ -497,6 +582,10 @@ export default function AppRoutes() {
         onVerifyResetCode={onVerifyResetCode}
 
         onSetNewPassword={onSetNewPassword}
+
+        onClearNewPwError={() => setNewPwError('')}
+
+        onClearCodeError={() => setCodeError('')}
 
         handleLoginSuccess={handleLoginSuccess}
 

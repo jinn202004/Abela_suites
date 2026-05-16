@@ -7,7 +7,7 @@ import PasswordField from '../components/PasswordField'
 import { tryCredentials } from './tryCredentials'
 import './LoginModal.css'
 
-export default function LoginModal({ isOpen, onClose, onForgotPassword, onLoginSuccess }) {
+export default function LoginModal({ isOpen, onClose, onForgotPassword, onLoginSuccess, notice = '' }) {
   const navigate = useNavigate()
   const titleId = useId()
   const [remember, setRemember] = useState(false)
@@ -48,6 +48,12 @@ export default function LoginModal({ isOpen, onClose, onForgotPassword, onLoginS
       </div>
 
       <form className="login-modal__form" onSubmit={handleSubmit} noValidate>
+        {notice ? (
+          <p className="login-modal__notice" role="status">
+            {notice}
+          </p>
+        ) : null}
+
         <div className="login-modal__field">
           <label className="login-modal__label" htmlFor="login-username">
             Email or username

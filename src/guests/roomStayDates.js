@@ -34,6 +34,18 @@ export function addLocalDays(ymd, n) {
 }
 
 /**
+ * Nights for hotel billing: [checkIn, checkOut) — checkout morning does not count as a billable night.
+ * @returns {number} 0 if dates invalid or check-out is not after check-in
+ */
+export function countStayNights(checkIn, checkOut) {
+  const ci = parseLocalYmd(checkIn);
+  const co = parseLocalYmd(checkOut);
+  if (!ci || !co || co <= ci) return 0;
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((co.getTime() - ci.getTime()) / msPerDay);
+}
+
+/**
  * Calendar dates that cannot be used as check-in: each night in [checkIn, checkOut).
  * Matches hotel rule: checkout morning frees that calendar day for a new 2pm check-in.
  * @param {Array<{ checkIn: string, checkOut: string }>} ranges

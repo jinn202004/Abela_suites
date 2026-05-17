@@ -929,7 +929,20 @@
 
 /* Walk-in room booking: guest-style stay calendars (DayPicker + FD legend), scoped */
 .walkin-room-booking-root .booking-form .form-row--stay-calendars {
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
   align-items: start;
+  gap: 16px 20px;
+}
+
+.walkin-room-booking-root .booking-form-billing-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.walkin-room-booking-root .booking-form-fd-cal-legend .fd-cal-legend-swatch--available {
+  background: #ffffff;
+  border-color: #d4c4a8;
 }
 .walkin-room-booking-root .booking-form .form-row--stay-calendars .booking-cal-unavailable-hint {
   grid-column: 1 / -1;
@@ -969,21 +982,28 @@
   --rdp-day_button-border-radius: 8px;
   margin: 0 auto;
 }
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-month_grid {
+  width: 100%;
+  table-layout: fixed;
+}
 .walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  vertical-align: middle;
+  text-align: center;
   padding: 2px;
   cursor: default;
   box-sizing: border-box;
+  aspect-ratio: unset;
+  max-height: none;
+  width: var(--rdp-day-width);
+  height: var(--rdp-day-height);
 }
 .walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
-  flex: 1;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 40px;
-  width: 100%;
+  width: var(--rdp-day_button-width);
+  height: var(--rdp-day_button-height);
+  margin: 0 auto;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
@@ -21,6 +21,8 @@ import {
   deleteEventVenueAdmin,
   EVENT_VENUE_STATUSES,
 } from "../api/eventManagementApi";
+import { uploadVenueImageDirectBackend } from "../api/imageUploadApi";
+import { handleImageFileInputChange } from "../utils/s3ImageUpload";
 import "./event-management.css";
 
 /** Event admin tables: rows per page (client-side only; APIs unchanged). */
@@ -287,15 +289,19 @@ const IconCheckToast = () => (
 );
 
 /* ── VENUE MODAL (layout mirrors room-management add/edit room) ── */
-function VenueModal({ visible, isEdit, form, setForm, formErr, saving, onClose, onSave, onClear }) {
+function VenueModal({ visible, isEdit, form, setForm, formErr, setFormErr, saving, onClose, onSave, onClear }) {
   if (!visible) return null;
 
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setForm((f) => ({ ...f, image: ev.target.result }));
-    reader.readAsDataURL(file);
+  const handleImage = async (e) => {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
+    if (!file || saving) return;
+    setFormErr?.("");
+    await handleImageFileInputChange(file, {
+      uploadFn: uploadVenueImageDirectBackend,
+      setPreview: (url) => setForm((f) => ({ ...f, image: url })),
+      setError: (msg) => setFormErr?.(msg || "Image upload failed."),
+    });
   };
 
   return (
@@ -509,6 +515,8 @@ export default function EventManage() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast, setToast] = useState({ visible: false, msg: "" });
 
+  const initialPageLoadDoneRef = useRef(false);
+
   const loadVenues = useCallback(async () => {
     setVenuesError("");
     setVenuesLoading(true);
@@ -529,19 +537,45 @@ export default function EventManage() {
     }
   }, []);
 
-  const loadEventBookings = useCallback(async () => {
+  /** One parallel fetch for venues + event bookings (page load and HK refresh). */
+  const loadPageData = useCallback(async () => {
+    setVenuesError("");
     setBookingsLoadErr("");
+    setVenuesLoading(true);
     setBookingsLoading(true);
     try {
-      const list = await fetchBookingsBackend();
-      const events = (Array.isArray(list) ? list : []).filter(
-        (b) => String(b.type || "").toLowerCase() === "event",
-      );
-      setEventBookingsRaw(events);
-    } catch (e) {
-      setBookingsLoadErr(e.message || "Could not load event bookings.");
-      setEventBookingsRaw([]);
+      const [venuesResult, bookingsResult] = await Promise.allSettled([
+        fetchEventVenuesAdmin(),
+        fetchBookingsBackend(),
+      ]);
+
+      if (venuesResult.status === "fulfilled") {
+        setVenues(Array.isArray(venuesResult.value) ? venuesResult.value : []);
+      } else {
+        const e = venuesResult.reason;
+        const msg =
+          e?.code === "NO_TOKEN"
+            ? "Sign in as admin to manage event venues."
+            : e?.status === 403
+              ? "Admin access required for /api/eventvenues."
+              : e?.message || "Could not load event venues.";
+        setVenuesError(msg);
+        setVenues([]);
+      }
+
+      if (bookingsResult.status === "fulfilled") {
+        const list = bookingsResult.value;
+        const events = (Array.isArray(list) ? list : []).filter(
+          (b) => String(b.type || "").toLowerCase() === "event",
+        );
+        setEventBookingsRaw(events);
+      } else {
+        const e = bookingsResult.reason;
+        setBookingsLoadErr(e?.message || "Could not load event bookings.");
+        setEventBookingsRaw([]);
+      }
     } finally {
+      setVenuesLoading(false);
       setBookingsLoading(false);
     }
   }, []);
@@ -566,25 +600,20 @@ export default function EventManage() {
   }, [eventBookingsRaw, venues]);
 
   useEffect(() => {
-    void loadVenues();
-    void loadEventBookings();
-  }, [loadVenues, loadEventBookings]);
+    if (initialPageLoadDoneRef.current) return;
+    initialPageLoadDoneRef.current = true;
+    void loadPageData();
+  }, [loadPageData]);
 
   useEffect(() => {
     const onHk = () => {
-      void loadVenues();
-      void loadEventBookings();
+      void loadPageData();
     };
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
-    const poll = window.setInterval(() => {
-      void loadVenues();
-      void loadEventBookings();
-    }, 25_000);
     return () => {
       window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
-      window.clearInterval(poll);
     };
-  }, [loadVenues, loadEventBookings]);
+  }, [loadPageData]);
 
   const todayIso = todayIsoDate();
   const statToday = statuses.filter((s) => s.rawDate && s.rawDate.slice(0, 10) === todayIso).length;
@@ -1041,6 +1070,7 @@ export default function EventManage() {
         form={form}
         setForm={setForm}
         formErr={formErr}
+        setFormErr={setFormErr}
         saving={savingVenue}
         onClose={() => {
           if (savingVenue) return;

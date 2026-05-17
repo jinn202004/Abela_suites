@@ -207,6 +207,7 @@ export default function RoomManagement() {
   const [formErr, setFormErr] = useState("");
   const [imageUploadBusy, setImageUploadBusy] = useState(false);
   const roomImageFileRef = useRef(null);
+  const initialPageLoadDoneRef = useRef(false);
 
   /* delete */
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -416,23 +417,43 @@ export default function RoomManagement() {
     }
   }, []);
 
-  const loadRoomBookings = useCallback(async () => {
-    setBookingsLoading(true);
+  /** One parallel fetch for room catalog + room bookings (page load and HK refresh). */
+  const loadPageData = useCallback(async () => {
+    setRoomsError(null);
     setBookingsError(null);
+    setRoomsLoading(true);
+    setBookingsLoading(true);
     try {
-      const list = await fetchBookingsBackend();
-      const roomOnly = (Array.isArray(list) ? list : []).filter(
-        (b) => String(b.type || "").toLowerCase() === "room",
-      );
-      setRoomBookingsRaw(roomOnly);
-    } catch (e) {
-      const msg =
-        e && e.code === "NO_TOKEN"
-          ? "Sign in as admin (JWT) to load room bookings from the API."
-          : e.message || "Could not load room bookings.";
-      setBookingsError(msg);
-      setRoomBookingsRaw([]);
+      const [roomsResult, bookingsResult] = await Promise.allSettled([
+        fetchRoomsCatalog(),
+        fetchBookingsBackend(),
+      ]);
+
+      if (roomsResult.status === "fulfilled") {
+        const list = roomsResult.value;
+        setRooms((Array.isArray(list) ? list : []).map(mapApiRoomToAdmin));
+      } else {
+        setRooms([]);
+        setRoomsError("Could not load rooms from the API. Check the server and `VITE_API_BASE_URL`.");
+      }
+
+      if (bookingsResult.status === "fulfilled") {
+        const list = bookingsResult.value;
+        const roomOnly = (Array.isArray(list) ? list : []).filter(
+          (b) => String(b.type || "").toLowerCase() === "room",
+        );
+        setRoomBookingsRaw(roomOnly);
+      } else {
+        const e = bookingsResult.reason;
+        const msg =
+          e && e.code === "NO_TOKEN"
+            ? "Sign in as admin (JWT) to load room bookings from the API."
+            : e?.message || "Could not load room bookings.";
+        setBookingsError(msg);
+        setRoomBookingsRaw([]);
+      }
     } finally {
+      setRoomsLoading(false);
       setBookingsLoading(false);
     }
   }, []);
@@ -533,28 +554,20 @@ export default function RoomManagement() {
   }
 
   useEffect(() => {
-    refreshRooms();
-  }, [refreshRooms]);
-
-  useEffect(() => {
-    void loadRoomBookings();
-  }, [loadRoomBookings]);
+    if (initialPageLoadDoneRef.current) return;
+    initialPageLoadDoneRef.current = true;
+    void loadPageData();
+  }, [loadPageData]);
 
   useEffect(() => {
     const onHk = () => {
-      void refreshRooms();
-      void loadRoomBookings();
+      void loadPageData();
     };
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
-    const poll = window.setInterval(() => {
-      void refreshRooms();
-      void loadRoomBookings();
-    }, 25_000);
     return () => {
       window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
-      window.clearInterval(poll);
     };
-  }, [refreshRooms, loadRoomBookings]);
+  }, [loadPageData]);
 
   /* ────────────────────────────────────────────────────── */
   /*  RENDER                                                */

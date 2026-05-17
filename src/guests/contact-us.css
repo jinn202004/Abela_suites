@@ -1,0 +1,12 @@
+/* Contact Us page shell — matches testimonials / marketing pages */
+
+.contact-page-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--cream, #fdf8f0);
+}
+
+.contact-page-shell .contact-us-section {
+  background: transparent;
+  padding-top: calc(64px + env(safe-area-inset-top, 0px) + 16px);
+}

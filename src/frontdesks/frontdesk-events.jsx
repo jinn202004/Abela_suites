@@ -27,6 +27,11 @@ import {
   paymentMethodDisplayLabel,
   paymentProofFromBooking,
 } from "../components/reservationDetailsHelpers";
+import {
+  uploadBookingGuestValidIdDirectBackend,
+  uploadPaymentProofDirectBackend,
+} from "../api/imageUploadApi";
+import { handleImageFileInputChange, isStoredImageRef } from "../utils/s3ImageUpload";
 import "../components/reservation-details-modal.css";
 import {
   bookingCustomerDisplayName,
@@ -1805,17 +1810,25 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
     setPayErrors({});
   }
 
-  const handleProofFile = (e) => {
+  async function handleProofFile(e) {
     const f = e.target.files?.[0];
-    if (!f || (f.type && !f.type.startsWith("image/"))) return;
+    if (e.target) e.target.value = "";
+    if (!f) return;
     setShowBanner(false);
-    setProofPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(f);
-    });
-    setPayForm((p) => ({ ...p, proof: f }));
     setPayErrors((er) => ({ ...er, proof: "" }));
-  };
+    await handleImageFileInputChange(f, {
+      uploadFn: uploadPaymentProofDirectBackend,
+      setPreview: (url) => {
+        setProofPreview(url);
+        setPayForm((p) => ({ ...p, proof: f }));
+      },
+      setError: (msg) => {
+        setProofPreview(null);
+        setPayForm((p) => ({ ...p, proof: null }));
+        setPayErrors((er) => ({ ...er, proof: msg || "Proof upload failed." }));
+      },
+    });
+  }
 
   function selectPayment(val) {
     set("payment", val);
@@ -1840,15 +1853,20 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
     setErrors((er) => ({ ...er, date: "" }));
   }
 
-  function handleIdFile(e) {
+  async function handleIdFile(e) {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    if (file.type && !file.type.startsWith("image/")) return;
     setShowBanner(false);
-    const reader = new FileReader();
-    reader.onload = (ev) => setIdPreview(ev.target.result);
-    reader.readAsDataURL(file);
     setErrors((er) => ({ ...er, id: "" }));
+    await handleImageFileInputChange(file, {
+      uploadFn: uploadBookingGuestValidIdDirectBackend,
+      setPreview: setIdPreview,
+      setError: (msg) => {
+        setIdPreview(null);
+        setErrors((er) => ({ ...er, id: msg || "ID upload failed." }));
+      },
+    });
   }
 
   const validate = () => {
@@ -1891,7 +1909,7 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
       if (digits.length < 10 || digits.length > 11) errs.contact = "Enter a valid 10–11 digit mobile number.";
     }
     if (!Number.isFinite(att) || att < 1) errs.attendees = "Please enter the number of attendees (min 1).";
-    if (!idPreview) errs.id = "Please upload a valid government ID.";
+    if (!isStoredImageRef(idPreview)) errs.id = "Please upload a valid government ID.";
     if (!form.chkTerms) errs.chkTerms = "You must accept the Terms and Conditions.";
     if (!form.chkPrivacy) errs.chkPrivacy = "Please agree to the Data Privacy Policy.";
     if (!form.chkTOS) errs.chkTOS = "Please agree to the Terms & Conditions of Stay.";
@@ -1956,11 +1974,9 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
 
     if (getStoredAuthToken()) {
       try {
-        const hasId = typeof idPreview === "string" && idPreview.startsWith("data:image");
-        let paymentProofData = "";
-        if (form.payment === "gcash" && payForm.proof) {
-          paymentProofData = await readFileAsDataUrl(payForm.proof);
-        }
+        const hasId = isStoredImageRef(idPreview);
+        const paymentProofData =
+          form.payment === "gcash" && isStoredImageRef(proofPreview) ? String(proofPreview).trim() : "";
         const apiBody = {
           type: "event",
           customerName: form.customerName.trim(),
@@ -2045,7 +2061,7 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
     if (!payForm.amountpaid.trim()) errs.amountpaid = "Required.";
     if (!payForm.paydate) errs.paydate = "Required.";
     if (!payForm.transid.trim()) errs.transid = "Required.";
-    if (!payForm.proof) errs.proof = "Please upload proof.";
+    if (!isStoredImageRef(proofPreview)) errs.proof = "Please upload proof.";
     return errs;
   };
 

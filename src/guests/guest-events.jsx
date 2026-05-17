@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+﻿import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
 import { TOPBAR } from "../topbar/roleTopbarData";
@@ -40,6 +40,10 @@ import { GuestArchiveIcon } from "./guestArchiveIcon";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
+import BillingSummary from "./BillingSummary";
+import BillingPaymentPills from "./BillingPaymentPills";
+import { computeEventBookingBill, formatPeso, paymentSnapshotFromBill } from "./bookingBilling";
+import "./billing-summary.css";
 import "./guest-room.css";
 import "./guest-events.css";
 
@@ -240,8 +244,7 @@ function computeEventVenueBill(basePriceNum, durationHoursStr) {
 }
 
 function formatEvPeso(n) {
-  const x = roundMoney(n);
-  return `₱${x.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return formatPeso(roundMoney(n));
 }
 
 function buildEventPricingFootnote(bill) {
@@ -959,6 +962,29 @@ export default function EventVenues() {
   const eventVenueBill =
     activeVenueMeta != null ? computeEventVenueBill(activeVenueMeta.priceNum, durationHoursForBill) : null;
 
+  const eventBookingBill = useMemo(() => {
+    if (!activeVenueMeta || !form.startTime || !form.endTime) return null;
+    const hours = durationHoursDecimalFromTimes(form.startTime, form.endTime);
+    if (!(hours > 0)) return null;
+    return computeEventBookingBill({
+      venueName: activeVenueMeta.name,
+      basePrice: activeVenueMeta.priceNum,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      includedPax: activeVenueMeta.maxGuests,
+      expectedPax: form.attendees,
+    });
+  }, [activeVenueMeta, form.startTime, form.endTime, form.attendees]);
+
+  const eventLivePayment = useMemo(() => {
+    if (!eventBookingBill) return null;
+    const paidNum =
+      form.payment === "gcash" && pendingGcash
+        ? Number(pendingGcash.paidNum) || 0
+        : 0;
+    return paymentSnapshotFromBill(eventBookingBill, paidNum);
+  }, [eventBookingBill, form.payment, pendingGcash]);
+
   return (
     <>
       <RailPortalShell
@@ -1134,19 +1160,21 @@ export default function EventVenues() {
 
       {/* ══ RESERVATION MODAL ══ */}
       {resOpen && (
-        <div className="ev-modal-backdrop active"
+        <div className="modal-backdrop active"
           onClick={e => { if (e.target === e.currentTarget) closeRes(); }}>
-          <div className="ev-modal ev-modal--reservation" role="dialog" aria-modal="true" aria-labelledby="ev-reservation-modal-title">
-            <div className="ev-modal-header ev-modal-header--reservation">
-              <h2 id="ev-reservation-modal-title" className="ev-modal-title">{resPick?.name || "Venue"} — Reservation</h2>
-              <button type="button" className="ev-modal-close" onClick={closeRes} aria-label="Close">✕</button>
+          <div className="modal modal--booking" role="dialog" aria-modal="true" aria-labelledby="ev-reservation-modal-title">
+            <div className="modal-header modal-header--booking">
+              <h2 id="ev-reservation-modal-title" className="modal-title">{resPick?.name || "Venue"} - Reservation</h2>
+              <button type="button" className="modal-close" onClick={closeRes} aria-label="Close">{"\u2715"}</button>
             </div>
-            <div className="ev-modal-body ev-modal-body--reservation">
-              <div className="ev-reservation-form">
+            <div className="modal-body modal-body--booking">
+              <div className="booking-form booking-form--event">
 
-              <div className={`ev-error-banner${showBanner ? " visible" : ""}`}>
-                Please fill in all required fields before submitting.
-              </div>
+              {showBanner ? (
+                <p className="booking-form-error-banner" role="alert">
+                  Please fill in all required fields before submitting.
+                </p>
+              ) : null}
 
               <div className="ev-form-row">
                 <div className="ev-form-group">
@@ -1186,19 +1214,17 @@ export default function EventVenues() {
                 </div>
               </div>
 
-              <div className="ev-form-row ev-form-row--guest-event-date-cal">
+              <div className="form-row form-row--event-schedule ev-form-row--guest-event-date-cal">
+                <p className="booking-cal-unavailable-hint">
+                  <strong>How to book:</strong> Past dates are disabled. Red or gold marks full-day holds. When times are on file, pick a date and choose start/end that do not overlap another booking or the 2-hour cleaning buffer.
+                </p>
                 <div className="ev-form-group">
-                  <p className="ev-field-hint ev-field-hint--calendar-lead">
-                    Past dates are disabled. Full-day holds appear in red or gold when no detailed times exist yet. When
-                    times are on file, pick the same date and choose a start/end that does not overlap another booking or
-                    the 2-hour cleaning buffer after it. See the list below for this venue on the selected date.
-                  </p>
-                  <span className="ev-form-label-static" id="ev-guest-date-label">
-                    Date <span style={{ color: "#e74c3c" }}>*</span>
+                  <span className="form-label-static" id="ev-guest-date-label">
+                    Date <span className="required">*</span>
                   </span>
                   <div
                     className={
-                      formErrors.date ? "ev-guest-ev-day-picker-wrap ev-guest-ev-day-picker-wrap--error" : "ev-guest-ev-day-picker-wrap"
+                      formErrors.date ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"
                     }
                   >
                     <DayPicker
@@ -1221,7 +1247,7 @@ export default function EventVenues() {
                         evGuestOccupied: "fd-cal-cell fd-cal-cell--occupied",
                         evGuestReserved: "fd-cal-cell fd-cal-cell--reserved",
                       }}
-                      className="ev-guest-ev-day-picker"
+                      className="booking-day-picker"
                       id="ev-guest-date-calendar"
                       aria-labelledby="ev-guest-date-label"
                     />
@@ -1238,34 +1264,35 @@ export default function EventVenues() {
                     Please select a date (not in the past).
                   </span>
                 </div>
-                <div className="ev-form-group">
-                  <label>
-                    Event start time <span style={{ color: "#e74c3c" }}>*</span>
-                  </label>
-                  <input
-                    type="time"
-                    name="startTime"
-                    value={form.startTime}
-                    className={formErrors.startTime ? "ev-error" : ""}
-                    onChange={handleFormChange}
-                  />
-                  <label style={{ marginTop: 10 }}>
-                    Event end time <span style={{ color: "#e74c3c" }}>*</span>
-                  </label>
-                  <input
-                    type="time"
-                    name="endTime"
-                    value={form.endTime}
-                    className={formErrors.endTime ? "ev-error" : ""}
-                    onChange={handleFormChange}
-                  />
+                <div className="ev-form-group ev-form-group--event-times">
+                  <div className="event-time-fields">
+                    <label>
+                      Event start time <span className="required">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      name="startTime"
+                      value={form.startTime}
+                      className={formErrors.startTime ? "ev-error" : ""}
+                      onChange={handleFormChange}
+                    />
+                    <label>
+                      Event end time <span className="required">*</span>
+                    </label>
+                    <input
+                      type="time"
+                      name="endTime"
+                      value={form.endTime}
+                      className={formErrors.endTime ? "ev-error" : ""}
+                      onChange={handleFormChange}
+                    />
+                  </div>
                   <span className={`ev-field-err${formErrors.startTime || formErrors.endTime ? " visible" : ""}`}>
                     Choose end after start (0.5–72 hours). Times must not overlap another booking or the 2-hour cleaning
                     buffer after an existing event.
                   </span>
-                  <p className="ev-field-hint ev-field-hint--time">
-                    The first {EVENT_BASE_INCLUDED_HOURS} hours are covered by the listed base rate. Each additional hour
-                    adds {formatEvPeso(EVENT_EXTRA_HOUR_FLAT_RATE)}. Duration is calculated from your start and end times.
+                  <p className="booking-schedule-note" role="note">
+                    <strong>Note:</strong> The first {EVENT_BASE_INCLUDED_HOURS} hours are included in the venue base rate. Each additional hour is {formatPeso(EVENT_EXTRA_HOUR_FLAT_RATE)}.
                   </p>
                 </div>
               </div>
@@ -1341,51 +1368,22 @@ export default function EventVenues() {
                 </div>
               ) : null}
 
-              <div className="ev-form-row">
-                <div className="ev-form-group ev-full-width">
-                  <label>
-                    Hire length (from your times) <span style={{ color: "#e74c3c" }}>*</span>
-                  </label>
-                  <p className="ev-field-hint" style={{ marginTop: 0 }}>
-                    {Number(durationHoursForBill) > 0
-                      ? `${durationHoursForBill} hours (computed from start and end).`
-                      : "Set valid start and end times to see duration."}
-                  </p>
+              {eventBookingBill ? (
+                <div className="booking-form-billing-block">
+                  <BillingSummary bill={eventBookingBill} title="Billing summary" showMinimumDown />
+                  {eventLivePayment ? (
+                    <BillingPaymentPills
+                      total={eventLivePayment.total}
+                      amountPaid={eventLivePayment.amountPaid}
+                      balanceDue={eventLivePayment.balanceDue}
+                      minimumDownPayment={eventLivePayment.minimumDownPayment}
+                    />
+                  ) : null}
                 </div>
-              </div>
-
-              {eventVenueBill ? (
-                <section className="ev-billing-summary" aria-live="polite">
-                  <h3 className="ev-billing-summary__title">Billing summary</h3>
-                  <dl className="ev-billing-summary__grid">
-                    <div className="ev-billing-summary__row">
-                      <dt>Base price ({EVENT_BASE_INCLUDED_HOURS} h included)</dt>
-                      <dd>{formatEvPeso(eventVenueBill.basePrice)}</dd>
-                    </div>
-                    <div className="ev-billing-summary__row">
-                      <dt>Additional hours</dt>
-                      <dd>
-                        {eventVenueBill.extraHours > 0
-                          ? `${eventVenueBill.extraHours} h beyond base`
-                          : "—"}
-                      </dd>
-                    </div>
-                    <div className="ev-billing-summary__row">
-                      <dt>Additional charges</dt>
-                      <dd>
-                        {eventVenueBill.extraHours > 0
-                          ? `${formatEvPeso(eventVenueBill.hourlyRate)}/h × ${eventVenueBill.extraHours} h = ${formatEvPeso(
-                              eventVenueBill.additionalCharge,
-                            )}`
-                          : formatEvPeso(0)}
-                      </dd>
-                    </div>
-                    <div className="ev-billing-summary__row ev-billing-summary__row--total">
-                      <dt>Final total</dt>
-                      <dd>{formatEvPeso(eventVenueBill.total)}</dd>
-                    </div>
-                  </dl>
-                </section>
+              ) : form.startTime && form.endTime ? (
+                <p className="booking-bill-hint" role="status">
+                  Set valid start and end times to see your billing summary.
+                </p>
               ) : null}
 
               <div className="ev-form-row">
@@ -1524,10 +1522,16 @@ export default function EventVenues() {
                       <span className="ev-booking-review-summary__k">Contact</span>
                       <span className="ev-booking-review-summary__v">{form.customerName.trim() || "—"}</span>
                     </li>
-                    {eventVenueBill ? (
+                    {eventBookingBill ? (
                       <li>
                         <span className="ev-booking-review-summary__k">Total due</span>
-                        <span className="ev-booking-review-summary__v">{formatEvPeso(eventVenueBill.total)}</span>
+                        <span className="ev-booking-review-summary__v">{formatPeso(eventBookingBill.total)}</span>
+                      </li>
+                    ) : null}
+                    {eventLivePayment ? (
+                      <li>
+                        <span className="ev-booking-review-summary__k">Remaining balance</span>
+                        <span className="ev-booking-review-summary__v">{formatPeso(eventLivePayment.balanceDue)}</span>
                       </li>
                     ) : null}
                     <li>
@@ -1560,9 +1564,9 @@ export default function EventVenues() {
                 </p>
               ) : null}
 
-              <div className="ev-modal-actions">
-                <button type="button" className="ev-btn-clear" onClick={clearResForm}>Clear</button>
-                <button type="button" className="ev-btn-submit" onClick={handleSubmitRes} disabled={resSubmitting}>
+              <div className="modal-actions">
+                <button type="button" className="btn-clear" onClick={clearResForm}>Clear</button>
+                <button type="button" className="btn-submit-reservation" onClick={handleSubmitRes} disabled={resSubmitting}>
                   {resSubmitting ? "Sending…" : "Submit Reservation"}
                 </button>
               </div>
@@ -1579,7 +1583,7 @@ export default function EventVenues() {
           <div className="ev-modal ev-payment-modal">
             <div className="ev-modal-header">
               <h2 className="ev-modal-title">GCash Payment</h2>
-              <button type="button" className="ev-modal-close" onClick={closePay} aria-label="Close">✕</button>
+              <button type="button" className="ev-modal-close" onClick={closePay} aria-label="Close">{"\u2715"}</button>
             </div>
             <div className="ev-modal-body ev-payment-modal-body">
               <div className="ev-payment-qr-side">

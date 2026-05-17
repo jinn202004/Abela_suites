@@ -138,33 +138,7 @@ export async function dedupeMenuItemsBackend() {
   return data;
 }
 
-/**
- * POST /api/menu/upload — admin; multipart field `image`. Server writes to S3 (no browser PUT / no S3 CORS for PUT).
- * Returns `{ publicUrl, key, contentType, contentLength }`.
- */
-export async function uploadMenuImageDirectBackend(file) {
-  const token = getStoredAuthToken();
-  if (!token) {
-    const err = new Error("Not signed in");
-    err.code = "NO_TOKEN";
-    throw err;
-  }
-  const fd = new FormData();
-  fd.append("image", file, file.name || "image");
-  const res = await fetch(backendUrl("/api/menu/upload"), {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: fd,
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const err = new Error(data.error || `HTTP ${res.status}`);
-    err.status = res.status;
-    if (data.code) err.code = data.code;
-    throw err;
-  }
-  return data;
-}
+export { uploadMenuImageDirectBackend } from "./imageUploadApi";
 
 /**
  * POST /api/menu/upload/presign — admin; body `{ contentType, contentLength }`.

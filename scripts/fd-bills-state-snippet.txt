@@ -1,0 +1,158 @@
+  const [billingTab, setBillingTab] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [printMonth, setPrintMonth] = useState("");
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(10);
+  const [ledgerRows, setLedgerRows] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [billingCounts, setBillingCounts] = useState({ total: 0, room: 0, event: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [rowsLoading, setRowsLoading] = useState(true);
+  const [rowsError, setRowsError] = useState(null);
+  const [selectedBill, setSelectedBill] = useState(null);
+  const [selectedDetails, setSelectedDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [detailsBusy, setDetailsBusy] = useState(false);
+  const [paymentDraft, setPaymentDraft] = useState("");
+  const [printBusy, setPrintBusy] = useState(false);
+  const billingFetchGenRef = useRef(0);
+  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
+
+  const printMonthLabel = useMemo(() => {
+    if (!printMonth) return "All time";
+    const [y, m] = printMonth.split("-");
+    return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
+  }, [printMonth]);
+
+  const billRows = useMemo(
+    () => ledgerRows.map((r, i) => mapLedgerRowToFrontdesk(r, (page - 1) * limit + i + 1)),
+    [ledgerRows, page, limit],
+  );
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
+    return () => window.clearTimeout(t);
+  }, [searchInput]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [billingTab, debouncedSearch]);
+
+  const refreshBillingCounts = useCallback(async (opts = {}) => {
+    const ac = opts.signal;
+    try {
+      if (!getStoredAuthToken()) return;
+      const counts = await getBillingCounts(
+        { search: debouncedSearch || undefined },
+        ac ? { signal: ac } : {},
+      );
+      if (ac?.aborted) return;
+      setBillingCounts(counts);
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      if (!ac?.aborted) setBillingCounts({ total: 0, room: 0, event: 0 });
+    } finally {
+      if (!ac?.aborted) setStatsLoading(false);
+    }
+  }, [debouncedSearch]);
+
+  useEffect(() => {
+    const ac = new AbortController();
+    setStatsLoading(true);
+    void refreshBillingCounts({ signal: ac.signal });
+    return () => ac.abort();
+  }, [refreshBillingCounts]);
+
+  const refreshBillingPage = useCallback(
+    async (opts = {}) => {
+      const skipStaleGuard = Boolean(opts.skipStaleGuard);
+      const gen = billingFetchGenRef.current;
+      const pageToFetch =
+        opts.page != null ? Math.max(1, parseInt(String(opts.page), 10) || 1) : Math.max(1, parseInt(String(page), 10) || 1);
+      const typeFilter = billingTab === "room" || billingTab === "event" ? billingTab : "";
+
+      if (!getStoredAuthToken()) {
+        setRowsError(billingLoadErrorMessage({ code: "NO_TOKEN", message: "Not signed in" }));
+        setLedgerRows([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        return;
+      }
+
+      try {
+        const result = await getBilling(pageToFetch, limit, {
+          type: typeFilter,
+          search: debouncedSearch || undefined,
+        });
+        if (!skipStaleGuard && gen !== billingFetchGenRef.current) return;
+        const list = Array.isArray(result?.data) ? result.data : [];
+        if (list.length === 0 && (Number(result?.totalItems) || 0) > 0 && pageToFetch > 1) {
+          setPage((p) => Math.max(1, p - 1));
+          return;
+        }
+        const tp = Number(result?.totalPages);
+        const ti = Number(result?.totalItems);
+        setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
+        setTotalItems(Number.isFinite(ti) && ti >= 0 ? ti : list.length);
+        setLedgerRows(list);
+        setRowsError(null);
+        const cp = Math.max(1, parseInt(String(result?.currentPage), 10) || pageToFetch);
+        if (cp !== pageToFetch) setPage(cp);
+      } catch (e) {
+        if (!skipStaleGuard && gen !== billingFetchGenRef.current) return;
+        setLedgerRows([]);
+        setTotalItems(0);
+        setTotalPages(1);
+        setRowsError(billingLoadErrorMessage(e));
+      }
+    },
+    [page, limit, billingTab, debouncedSearch],
+  );
+
+  useEffect(() => {
+    billingFetchGenRef.current += 1;
+    const fetchGen = billingFetchGenRef.current;
+    let cancelled = false;
+    setRowsLoading(true);
+    setRowsError(null);
+    void (async () => {
+      await refreshBillingPage({ skipStaleGuard: true });
+      if (!cancelled && fetchGen === billingFetchGenRef.current) {
+        setRowsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [page, limit, billingTab, debouncedSearch, refreshBillingPage]);
+
+  useEffect(() => {
+    const onAuth = () => {
+      billingFetchGenRef.current += 1;
+      void refreshBillingPage();
+      void refreshBillingCounts();
+    };
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
+    return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
+  }, [refreshBillingPage, refreshBillingCounts]);
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void refreshBillingPage({ skipStaleGuard: true });
+      void refreshBillingCounts();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refreshBillingPage, refreshBillingCounts]);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void refreshBillingPage({ skipStaleGuard: true });
+      void refreshBillingCounts();
+    }, BILLING_POLL_MS);
+    return () => window.clearInterval(id);
+  }, [refreshBillingPage, refreshBillingCounts]);
+

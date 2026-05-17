@@ -6,14 +6,12 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { fetchCurrentUserMeBackend } from "../api/guestApi";
+import { useAuthRole } from "../context/AuthRoleContext";
 import { getBilling, updatePayment, getBillingById } from "../api/cashier.service";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { pdfSafeText, openPdfPrintOrDownload } from "../utils/pdfClientExport";
 import "./bills.css";
-
-const BILLING_POLL_MS = 30000;
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -812,6 +810,8 @@ function Toast({ message, visible }) {
 
 export default function Bills() {
   const { mainStyle } = useAdminShell();
+  const { role: authRole } = useAuthRole();
+  const staffRole = String(authRole || "").trim().toLowerCase();
   const [billingTab, setBillingTab] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -822,7 +822,6 @@ export default function Bills() {
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadNotice, setLoadNotice] = useState("");
-  const [staffRole, setStaffRole] = useState("");
   const [detailId, setDetailId] = useState(null);
   const [paymentRow, setPaymentRow] = useState(null);
   const [toast, setToast] = useState({ visible: false, message: "" });
@@ -897,59 +896,8 @@ export default function Bills() {
   }, [searchInput]);
 
   useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const me = await fetchCurrentUserMeBackend();
-        if (!cancelled) setStaffRole(String(me.role || "").trim().toLowerCase());
-      } catch {
-        if (!cancelled) setStaffRole("");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
     setPage(1);
   }, [billingTab, debouncedSearch]);
-
-  const refreshBillingPage = useCallback(
-    async (opts = {}) => {
-      const skipStaleGuard = Boolean(opts.skipStaleGuard);
-      const gen = billingFetchGenRef.current;
-      const pageToFetch =
-        opts.page != null ? Math.max(1, parseInt(String(opts.page), 10) || 1) : Math.max(1, parseInt(String(page), 10) || 1);
-      const typeFilter =
-        billingTab === "room" || billingTab === "event" ? billingTab : "";
-      try {
-        const result = await getBilling(pageToFetch, limit, {
-          type: typeFilter,
-          search: debouncedSearch || undefined,
-        });
-        if (!skipStaleGuard && gen !== billingFetchGenRef.current) return;
-        const list = Array.isArray(result?.data) ? result.data : [];
-        if (list.length === 0 && (Number(result?.totalItems) || 0) > 0 && pageToFetch > 1) {
-          setPage((p) => Math.max(1, p - 1));
-          return;
-        }
-        const tp = Number(result?.totalPages);
-        const ti = Number(result?.totalItems);
-        setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
-        setTotalItems(Number.isFinite(ti) && ti >= 0 ? ti : list.length);
-        setRows(list);
-        if (opts.syncPageFromResult && result?.currentPage != null) {
-          const cp = Math.max(1, parseInt(String(result.currentPage), 10) || 1);
-          if (cp !== pageToFetch) setPage(cp);
-        }
-      } catch {
-        if (!skipStaleGuard && gen !== billingFetchGenRef.current) return;
-        /* silent for poll */
-      }
-    },
-    [page, limit, billingTab, debouncedSearch],
-  );
 
   useEffect(() => {
     billingFetchGenRef.current += 1;
@@ -999,22 +947,6 @@ export default function Bills() {
       ac.abort();
     };
   }, [page, limit, billingTab, debouncedSearch]);
-
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState !== "visible") return;
-      void refreshBillingPage({ skipStaleGuard: true });
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [refreshBillingPage]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      void refreshBillingPage({ skipStaleGuard: true });
-    }, BILLING_POLL_MS);
-    return () => window.clearInterval(id);
-  }, [refreshBillingPage]);
 
   const handlePaymentSaved = () => {
     showToast("Payment saved. List refreshed.");

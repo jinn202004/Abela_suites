@@ -275,33 +275,7 @@ export async function createRoomBackend(body) {
   return data.room
 }
 
-/**
- * POST /api/rooms/upload — admin; multipart field `image`. Server writes to S3 under `rooms/` (same bucket as menu).
- * @returns {Promise<{ publicUrl: string, key: string, contentType: string, contentLength: number }>}
- */
-export async function uploadRoomImageDirectBackend(file) {
-  const token = getStoredAuthToken()
-  if (!token) {
-    const err = new Error('Not signed in')
-    err.code = 'NO_TOKEN'
-    throw err
-  }
-  const fd = new FormData()
-  fd.append('image', file, file.name || 'image')
-  const res = await fetch(backendUrl('/api/rooms/upload'), {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    body: fd,
-  })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) {
-    const err = new Error(data.error || `HTTP ${res.status}`)
-    err.status = res.status
-    if (data.code) err.code = data.code
-    throw err
-  }
-  return data
-}
+export { uploadRoomImageDirectBackend } from './imageUploadApi'
 
 /**
  * PATCH /api/rooms/:id

@@ -1,0 +1,174 @@
+/* Hotel legal policy modal — matches Abela cream / gold theme */
+
+.legal-policy-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 240;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px))
+    max(12px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+  box-sizing: border-box;
+  background: rgba(30, 22, 12, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.28s ease, visibility 0.28s ease;
+}
+
+.legal-policy-modal-overlay.legal-policy-modal-overlay--visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.legal-policy-modal-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 36rem;
+  max-height: min(88vh, 720px);
+  background: #fffef9;
+  border: 1px solid rgba(184, 147, 65, 0.28);
+  border-radius: 12px;
+  box-shadow:
+    0 4px 24px rgba(45, 32, 12, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.85) inset;
+  transform: translateY(12px) scale(0.98);
+  opacity: 0;
+  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.28s ease;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.legal-policy-modal-overlay--visible .legal-policy-modal-panel {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.legal-policy-modal-header {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 6px 10px 8px;
+  border-bottom: 1px solid rgba(184, 147, 65, 0.2);
+  background: linear-gradient(180deg, #fdf8f0 0%, #f8f3ea 100%);
+}
+
+.legal-policy-modal-header-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #6b5a3e;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.legal-policy-modal-header-btn:hover {
+  background: rgba(184, 147, 65, 0.14);
+  color: #b89341;
+}
+
+.legal-policy-modal-header-btn:focus-visible {
+  outline: 2px solid #b89341;
+  outline-offset: 2px;
+}
+
+.legal-policy-modal-title {
+  margin: 0;
+  font-family: var(--font-brand-serif, "Playfair Display", Georgia, "Times New Roman", serif);
+  font-size: clamp(1.05rem, 3.5vw, 1.35rem);
+  font-weight: 700;
+  color: #3a2e1e;
+  text-align: center;
+  letter-spacing: 0.02em;
+  line-height: 1.25;
+}
+
+.legal-policy-modal-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 1.1rem 1.25rem 1.35rem;
+  box-sizing: border-box;
+}
+
+.legal-policy-modal__h2 {
+  font-family: "Montserrat", sans-serif;
+  font-size: clamp(0.95rem, 2.8vw, 1.05rem);
+  font-weight: 700;
+  color: #3a2e1e;
+  margin: 1.35rem 0 0.55rem;
+  letter-spacing: 0.02em;
+}
+
+.legal-policy-modal__h2:first-child {
+  margin-top: 0;
+}
+
+.legal-policy-modal__p {
+  font-family: "Roboto", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #4a4036;
+  margin: 0 0 0.5rem;
+}
+
+.legal-policy-modal__ul {
+  font-family: "Roboto", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #4a4036;
+  margin: 0 0 1rem;
+  padding-left: 1.2rem;
+}
+
+.legal-policy-modal__ul li {
+  margin-bottom: 0.45rem;
+}
+
+.legal-policy-modal__ul li:last-child {
+  margin-bottom: 0;
+}
+
+.legal-policy-modal__ul strong {
+  font-weight: 700;
+  color: #3a2e1e;
+}
+
+@media (max-width: 480px) {
+  .legal-policy-modal-panel {
+    max-height: 92vh;
+    border-radius: 10px;
+  }
+
+  .legal-policy-modal-body {
+    padding: 0.9rem 1rem 1.2rem;
+  }
+
+  .legal-policy-modal__ul {
+    padding-left: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .legal-policy-modal-overlay,
+  .legal-policy-modal-panel {
+    transition: none;
+  }
+
+  .legal-policy-modal-overlay--visible .legal-policy-modal-panel {
+    transform: none;
+  }
+}

@@ -13,10 +13,20 @@ import { isRoomAvailableForDates } from "./guestAvailability";
 import {
   parseLocalYmd,
   formatLocalYmd,
+  formatLocalTodayYmd,
+  countStayNights,
   blockedCheckInSetFromRanges,
   splitGuestStayNightsByTone,
   addLocalDays,
 } from "./roomStayDates";
+import {
+  computeRoomBookingBill,
+  paymentSnapshotFromBill,
+  formatPeso,
+} from "./bookingBilling";
+import BillingSummary from "./BillingSummary";
+import BillingPaymentPills from "./BillingPaymentPills";
+import "./billing-summary.css";
 import { fetchRoomBookedRangesMerged } from "./roomBookingOccupancy";
 import {
   createBookingBackend,
@@ -27,6 +37,11 @@ import {
   dispatchGuestBookingsRefreshPing,
   GUEST_BOOKINGS_STORAGE_PING_KEY,
 } from "../api/guestApi";
+import {
+  uploadBookingGuestValidIdDirectBackend,
+  uploadPaymentProofDirectBackend,
+} from "../api/imageUploadApi";
+import { handleImageFileInputChange, isStoredImageRef } from "../utils/s3ImageUpload";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import GuestSidebar from "./GuestSidebar";
 import { GuestArchiveIcon } from "./guestArchiveIcon";
@@ -164,14 +179,13 @@ function buildRoomReservationPayload(
   viewRooms,
   form,
   resRoom,
-  { paymentAmountNum = 0, transactionId = "", idDataUrl = null, paymentProofData = "", paymentDate = "" } = {},
+  { bill, paymentAmountNum = 0, transactionId = "", idDataUrl = null, paymentProofData = "", paymentDate = "" } = {},
 ) {
   const room = viewRooms.find((r) => r.name === resRoom);
-  const total = room ? room.priceNum : 0;
-  const minDown = Math.round(total * 0.3);
+  const total = bill?.total ?? 0;
   const email = form.customerEmail.trim().toLowerCase();
-  const hasId = typeof idDataUrl === "string" && idDataUrl.startsWith("data:image");
-  const hasProof = typeof paymentProofData === "string" && paymentProofData.startsWith("data:image");
+  const hasId = isStoredImageRef(idDataUrl);
+  const hasProof = isStoredImageRef(paymentProofData);
   return {
     roomId: String(room?.id ?? ""),
     customerName: form.customerName.trim(),
@@ -189,9 +203,9 @@ function buildRoomReservationPayload(
     roomNumber: String(room?.roomNumber ?? "").trim(),
     createdAt: new Date().toISOString(),
     status: "pending",
-    totalStayAmount: String(total),
-    roomTotal: String(total),
-    minimumDownPayment: String(minDown),
+    totalStayAmount: total > 0 ? total.toFixed(2) : "0",
+    roomTotal: total > 0 ? total.toFixed(2) : "0",
+    minimumDownPayment: String(bill?.minimumDownPayment ?? 0),
     paymentAmount: String(paymentAmountNum),
     paymentMethod: form.payment === "gcash" ? "Gcash" : "Cash",
     ...(transactionId ? { transactionId } : {}),
@@ -232,7 +246,7 @@ async function saveRoomReservation(p) {
   await createBookingBackend(roomPayloadToApi(p));
 }
 
-const today = new Date().toISOString().split("T")[0];
+const today = formatLocalTodayYmd();
 
 // ============================================================
 export default function Rooms() {
@@ -360,6 +374,33 @@ export default function Rooms() {
     const r = rooms.find((x) => x.name === resRoom);
     return r ? String(r.id) : "";
   }, [rooms, resRoom]);
+
+  const selectedRoom = useMemo(
+    () => rooms.find((r) => r.name === resRoom) ?? null,
+    [rooms, resRoom],
+  );
+
+  const stayBill = useMemo(() => {
+    if (!selectedRoom || !form.checkInDate || !form.checkOutDate) return null;
+    if (countStayNights(form.checkInDate, form.checkOutDate) < 1) return null;
+    return computeRoomBookingBill({
+      roomTitle: resRoom,
+      nightlyRate: selectedRoom.priceNum,
+      checkIn: form.checkInDate,
+      checkOut: form.checkOutDate,
+      includedGuests: selectedRoom.maxGuests,
+      additionalGuests: form.additionalGuest,
+    });
+  }, [selectedRoom, resRoom, form.checkInDate, form.checkOutDate, form.additionalGuest]);
+
+  const livePayment = useMemo(() => {
+    if (!stayBill) return null;
+    const paidNum =
+      form.payment === "gcash" && pendingGcash
+        ? Number(pendingGcash.paidNum) || 0
+        : 0;
+    return paymentSnapshotFromBill(stayBill, paidNum);
+  }, [stayBill, form.payment, pendingGcash]);
 
   const occupancyWindowTo = useMemo(() => addLocalDays(today, 540), []);
 
@@ -571,16 +612,20 @@ export default function Rooms() {
     setFormErrors((fe) => ({ ...fe, checkOutDate: false }));
   }
 
-  function handleIdUpload(e) {
-    const file = e.target.files[0];
+  async function handleIdUpload(e) {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    if (file.type && !file.type.startsWith("image/")) return;
     setIdFile(file);
-    setFormErrors(fe => ({ ...fe, id: false }));
-    const reader = new FileReader();
-    reader.onload = (ev) => setIdPreview(ev.target.result);
-    reader.onerror = () => setIdPreview(null);
-    reader.readAsDataURL(file);
+    setFormErrors((fe) => ({ ...fe, id: false }));
+    await handleImageFileInputChange(file, {
+      uploadFn: uploadBookingGuestValidIdDirectBackend,
+      setPreview: setIdPreview,
+      setError: (msg) => {
+        setIdPreview(null);
+        setFormErrors((fe) => ({ ...fe, id: msg }));
+      },
+    });
   }
 
   function validateRes() {
@@ -605,10 +650,19 @@ export default function Rooms() {
     ) {
       errs.checkOutDate = "These dates overlap an existing stay for this room. Please adjust your check-out.";
     }
-    if (!idFile) errs.id = "Please upload a valid government ID.";
+    if (!isStoredImageRef(idPreview)) errs.id = "Please upload a valid government ID.";
     if (!form.termsCheck)   errs.termsCheck = "You must accept the Terms and Conditions.";
     if (!form.privacyCheck) errs.privacyCheck = "You must agree to the Data Privacy & Policy.";
     if (!form.stayCheck)    errs.stayCheck = "You must agree to the Terms & Conditions of Stay.";
+    if (
+      form.checkInDate &&
+      form.checkOutDate &&
+      form.checkOutDate > form.checkInDate &&
+      resRoom &&
+      (!stayBill || !(stayBill.total > 0))
+    ) {
+      errs.checkOutDate = "Could not calculate the stay total. Please verify your dates and room.";
+    }
     setFormErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -662,6 +716,7 @@ export default function Rooms() {
       setResSubmitting(true);
       try {
         const payload = buildRoomReservationPayload(rooms, form, resRoom, {
+          bill: stayBill,
           paymentAmountNum: pendingGcash.paidNum,
           transactionId: pendingGcash.txId,
           idDataUrl: idPreview,
@@ -689,7 +744,11 @@ export default function Rooms() {
     }
     setResSubmitting(true);
     try {
-      const payload = buildRoomReservationPayload(rooms, form, resRoom, { paymentAmountNum: 0, idDataUrl: idPreview });
+      const payload = buildRoomReservationPayload(rooms, form, resRoom, {
+        bill: stayBill,
+        paymentAmountNum: 0,
+        idDataUrl: idPreview,
+      });
       await saveRoomReservation(payload);
       dispatchFrontdeskNotificationsRefresh();
       dispatchGuestBookingsRefreshPing();
@@ -746,16 +805,20 @@ export default function Rooms() {
     setPayErrors(pe => ({ ...pe, [name]: false }));
   }
 
-  function handleProofUpload(e) {
-    const file = e.target.files[0];
+  async function handleProofUpload(e) {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    if (file.type && !file.type.startsWith("image/")) return;
     setProofFile(file);
-    setPayErrors(pe => ({ ...pe, proof: false }));
-    const reader = new FileReader();
-    reader.onload = (ev) => setProofPreview(ev.target.result);
-    reader.onerror = () => setProofPreview(null);
-    reader.readAsDataURL(file);
+    setPayErrors((pe) => ({ ...pe, proof: false }));
+    await handleImageFileInputChange(file, {
+      uploadFn: uploadPaymentProofDirectBackend,
+      setPreview: setProofPreview,
+      setError: (msg) => {
+        setProofPreview(null);
+        setPayErrors((pe) => ({ ...pe, proof: msg }));
+      },
+    });
   }
 
   function submitPayment() {
@@ -763,9 +826,7 @@ export default function Rooms() {
     if (!payForm.amount.trim()) errs.amount = "Amount paid is required.";
     if (!payForm.date.trim())   errs.date = "Payment date is required.";
     if (!payForm.txId.trim())   errs.txId = "Transaction ID is required.";
-    const hasProof =
-      Boolean(proofFile) ||
-      (typeof proofPreview === "string" && proofPreview.startsWith("data:image"));
+    const hasProof = isStoredImageRef(proofPreview);
     if (!hasProof) errs.proof = "Please upload proof of payment.";
     setPayErrors(errs);
     if (Object.keys(errs).length > 0) return;
@@ -775,8 +836,7 @@ export default function Rooms() {
       return;
     }
 
-    const roomMeta = rooms.find((r) => r.name === resRoom);
-    if (!roomMeta || !form.checkInDate || !form.checkOutDate) {
+    if (!form.checkInDate || !form.checkOutDate || !resRoom) {
       window.alert("Reservation details are missing. Please start your booking again.");
       return;
     }
@@ -786,11 +846,19 @@ export default function Rooms() {
     }
 
     const paid = parsePriceToNumber(payForm.amount);
-    const stayTotal = Number(roomMeta.priceNum);
-    if (Number.isFinite(stayTotal) && stayTotal > 0 && paid > stayTotal) {
+    const stayTotal = stayBill?.total ?? 0;
+    const minDown = stayBill?.minimumDownPayment ?? 0;
+    if (stayTotal > 0 && paid > stayTotal) {
       setPayErrors((prev) => ({
         ...prev,
-        amount: `Amount paid cannot be greater than your stay total (₱${stayTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`,
+        amount: `Amount paid cannot be greater than your stay total (${formatPeso(stayTotal)}).`,
+      }));
+      return;
+    }
+    if (minDown > 0 && paid < minDown) {
+      setPayErrors((prev) => ({
+        ...prev,
+        amount: `Minimum down payment is ${formatPeso(minDown)}.`,
       }));
       return;
     }
@@ -1126,16 +1194,18 @@ export default function Rooms() {
               <div className="booking-form-fd-cal-legend">
                 <div className="fd-cal-legend" aria-label="Calendar legend">
                   <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
                   </span>
                   <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Reserved
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Reserved / Pending
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
                   </span>
                 </div>
                 <p className="booking-cal-legend-help">
-                  Check-in and check-out use the same colors: each night shows whether this room is already tied up.{" "}
-                  <strong>Gold</strong> is any stay on the books before check-in (pending, approved, or confirmed).{" "}
-                  <strong>Red</strong> only appears after the front desk has checked a guest in for that booking.
+                  Each night shows this room&apos;s status. <strong>Gold</strong> covers pending and approved stays not yet checked in.{" "}
+                  <strong>Red</strong> means a guest is currently in-house. Open dates are available for your stay.
                 </p>
               </div>
               <p className="booking-schedule-note" role="note">
@@ -1167,6 +1237,24 @@ export default function Rooms() {
                   placeholder="Special requests or notes (optional)"
                   onChange={handleFormChange} />
               </div>
+
+              {stayBill ? (
+                <div className="booking-form-billing-block">
+                  <BillingSummary bill={stayBill} title="Billing summary" showMinimumDown />
+                  {livePayment ? (
+                    <BillingPaymentPills
+                      total={livePayment.total}
+                      amountPaid={livePayment.amountPaid}
+                      balanceDue={livePayment.balanceDue}
+                      minimumDownPayment={livePayment.minimumDownPayment}
+                    />
+                  ) : null}
+                </div>
+              ) : form.checkInDate && form.checkOutDate && form.checkOutDate > form.checkInDate ? (
+                <p className="booking-bill-hint" role="status">
+                  Select a room and valid stay dates to see your billing summary.
+                </p>
+              ) : null}
 
               <div className="form-section form-section--payment">
                 <div className="form-section__head">
@@ -1267,12 +1355,28 @@ export default function Rooms() {
                       <span className="booking-review-summary__k">Guest</span>
                       <span className="booking-review-summary__v">{form.customerName.trim() || "—"}</span>
                     </li>
-                    <li>
-                      <span className="booking-review-summary__k">Stay total (room)</span>
-                      <span className="booking-review-summary__v">
-                        {formatRoomPriceDisplay(rooms.find((r) => r.name === resRoom)?.priceNum)}
-                      </span>
-                    </li>
+                    {stayBill ? (
+                      <>
+                        <li>
+                          <span className="booking-review-summary__k">Nights</span>
+                          <span className="booking-review-summary__v">{stayBill.nights}</span>
+                        </li>
+                        <li>
+                          <span className="booking-review-summary__k">Total amount</span>
+                          <span className="booking-review-summary__v">{formatPeso(stayBill.total)}</span>
+                        </li>
+                        <li>
+                          <span className="booking-review-summary__k">Down payment (min.)</span>
+                          <span className="booking-review-summary__v">{formatPeso(stayBill.minimumDownPayment)}</span>
+                        </li>
+                        {livePayment ? (
+                          <li>
+                            <span className="booking-review-summary__k">Remaining balance</span>
+                            <span className="booking-review-summary__v">{formatPeso(livePayment.balanceDue)}</span>
+                          </li>
+                        ) : null}
+                      </>
+                    ) : null}
                     <li>
                       <span className="booking-review-summary__k">Payment method</span>
                       <span className="booking-review-summary__v">{form.payment === "gcash" ? "GCash" : "Cash on arrival"}</span>
@@ -1421,7 +1525,16 @@ export default function Rooms() {
                 <p><strong>Room</strong> {resRoom}</p>
                 <p><strong>Stay</strong> {form.checkInDate || "—"} → {form.checkOutDate || "—"}</p>
                 <p><strong>Guest</strong> {form.customerName.trim() || "—"}</p>
-                <p><strong>Total</strong> {formatRoomPriceDisplay(rooms.find((r) => r.name === resRoom)?.priceNum)}</p>
+                {stayBill ? (
+                  <>
+                    <p><strong>Nights</strong> {stayBill.nights}</p>
+                    <p><strong>Total amount</strong> {formatPeso(stayBill.total)}</p>
+                    <p><strong>Minimum down</strong> {formatPeso(stayBill.minimumDownPayment)}</p>
+                    {livePayment ? (
+                      <p><strong>Remaining balance</strong> {formatPeso(livePayment.balanceDue)}</p>
+                    ) : null}
+                  </>
+                ) : null}
                 <p><strong>Payment</strong> {form.payment === "gcash" ? "GCash" : "Cash on arrival"}</p>
                 {form.payment === "gcash" && pendingGcash ? (
                   <p>

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getStoredGuestTopbarProfile, patchMyPassword, patchMyProfile } from "../api/authApi";
+import { uploadProfilePhotoDirectBackend } from "../api/imageUploadApi";
+import { handleImageFileInputChange } from "../utils/s3ImageUpload";
 import {
   dispatchGuestProfileUpdated,
   fetchCurrentUserMeBackend,
@@ -352,13 +354,19 @@ export function useAccountSettingsCore(variant, opts = {}) {
     }
   }, [variant, infoForm, baselineInfo, avatarSrc, baselineAvatar, showToast, refreshTopbarProfile]);
 
-  const handleAvatarChange = useCallback((e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setAvatarSrc(ev.target.result);
-    reader.readAsDataURL(file);
-  }, []);
+  const handleAvatarChange = useCallback(
+    async (e) => {
+      const file = e.target.files?.[0];
+      if (e.target) e.target.value = "";
+      if (!file) return;
+      await handleImageFileInputChange(file, {
+        uploadFn: uploadProfilePhotoDirectBackend,
+        setPreview: setAvatarSrc,
+        setError: (msg) => showToast(msg || "Could not upload profile photo.", true),
+      });
+    },
+    [showToast],
+  );
 
   const handleSavePassword = useCallback(async () => {
     const errs = {};

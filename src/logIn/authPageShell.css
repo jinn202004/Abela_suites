@@ -1,0 +1,30 @@
+/* Shared “Abela Suites” marketing-style shell for full-page auth routes:
+   warm cream page, bronze accents, serif display for titles (matches landing header). */
+
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&display=swap');
+
+.abela-auth-page-shell {
+  background: var(--cream, #faf7f2);
+}
+
+.abela-auth-page-shell .auth-page-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: var(--cream, #faf7f2);
+}
+
+.abela-auth-page-shell .navbar .brand-name,
+.abela-auth-page-shell.login-page .brand-name {
+  font-family: var(--font-brand-serif, 'Playfair Display', Georgia, 'Times New Roman', serif);
+  font-size: var(--nav-brand-font-size, 1.375rem);
+  font-weight: var(--nav-brand-font-weight, 600);
+  letter-spacing: 0.02em;
+}
+
+.abela-auth-page-shell .card-title,
+.abela-auth-page-shell .setnew-title {
+  font-family: var(--font-brand-serif, 'Playfair Display', Georgia, 'Times New Roman', serif);
+  font-weight: 700;
+}

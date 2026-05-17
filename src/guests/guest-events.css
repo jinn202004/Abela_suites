@@ -492,21 +492,28 @@
     --rdp-day_button-border-radius: 8px;
     margin: 0 auto;
   }
+  .ev-reservation-form .ev-guest-ev-day-picker .rdp-month_grid {
+    width: 100%;
+    table-layout: fixed;
+  }
   .ev-reservation-form .ev-guest-ev-day-picker .rdp-day.fd-cal-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    vertical-align: middle;
+    text-align: center;
     padding: 2px;
     cursor: default;
     box-sizing: border-box;
+    aspect-ratio: unset;
+    max-height: none;
+    width: var(--rdp-day-width);
+    height: var(--rdp-day-height);
   }
   .ev-reservation-form .ev-guest-ev-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
-    flex: 1;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 40px;
-    width: 100%;
+    width: var(--rdp-day_button-width);
+    height: var(--rdp-day_button-height);
+    margin: 0 auto;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -1429,3 +1436,155 @@
       padding: 12px 18px max(16px, env(safe-area-inset-bottom, 0px));
     }
   }
+
+/* Event reservation modal — match guest-room booking-form */
+.booking-form--event .ev-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  align-items: start;
+}
+
+.booking-form--event .ev-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.booking-form--event .ev-form-group label,
+.booking-form--event .ev-form-label-static,
+.booking-form--event .form-label-static {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-mid);
+  line-height: 1.3;
+}
+
+.booking-form--event .ev-form-group input[type="text"],
+.booking-form--event .ev-form-group input[type="email"],
+.booking-form--event .ev-form-group input[type="number"],
+.booking-form--event .ev-form-group input[type="time"] {
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  padding: 0 14px;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 8px;
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-dark);
+  background: #ffffff;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.booking-form--event .ev-form-group input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.12);
+}
+
+.booking-form--event .ev-form-group input.ev-error,
+.booking-form--event .ev-form-group input.input-error {
+  border-color: #e74c3c !important;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.12) !important;
+}
+
+.booking-form--event .ev-field-err.visible,
+.booking-form--event .field-error {
+  color: #c0392b;
+  font-family: "Roboto", sans-serif;
+  font-size: 11.5px;
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+.booking-form--event .ev-field-err {
+  display: none;
+}
+
+.booking-form--event .ev-field-err.visible {
+  display: block;
+}
+
+.booking-form--event .booking-form-error-banner {
+  margin: 0;
+  padding: 10px 14px;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+
+.booking-form--event .ev-form-row--guest-event-date-cal {
+  grid-template-columns: repeat(2, minmax(280px, 1fr));
+  gap: 16px 20px;
+}
+
+.booking-form--event .ev-form-row--guest-event-date-cal .booking-cal-unavailable-hint {
+  grid-column: 1 / -1;
+}
+
+.booking-form--event .event-time-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.booking-form--event .ev-form-group--event-times .booking-schedule-note {
+  margin-top: 4px;
+}
+
+.booking-form--event .ev-guest-ev-day-schedule {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e8dcc8;
+  border-radius: 8px;
+  background: #faf8f4;
+}
+
+.booking-form--event .ev-guest-ev-day-schedule ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.booking-form--event .ev-guest-ev-day-schedule li {
+  border-left: 4px solid var(--gold);
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background: #ffffff;
+  border-radius: 6px;
+}
+
+.booking-form--event .ev-form-section--textarea textarea,
+.booking-form--event .ev-form-section--payment .ev-payment-options {
+  width: 100%;
+}
+
+.booking-form--event .ev-upload-box.ev-upload-box--id {
+  min-height: 140px;
+}
+
+.booking-form--event .modal-actions {
+  margin-top: 4px;
+  padding-top: 20px;
+  border-top: 1px solid #e8dcc8;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .booking-form--event .ev-form-row,
+  .booking-form--event .ev-form-row--guest-event-date-cal {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}

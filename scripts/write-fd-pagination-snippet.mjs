@@ -1,0 +1,88 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const root = path.dirname(fileURLToPath(import.meta.url));
+const open = "<" + "div";
+const close = "</" + "div>";
+
+const snippet = `          <nav
+            className="fd-bills-pagination rm-pagination-row"
+            aria-label="Billing table pages"
+            aria-busy={rowsLoading}
+          >
+            ${open} className="rm-pagination-meta fd-bills-pagination-meta">
+              <span className="rm-pagination-count">
+                {rowsLoading ? (
+                  <>Loading page {page}…</>
+                ) : billRows.length > 0 ? (
+                  <>
+                    Showing <strong>{billsSliceFrom}–{billsSliceTo}</strong> of <strong>{totalItems}</strong>
+                    {" · "}Page {page} of {totalPages}
+                  </>
+                ) : (
+                  <>
+                    <strong>{totalItems}</strong> record{totalItems === 1 ? "" : "s"}
+                    {" · "}Page {page} of {totalPages}
+                  </>
+                )}
+              </span>
+              <label className="rm-pagination-limit fd-bills-pagination-per">
+                <span>Per page</span>
+                <select
+                  className="rm-pagination-select fd-bills-pagination-select"
+                  value={limit}
+                  disabled={rowsLoading}
+                  onChange={(e) => {
+                    setLimit(Number(e.target.value));
+                    setPage(1);
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </label>
+            ${close}
+            ${open} className="rm-pagination-btns fd-bills-pagination-btns">
+              <button
+                type="button"
+                className="rm-page-btn fd-bills-page-btn"
+                disabled={rowsLoading || page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+              >
+                Previous
+              </button>
+              {visibleClientPageNumbers(page, totalPages).map((pNum, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev != null && pNum - prev > 1;
+                return (
+                  <span key={pNum} className="rm-page-btn-wrap fd-bills-page-num-wrap">
+                    {showEllipsis ? <span className="rm-page-ellipsis fd-bills-page-ellipsis">…</span> : null}
+                    <button
+                      type="button"
+                      className={\`rm-page-btn fd-bills-page-num\${pNum === page ? " rm-page-btn--active fd-bills-page-num--active" : ""}\`}
+                      aria-label={\`Page \${pNum}\`}
+                      disabled={rowsLoading}
+                      {...(pNum === page ? { "aria-current": "page" } : {})}
+                      onClick={() => setPage(pNum)}
+                    >
+                      {pNum}
+                    </button>
+                  </span>
+                );
+              })}
+              <button
+                type="button"
+                className="rm-page-btn fd-bills-page-btn"
+                disabled={rowsLoading || page >= totalPages}
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              >
+                Next
+              </button>
+            ${close}
+          </nav>
+`;
+
+fs.writeFileSync(path.join(root, "fd-pagination-snippet.txt"), snippet);
+console.log("snippet written");

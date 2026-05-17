@@ -899,21 +899,28 @@
     --rdp-day_button-border-radius: 8px;
     margin: 0 auto;
   }
+  .walkin-event-booking-root .wi-ev-day-picker .rdp-month_grid {
+    width: 100%;
+    table-layout: fixed;
+  }
   .walkin-event-booking-root .wi-ev-day-picker .rdp-day.fd-cal-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    vertical-align: middle;
+    text-align: center;
     padding: 2px;
     cursor: default;
     box-sizing: border-box;
+    aspect-ratio: unset;
+    max-height: none;
+    width: var(--rdp-day-width);
+    height: var(--rdp-day-height);
   }
   .walkin-event-booking-root .wi-ev-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
-    flex: 1;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 40px;
-    width: 100%;
+    width: var(--rdp-day_button-width);
+    height: var(--rdp-day_button-height);
+    margin: 0 auto;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;

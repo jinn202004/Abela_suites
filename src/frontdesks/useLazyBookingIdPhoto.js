@@ -13,7 +13,9 @@ export function useLazyBookingIdPhoto({ open, bookingId, rowPhoto }) {
       setPhoto("");
       return;
     }
-    const inline = rowPhoto && String(rowPhoto).startsWith("data:") ? String(rowPhoto) : "";
+    const row = String(rowPhoto || "").trim();
+    const inline =
+      row.startsWith("data:image/") || /^https?:\/\//i.test(row) ? row : "";
     if (inline) {
       setPhoto(inline);
       return;
@@ -27,10 +29,9 @@ export function useLazyBookingIdPhoto({ open, bookingId, rowPhoto }) {
     fetchBookingByIdBackend(id)
       .then((b) => {
         const g = b?.guest;
+        const raw = String(g?.validIdPhotoData || "").trim();
         const p =
-          g?.validIdPhotoData && String(g.validIdPhotoData).startsWith("data:")
-            ? String(g.validIdPhotoData)
-            : "";
+          raw.startsWith("data:image/") || /^https?:\/\//i.test(raw) ? raw : "";
         if (!cancelled) setPhoto(p);
       })
       .catch(() => {

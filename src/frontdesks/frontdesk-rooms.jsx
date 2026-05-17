@@ -15,6 +15,7 @@ import { getFrontdeskNotificationBookingPath } from "./staffNotificationUtils";
 import {
   fetchBookingsBackend,
   fetchBookingByIdBackend,
+  createBookingBackend,
   fetchRoomsCatalog,
   fetchRoomAvailabilityWindow,
   approveBookingBackend,
@@ -33,6 +34,11 @@ import {
   paymentMethodDisplayLabel,
   paymentProofFromBooking,
 } from "../components/reservationDetailsHelpers";
+import {
+  uploadBookingGuestValidIdDirectBackend,
+  uploadPaymentProofDirectBackend,
+} from "../api/imageUploadApi";
+import { handleImageFileInputChange, isStoredImageRef } from "../utils/s3ImageUpload";
 import "../components/reservation-details-modal.css";
 import {
   bookingCustomerDisplayName,
@@ -53,10 +59,19 @@ import {
   parseLocalYmd,
   formatLocalYmd,
   formatLocalTodayYmd,
+  countStayNights,
   blockedCheckInSetFromRanges,
   splitGuestStayNightsByTone,
   addLocalDays,
 } from "../guests/roomStayDates";
+import {
+  computeRoomBookingBill,
+  paymentSnapshotFromBill,
+  formatPeso,
+} from "../guests/bookingBilling";
+import BillingSummary from "../guests/BillingSummary";
+import BillingPaymentPills from "../guests/BillingPaymentPills";
+import "../guests/billing-summary.css";
 import { fetchRoomBookedRangesMerged } from "../guests/roomBookingOccupancy";
 import "../guests/idUploadedCard.css";
 import "./frontdesk-rooms.css";
@@ -1129,8 +1144,30 @@ function CheckModal({ open, row, onClose, onCheckin, onCheckout, onAddCharges })
         : String(row.addreq ?? "").trim();
     const declineFromApi =
       apiBooking.declineReason != null ? String(apiBooking.declineReason).trim() : "";
+    const credited = paymentCreditedTowardTotal(apiTotalNum, parsePesoNum(apiBooking.paymentAmount));
+    const apiBal =
+      Number.isFinite(apiTotalNum) && Number.isFinite(credited)
+        ? Math.max(0, apiTotalNum - credited)
+        : NaN;
     return {
       ...row,
+      ...(totalsDiffer
+        ? {
+            total: row.total,
+            downpayment: row.downpayment,
+            balance: row.balance,
+            price: row.price || row.total,
+            paid: row.paid,
+            amountpaid: row.amountpaid,
+          }
+        : {
+            total: fmtPeso(apiTotalNum),
+            downpayment: fmtPeso(credited),
+            balance: fmtPeso(apiBal),
+            price: fmtPeso(apiTotalNum),
+            paid: fmtPeso(credited),
+            amountpaid: fmtPeso(credited),
+          }),
       paymethod: apiBooking.paymentMethod || row.paymethod,
       transid: apiBooking.transactionId || row.transid,
       paydate,
@@ -1690,15 +1727,19 @@ function WalkinModal({ open, onClose, onSubmit }) {
     setPayErrors((er) => ({ ...er, [k]: "" }));
   };
 
-  const handleIdUpload = (e) => {
+  const handleIdUpload = async (e) => {
     const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    if (file.type && !file.type.startsWith("image/")) return;
     setErrors((er) => ({ ...er, id: "" }));
-    const reader = new FileReader();
-    reader.onload = (ev) => setIdPreview(ev.target.result);
-    reader.onerror = () => setIdPreview(null);
-    reader.readAsDataURL(file);
+    await handleImageFileInputChange(file, {
+      uploadFn: uploadBookingGuestValidIdDirectBackend,
+      setPreview: setIdPreview,
+      setError: (msg) => {
+        setIdPreview(null);
+        setErrors((er) => ({ ...er, id: msg || "ID upload failed." }));
+      },
+    });
   };
 
   const roomOptions = useMemo(() => {
@@ -1743,6 +1784,34 @@ function WalkinModal({ open, onClose, onSubmit }) {
     const hit = base.find((r) => r.label === form.room);
     return hit?.id ? String(hit.id) : "";
   }, [roomCatalog, form.room]);
+
+  const selectedCatalogRoom = useMemo(() => {
+    if (!selectedRoomId) return null;
+    return (roomCatalog || []).find((r) => String(r.id) === selectedRoomId) ?? null;
+  }, [roomCatalog, selectedRoomId]);
+
+  const walkinStayBill = useMemo(() => {
+    if (!selectedCatalogRoom || !form.checkin || !form.checkout) return null;
+    if (countStayNights(form.checkin, form.checkout) < 1) return null;
+    const { packageLabel } = splitWalkinRoomSelection(form.room);
+    return computeRoomBookingBill({
+      roomTitle: packageLabel || form.room,
+      nightlyRate: Number(selectedCatalogRoom.price) || 0,
+      checkIn: form.checkin,
+      checkOut: form.checkout,
+      includedGuests: Math.max(1, parseInt(String(selectedCatalogRoom.guests ?? 1), 10) || 1),
+      additionalGuests: form.addguest,
+    });
+  }, [selectedCatalogRoom, form.room, form.checkin, form.checkout, form.addguest]);
+
+  const walkinLivePayment = useMemo(() => {
+    if (!walkinStayBill) return null;
+    const paidNum =
+      form.payment === "gcash" && payForm.amountpaid.trim()
+        ? parsePesoNum(payForm.amountpaid)
+        : 0;
+    return paymentSnapshotFromBill(walkinStayBill, paidNum);
+  }, [walkinStayBill, form.payment, payForm.amountpaid]);
 
   const selectedRoomIdRef = useRef("");
   selectedRoomIdRef.current = selectedRoomId;
@@ -1909,15 +1978,23 @@ function WalkinModal({ open, onClose, onSubmit }) {
     setPayErrors({});
   }
 
-  const handleProofFile = (e) => {
+  const handleProofFile = async (e) => {
     const f = e.target.files?.[0];
-    if (!f || (f.type && !f.type.startsWith("image/"))) return;
-    setProofPreview((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return URL.createObjectURL(f);
-    });
-    setPayForm((p) => ({ ...p, proof: f }));
+    if (e.target) e.target.value = "";
+    if (!f) return;
     setPayErrors((er) => ({ ...er, proof: "" }));
+    await handleImageFileInputChange(f, {
+      uploadFn: uploadPaymentProofDirectBackend,
+      setPreview: (url) => {
+        setProofPreview(url);
+        setPayForm((p) => ({ ...p, proof: f }));
+      },
+      setError: (msg) => {
+        setProofPreview(null);
+        setPayForm((p) => ({ ...p, proof: null }));
+        setPayErrors((er) => ({ ...er, proof: msg || "Proof upload failed." }));
+      },
+    });
   };
 
   function selectPayment(val) {
@@ -1964,7 +2041,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
     if (!payForm.amountpaid.trim()) errs.amountpaid = "Required";
     if (!payForm.paydate) errs.paydate = "Required";
     if (!payForm.transid.trim()) errs.transid = "Required";
-    if (!payForm.proof) errs.proof = "Please upload proof";
+    if (!isStoredImageRef(proofPreview)) errs.proof = "Please upload proof";
     return errs;
   };
 
@@ -1992,10 +2069,19 @@ function WalkinModal({ open, onClose, onSubmit }) {
     ) {
       errs.checkout = "These dates overlap an existing stay for this room.";
     }
-    if (!idPreview) errs.id = "Please upload a valid government ID.";
+    if (!isStoredImageRef(idPreview)) errs.id = "Please upload a valid government ID.";
     if (!form.termsCheck) errs.termsCheck = "You must accept the Terms and Conditions.";
     if (!form.privacyCheck) errs.privacyCheck = "Please agree to the Data Privacy Policy.";
     if (!form.stayCheck) errs.stayCheck = "Please agree to the Terms & Conditions of Stay.";
+    if (
+      form.checkin &&
+      form.checkout &&
+      form.checkout > form.checkin &&
+      form.room &&
+      (!walkinStayBill || !(walkinStayBill.total > 0))
+    ) {
+      errs.checkout = "Could not calculate the stay total. Please verify dates and room.";
+    }
     setErrors(errs);
     if (form.payment === "gcash") {
       const pe = validatePayment();
@@ -2007,6 +2093,15 @@ function WalkinModal({ open, onClose, onSubmit }) {
 
   const submitPayment = () => {
     const pe = validatePayment();
+    const paid = parsePesoNum(payForm.amountpaid);
+    const stayTotal = walkinStayBill?.total ?? 0;
+    const minDown = walkinStayBill?.minimumDownPayment ?? 0;
+    if (stayTotal > 0 && paid > stayTotal) {
+      pe.amountpaid = `Amount cannot exceed stay total (${formatPeso(stayTotal)}).`;
+    }
+    if (minDown > 0 && paid < minDown) {
+      pe.amountpaid = `Minimum down payment is ${formatPeso(minDown)}.`;
+    }
     setPayErrors(pe);
     if (Object.keys(pe).length) return;
     setShowPayment(false);
@@ -2016,8 +2111,14 @@ function WalkinModal({ open, onClose, onSubmit }) {
     if (!validate()) return;
     onSubmit({
       ...form,
+      roomId: selectedRoomId,
+      bill: walkinStayBill,
+      idDataUrl: idPreview,
       govIdNote: idPreview ? "Government ID attached (walk-in)" : "",
-      paySnapshot: form.payment === "gcash" ? { ...payForm } : null,
+      paySnapshot:
+        form.payment === "gcash"
+          ? { ...payForm, proofPreview: isStoredImageRef(proofPreview) ? proofPreview : "" }
+          : null,
     });
   };
   const handleClear = () => {
@@ -2059,9 +2160,8 @@ function WalkinModal({ open, onClose, onSubmit }) {
                       : "Rooms update from your catalog and current bookings. Pick check-in and check-out to hide rooms that overlap those dates."}
                   </p>
                   <p className="walkin-cal-server-hint">
-                    Gold and red nights come from <strong>saved server bookings</strong> for the selected room. This
-                    walk-in submit still only updates the table on this page, so new walk-in dates will not show as
-                    blocked here until a booking is stored in the database.
+                    Gold and red nights reflect <strong>saved server bookings</strong> for the selected room. Walk-in
+                    reservations are saved to the database when you are signed in and the API is running.
                   </p>
                   <select
                     id="wi-room-select"
@@ -2242,21 +2342,37 @@ function WalkinModal({ open, onClose, onSubmit }) {
               <div className="booking-form-fd-cal-legend">
                 <div className="fd-cal-legend" aria-label="Calendar legend">
                   <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
                   </span>
                   <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Reserved
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Reserved / Pending
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
                   </span>
                 </div>
                 <p className="booking-cal-legend-help">
-                  Check-in and check-out use the same colors: each night shows whether this room is already tied up.{" "}
-                  <strong>Gold</strong> is any stay on the books before check-in (pending, approved, or confirmed).{" "}
-                  <strong>Red</strong> only appears after check-in has been completed for that booking (status occupied).
+                  Each night shows this room&apos;s status. <strong>Gold</strong> covers pending and approved stays.{" "}
+                  <strong>Red</strong> means a guest is in-house.
                 </p>
               </div>
               <p className="booking-schedule-note" role="note">
                 <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk calendar: <strong>Occupied</strong> (red) and <strong>Reserved</strong> (gold) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
               </p>
+
+              {walkinStayBill ? (
+                <div className="booking-form-billing-block">
+                  <BillingSummary bill={walkinStayBill} title="Billing summary" showMinimumDown />
+                  {walkinLivePayment ? (
+                    <BillingPaymentPills
+                      total={walkinLivePayment.total}
+                      amountPaid={walkinLivePayment.amountPaid}
+                      balanceDue={walkinLivePayment.balanceDue}
+                      minimumDownPayment={walkinLivePayment.minimumDownPayment}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="form-row">
                 <div className="form-group">
@@ -2424,6 +2540,24 @@ function WalkinModal({ open, onClose, onSubmit }) {
                       <span className="booking-review-summary__k">Guest</span>
                       <span className="booking-review-summary__v">{form.name.trim() || "—"}</span>
                     </li>
+                    {walkinStayBill ? (
+                      <>
+                        <li>
+                          <span className="booking-review-summary__k">Nights</span>
+                          <span className="booking-review-summary__v">{walkinStayBill.nights}</span>
+                        </li>
+                        <li>
+                          <span className="booking-review-summary__k">Total amount</span>
+                          <span className="booking-review-summary__v">{formatPeso(walkinStayBill.total)}</span>
+                        </li>
+                        <li>
+                          <span className="booking-review-summary__k">Remaining balance</span>
+                          <span className="booking-review-summary__v">
+                            {formatPeso(walkinLivePayment?.balanceDue ?? walkinStayBill.total)}
+                          </span>
+                        </li>
+                      </>
+                    ) : null}
                     <li>
                       <span className="booking-review-summary__k">Payment</span>
                       <span className="booking-review-summary__v">{form.payment === "gcash" ? "GCash" : "Cash on arrival"}</span>
@@ -3074,40 +3208,97 @@ export default function RoomReservation() {
   };
 
   // walk-in submit
-  const doWalkin = () => {
+  const doWalkin = async () => {
+    if (!pendingWalkin) return;
     const snap = pendingWalkin.paySnapshot;
     const gcash = pendingWalkin.payment === "gcash" && snap;
+    const bill = pendingWalkin.bill;
+    const total = bill?.total ?? 0;
+    const paidNum = gcash ? parsePesoNum(snap.amountpaid) : 0;
+    const credited = paymentCreditedTowardTotal(total, paidNum);
+    const bal = Number.isFinite(total) && Number.isFinite(credited) ? Math.max(0, total - credited) : 0;
     const { roomno, packageLabel } = splitWalkinRoomSelection(pendingWalkin.room);
+    const title = packageLabel || pendingWalkin.room || "Room";
+    const addreq =
+      [pendingWalkin.requests, pendingWalkin.govIdNote].filter((x) => x && String(x).trim()).join(" — ") || "None";
+    const hasId = isStoredImageRef(pendingWalkin.idDataUrl);
+    const hasProof = gcash && isStoredImageRef(snap?.proofPreview);
+
+    const finishWalkin = (newRes) => {
+      setReservations((rs) => [...rs, newRes]);
+      setWalkinConfirm(false);
+      setPendingWalkin(null);
+      setWalkinOpen(false);
+      setWalkinSuccess(true);
+      setTimeout(() => setWalkinSuccess(false), 2000);
+      showToast("Walk-in reservation added.");
+    };
+
+    if (getStoredAuthToken() && pendingWalkin.roomId && bill && total > 0) {
+      try {
+        const payload = {
+          type: "room",
+          customerName: String(pendingWalkin.name || "").trim(),
+          email: String(pendingWalkin.email || "").trim().toLowerCase(),
+          contactNumber: String(pendingWalkin.contact || "").trim(),
+          address: String(pendingWalkin.address || "").trim(),
+          roomId: String(pendingWalkin.roomId),
+          roomNumber: roomno !== "—" ? roomno.replace(/^RM-?/i, "") : "",
+          roomTitle: title,
+          checkIn: pendingWalkin.checkin,
+          checkOut: pendingWalkin.checkout,
+          additionalGuests: Math.max(0, parseInt(String(pendingWalkin.addguest ?? "0"), 10) || 0),
+          guestIdPhotoName: hasId ? "uploaded" : "default.png",
+          guestIdPhotoData: hasId ? pendingWalkin.idDataUrl : "",
+          additionalRequests: addreq,
+          totalAmount: total.toFixed(2),
+          paymentAmount: String(paidNum),
+          paymentMethod: gcash ? "Gcash" : "Cash",
+          transactionId: gcash ? String(snap.transid || "").trim() : "",
+          paymentDate: gcash ? String(snap.paydate || "").trim() : "",
+          paymentProofData: hasProof ? snap.proofPreview : "",
+          paymentProofName: hasProof ? "uploaded" : "",
+        };
+        const fresh = await createBookingBackend(payload);
+        const newRow = mapApiRoomBookingToRow(fresh, roomCatalogMapRef.current);
+        dispatchGuestBookingsRefreshPing();
+        dispatchFrontdeskNotificationsRefresh();
+        finishWalkin(newRow);
+        return;
+      } catch (e) {
+        window.alert(e?.message || "Could not save walk-in booking to the server.");
+        return;
+      }
+    }
+
     const nextId = reservations.length + 1;
     const numLabel = `RES-00${nextId}`;
-    const title = packageLabel || pendingWalkin.room || "Room";
-    const newRes = {
+    finishWalkin({
       _walkin: true,
       id: nextId,
       number: numLabel,
       type: "Walk-in",
       customer: pendingWalkin.name,
       package: formatRoomPackageWithNumber(numLabel, title),
-      total: "₱0", downpayment: "₱0", balance: "₱0", status: "pending",
+      total: fmtPeso(total),
+      downpayment: fmtPeso(credited),
+      balance: fmtPeso(bal),
+      status: "pending",
       roomno,
-      price: "₱0", email: pendingWalkin.email,
-      contact: pendingWalkin.contact, checkin: pendingWalkin.checkin,
-      checkout: pendingWalkin.checkout, addguest: pendingWalkin.addguest || "0",
-      paid: gcash ? (snap.amountpaid || "₱0") : "₱0",
+      price: fmtPeso(total),
+      email: pendingWalkin.email,
+      contact: pendingWalkin.contact,
+      checkin: pendingWalkin.checkin,
+      checkout: pendingWalkin.checkout,
+      addguest: pendingWalkin.addguest || "0",
+      paid: fmtPeso(credited),
       refnum: "—",
-      amountpaid: gcash ? (snap.amountpaid || "₱0") : "₱0",
+      amountpaid: fmtPeso(credited),
       paydate: gcash ? snap.paydate : "—",
       transid: gcash ? snap.transid : "—",
-      addreq:
-        [pendingWalkin.requests, pendingWalkin.govIdNote].filter((x) => x && String(x).trim()).join(" — ") || "None",
-      paymethod: gcash ? "GCash" : "Cash"
-    };
-    setReservations(rs => [...rs, newRes]);
-    setWalkinConfirm(false);
-    setPendingWalkin(null);
-    setWalkinOpen(false);
-    setWalkinSuccess(true); setTimeout(() => setWalkinSuccess(false), 2000);
-    showToast("Walk-in Reservation Added!");
+      addreq,
+      paymethod: gcash ? "GCash" : "Cash",
+    });
   };
 
   return (

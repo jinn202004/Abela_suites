@@ -841,7 +841,9 @@
   }
 
   .booking-form .form-row--stay-calendars {
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
     align-items: start;
+    gap: 16px 20px;
   }
   .booking-form .form-row--stay-calendars .booking-cal-unavailable-hint {
     grid-column: 1 / -1;
@@ -885,18 +887,27 @@
     --rdp-day_button-border-radius: 8px;
     margin: 0 auto;
   }
+  /* react-day-picker v9 renders a <table> — keep table layout intact */
+  .booking-form .booking-day-picker .rdp-month_grid {
+    width: 100%;
+    table-layout: fixed;
+  }
   /*
    * Front desk dashboard calendar tones (dashboard.css: .fd-cal-cell, --occupied, --reserved)
    * are applied to react-day-picker day cells via modifiersClassNames. Map colors onto the
-   * outer .rdp-day grid cell and keep the inner button visually transparent so it matches the desk.
+   * outer .rdp-day (<td>) and keep the inner button visually transparent so it matches the desk.
    */
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell {
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    vertical-align: middle;
+    text-align: center;
     padding: 2px;
     cursor: default;
     box-sizing: border-box;
+    /* dashboard.css .fd-cal-cell uses aspect-ratio/max-height for custom grids — reset for <td> */
+    aspect-ratio: unset;
+    max-height: none;
+    width: var(--rdp-day-width);
+    height: var(--rdp-day-height);
   }
   /* Same tones as front desk walk-in / dashboard calendar (explicit so guest modal does not depend on load order). */
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell--occupied {
@@ -910,12 +921,12 @@
     border-radius: 8px;
   }
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
-    flex: 1;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-height: 40px;
-    width: 100%;
+    width: var(--rdp-day_button-width);
+    height: var(--rdp-day_button-height);
+    margin: 0 auto;
     background: transparent !important;
     border: none !important;
     box-shadow: none !important;
@@ -962,6 +973,27 @@
   .booking-form-fd-cal-legend .fd-cal-legend-swatch--reserved {
     background: #f1c40f;
     border-color: #d4ac0d;
+  }
+  .booking-form-fd-cal-legend .fd-cal-legend-swatch--available {
+    background: #ffffff;
+    border: 1px solid #d4c4a8;
+  }
+
+  .booking-form-billing-block {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .booking-bill-hint {
+    margin: 0;
+    padding: 10px 14px;
+    font-family: "Roboto", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-mid);
+    background: #faf7f2;
+    border: 1px dashed #d4c4a8;
+    border-radius: 8px;
   }
 
   .booking-form-fd-cal-legend + .booking-schedule-note {

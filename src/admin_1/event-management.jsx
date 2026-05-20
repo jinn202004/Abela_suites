@@ -776,7 +776,7 @@ export default function EventManage() {
   const STATS = [
     { label: "Event bookings today", StatI: StatIconCal, value: statusDataLoading ? "…" : statToday },
     { label: "Total event bookings", StatI: StatIconDoc, value: statusDataLoading ? "…" : statuses.length },
-    { label: "Pending / review", StatI: StatIconCheckout, value: statusDataLoading ? "…" : pendingLike },
+    { label: "Pending Approval", StatI: StatIconCheckout, value: statusDataLoading ? "…" : pendingLike },
     { label: "Venues in catalog", StatI: StatIconDollar, value: venuesLoading ? "…" : venues.length },
   ];
 
@@ -867,6 +867,15 @@ export default function EventManage() {
               <div className="rm-section-label">Event Reservations</div>
               <div className="rm-table-wrap">
                 <table className="rm-table">
+                  <colgroup>
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                    <col />
+                    <col className="rm-col--status" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Venue / title</th>
@@ -875,7 +884,7 @@ export default function EventManage() {
                       <th>Guests</th>
                       <th>Total</th>
                       <th>Downpayment</th>
-                      <th>Status</th>
+                      <th className="rm-th-status">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -900,7 +909,7 @@ export default function EventManage() {
                           <td>{s.guest}</td>
                           <td>{s.total}</td>
                           <td>{s.downpayment}</td>
-                          <td>
+                          <td className="rm-td-status">
                             <span className={`rm-badge ${s.badgeClass}`}>{s.status}</span>
                           </td>
                         </tr>
@@ -961,13 +970,22 @@ export default function EventManage() {
               <div className="rm-section-label">Manage Event Venues (database)</div>
               <div className="rm-table-wrap">
                 <table className="rm-table">
+                  <colgroup>
+                    <col className="rm-col--thumb" />
+                    <col />
+                    <col />
+                    <col />
+                    <col className="rm-col--status" />
+                    <col />
+                    <col className="rm-col--action" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Image</th>
                       <th>Venue</th>
                       <th>Capacity</th>
                       <th>Price</th>
-                      <th>Status</th>
+                      <th className="rm-th-status">Status</th>
                       <th>Reserved</th>
                       <th className="rm-th-action">Action</th>
                     </tr>
@@ -1003,7 +1021,7 @@ export default function EventManage() {
                             <td>{label}</td>
                             <td>{v.capacity != null ? v.capacity : "—"}</td>
                             <td>{fmtPeso(v.price)}</td>
-                            <td>
+                            <td className="rm-td-status">
                               <span className={`rm-badge ${adminVenueOpsBadgeClass(v.status)}`}>
                                 {formatCatalogVenueStatus(v.status)}
                               </span>

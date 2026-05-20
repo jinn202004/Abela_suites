@@ -280,6 +280,7 @@ export default function FrontdeskDashboard() {
   const [currentTab, setCurrentTab] = useState("room");
   const [search, setSearch] = useState("");
   const [refreshing, setRefreshing] = useState(false);
+  const [dashboardLoading, setDashboardLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(!!getStoredAuthToken());
   const [summary, setSummary] = useState(null);
   const [summaryError, setSummaryError] = useState(null);
@@ -309,6 +310,7 @@ export default function FrontdeskDashboard() {
     if (!silent) setRefreshing(true);
     try {
       const d = await loadDashboardBundle();
+      setDashboardLoading(false);
       setAuthenticated(d.authenticated);
       setSummary(d.summary);
       setSummaryError(d.summaryError);
@@ -325,6 +327,7 @@ export default function FrontdeskDashboard() {
       }
     } finally {
       if (!silent) setRefreshing(false);
+      setDashboardLoading(false);
     }
   }, []);
 
@@ -457,32 +460,33 @@ export default function FrontdeskDashboard() {
 
   const anySectionError = summaryError || roomCatalogError || eventCatalogError || bookingsError;
 
+  const statPending = dashboardLoading || (refreshing && !summary) ? "…" : "—";
   const statCards = [
     {
       icon: <CalIcon />,
       label: "Reservations for Today",
-      value: authenticated && summary ? String(summary.reservationsToday ?? 0) : "—",
+      value: !authenticated ? "—" : summary ? String(summary.reservationsToday ?? 0) : statPending,
       cls: "stat-warning",
       valueClass: "",
     },
     {
       icon: <FileIcon />,
       label: "Total",
-      value: authenticated && summary ? formatPeso(summary.totalRevenue) : "—",
+      value: !authenticated ? "—" : summary ? formatPeso(summary.totalRevenue) : statPending,
       cls: "stat-info",
       valueClass: "stat-value-money",
     },
     {
       icon: <CheckIcon />,
       label: "Check-Outs for Today",
-      value: authenticated && summary ? String(summary.checkOutsToday ?? 0) : "—",
+      value: !authenticated ? "—" : summary ? String(summary.checkOutsToday ?? 0) : statPending,
       cls: "stat-success",
       valueClass: "",
     },
     {
       icon: <MoneyIcon />,
       label: "Balance",
-      value: authenticated && summary ? formatPeso(summary.outstandingBalances) : "—",
+      value: !authenticated ? "—" : summary ? formatPeso(summary.outstandingBalances) : statPending,
       cls: "stat-danger",
       valueClass: "stat-value-money",
     },

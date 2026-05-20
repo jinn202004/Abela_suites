@@ -1,27 +1,51 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { fetchRoomsCatalog } from "../api/guestApi";
+import MarketingNavbar from "../components/MarketingNavbar";
+import {
+  fetchRoomsCatalog,
+  fetchPublicEventVenuesCatalog,
+  fetchPublicMenuCatalog,
+} from "../api/guestApi";
+import { backendUrl } from "../api/config";
+import { useFadeCarousel } from "../hooks/useFadeCarousel";
 import "./homedashboard.css";
 
-// Public URLs (Vite serves `public/` at `/` — no `/public/` prefix; local assets were missing)
-const RESTO_IMAGES = [
-  "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=900&q=80",
-  "https://images.unsplash.com/photo-1555939594-58d7cb561ad1?auto=format&fit=crop&w=900&q=80",
+const LANDING_SYNC_MS = 12000;
+const CAROUSEL_AUTO_MS = 5500;
+
+const FALLBACK_ROOM_SLIDES = [
+  { image: "/room-single-suite.png", name: "Single Suite", price: 824, meta: "Room" },
+  { image: "/room-executive.png", name: "Executive", price: 2940, meta: "Room" },
 ];
 
-/** Used only when the public room API is unreachable or returns no rows. */
-const FALLBACK_SERVICES_SLIDES = [
-  { image: "/room-single-suite.png", name: "Single Suite", price: 824 },
-  { image: "/room-executive.png", name: "Executive", price: 2940 },
-  { image: "/venue-function-hall.png", name: "Function Hall", price: 12500 },
+const FALLBACK_EVENT_SLIDES = [
+  { image: "/venue-function-hall.png", name: "Function Hall", price: 12500, meta: "Event venue" },
 ];
 
-const VENUE_SLIDE = {
-  image: "/venue-function-hall.png",
-  name: "Function Hall",
-  price: 12500,
-};
+const FALLBACK_FOOD_SLIDES = [
+  {
+    image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=900&q=80",
+    name: "Chef's selection",
+    price: 0,
+    meta: "Available now",
+  },
+  {
+    image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?auto=format&fit=crop&w=900&q=80",
+    name: "House favorites",
+    price: 0,
+    meta: "Available now",
+  },
+];
+
+function resolveCatalogImage(raw, placeholderLabel) {
+  const s = String(raw ?? "").trim();
+  if (!s) {
+    return `https://placehold.co/900x600/f5f0e8/6b5a3e?text=${encodeURIComponent(placeholderLabel)}`;
+  }
+  if (/^https?:\/\//i.test(s) || s.startsWith("data:") || s.startsWith("blob:")) return s;
+  const path = s.startsWith("/") ? s : `/${s}`;
+  return backendUrl(path);
+}
 
 function catalogRoomsToSlides(rooms) {
   const list = Array.isArray(rooms) ? rooms : [];
@@ -39,20 +63,69 @@ function catalogRoomsToSlides(rooms) {
         String(r.package ?? "").trim() ||
         String(r.title ?? "").trim() ||
         `Room ${String(r.roomNumber ?? "").trim() || "—"}`;
-      const image =
-        String(r.image ?? "").trim() ||
-        "https://placehold.co/900x600/f5f0e8/6b5a3e?text=Room";
       return {
-        image,
+        image: resolveCatalogImage(r.image, name),
         name,
         price: Number.isFinite(price) ? price : 0,
+        meta: String(r.roomNumber ?? "").trim() ? `Room ${r.roomNumber}` : "Room",
       };
     });
-  if (mapped.length === 0) return null;
-  return [...mapped, VENUE_SLIDE];
+  return mapped.length > 0 ? mapped : null;
 }
 
-// --- Why Choose Us Cards ---
+function catalogEventsToSlides(venues) {
+  const list = Array.isArray(venues) ? venues : [];
+  const mapped = list
+    .slice()
+    .sort((a, b) => String(a.eventNum ?? "").localeCompare(String(b.eventNum ?? "")))
+    .map((v) => {
+      const price = Number(v.price);
+      const name =
+        String(v.package ?? "").trim() ||
+        String(v.name ?? "").trim() ||
+        String(v.venueName ?? "").trim() ||
+        "Event venue";
+      return {
+        image: resolveCatalogImage(v.imageUrl || v.image, name),
+        name,
+        price: Number.isFinite(price) ? price : 0,
+        meta: String(v.type ?? "Event").trim() || "Event venue",
+      };
+    });
+  return mapped.length > 0 ? mapped : null;
+}
+
+function catalogMenuToSlides(menu) {
+  const list = Array.isArray(menu) ? menu : [];
+  const mapped = list
+    .slice()
+    .sort((a, b) => String(a.itemName ?? a.name ?? "").localeCompare(String(b.itemName ?? b.name ?? "")))
+    .map((m) => {
+      const price = Number(m.price);
+      const name = String(m.itemName ?? m.name ?? "").trim() || "Dish";
+      const category = String(m.category ?? m.categoryId ?? "").trim();
+      return {
+        image: resolveCatalogImage(m.imageUrl, name),
+        name,
+        price: Number.isFinite(price) ? price : 0,
+        meta: category || "Available now",
+      };
+    });
+  return mapped.length > 0 ? mapped : null;
+}
+
+function slidesEqual(a, b) {
+  if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    const x = a[i];
+    const y = b[i];
+    if (x.image !== y.image || x.name !== y.name || x.price !== y.price || x.meta !== y.meta) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const WHY_CARDS = [
   {
     delay: "0s",
@@ -116,43 +189,186 @@ const WHY_CARDS = [
   },
 ];
 
-// ============================================================
+function CatalogCarousel({
+  slides,
+  index,
+  fade,
+  onPrev,
+  onNext,
+  onDot,
+  onHoverChange,
+  ariaLabel,
+}) {
+  const current = slides[index] ?? slides[0];
+  if (!current) return null;
+
+  return (
+    <div
+      className="catalog-carousel"
+      aria-roledescription="carousel"
+      aria-label={ariaLabel}
+      onMouseEnter={() => onHoverChange(true)}
+      onMouseLeave={() => onHoverChange(false)}
+      onFocusCapture={() => onHoverChange(true)}
+      onBlurCapture={() => onHoverChange(false)}
+    >
+      <button type="button" className="catalog-arrow catalog-prev" onClick={onPrev} aria-label="Previous slide">
+        &#8249;
+      </button>
+      <div className="catalog-img-wrapper">
+        <img
+          src={current.image}
+          alt={current.name}
+          className="catalog-img"
+          style={{
+            opacity: fade ? 1 : 0,
+            transform: fade ? "scale(1)" : "scale(1.04)",
+            transition: "opacity 0.28s ease, transform 0.28s ease",
+          }}
+        />
+      </div>
+      <button type="button" className="catalog-arrow catalog-next" onClick={onNext} aria-label="Next slide">
+        &#8250;
+      </button>
+      {slides.length > 1 ? (
+        <div className="catalog-dots" role="tablist" aria-label={`${ariaLabel} slides`}>
+          {slides.map((slide, i) => (
+            <button
+              key={`${slide.name}-${i}`}
+              type="button"
+              role="tab"
+              aria-selected={i === index}
+              aria-label={`Go to ${slide.name}`}
+              className={`catalog-dot${i === index ? " catalog-dot--active" : ""}`}
+              onClick={() => onDot(i)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CatalogCarouselSection({
+  id,
+  reverse,
+  label,
+  title,
+  description,
+  slides,
+  carousel,
+  onHoverChange,
+  linkTo,
+  linkLabel,
+  liveCount,
+}) {
+  const current = slides[carousel.index] ?? slides[0];
+  const showPrice = current && Number(current.price) > 0;
+
+  return (
+    <section className={`catalog-section${reverse ? " catalog-section--reverse" : ""}`} id={id}>
+      <div className="catalog-inner fade-in-up">
+        <CatalogCarousel
+          slides={slides}
+          index={carousel.index}
+          fade={carousel.fade}
+          onPrev={() => carousel.advance(-1)}
+          onNext={() => carousel.advance(1)}
+          onDot={carousel.goTo}
+          onHoverChange={onHoverChange}
+          ariaLabel={title}
+        />
+        <div className="catalog-text">
+          <span className="catalog-label">{label}</span>
+          <h2 className="catalog-title">{title}</h2>
+          {current ? (
+            <p className="catalog-pill">
+              <span className="catalog-pill__meta">{current.meta}</span>
+              <span className="catalog-pill__name">{current.name}</span>
+              {showPrice ? (
+                <span className="catalog-pill__price">₱{current.price.toLocaleString("en-PH")}</span>
+              ) : null}
+            </p>
+          ) : null}
+          <div className="catalog-rule" />
+          <p className="catalog-desc">{description}</p>
+          {typeof liveCount === "number" && liveCount > 0 ? (
+            <p className="catalog-live-count" aria-live="polite">
+              {liveCount} {liveCount === 1 ? "option" : "options"} available now
+            </p>
+          ) : null}
+          <Link to={linkTo} className="catalog-cta">
+            {linkLabel}
+          </Link>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function HomeDashboard() {
-  // Restaurant carousel
-  const [restoIndex, setRestoIndex] = useState(0);
-  const [restoFade, setRestoFade]   = useState(true);
+  const [roomSlides, setRoomSlides] = useState(FALLBACK_ROOM_SLIDES);
+  const [eventSlides, setEventSlides] = useState(FALLBACK_EVENT_SLIDES);
+  const [foodSlides, setFoodSlides] = useState(FALLBACK_FOOD_SLIDES);
 
-  // Rooms & events carousel (room slides from GET /api/rooms; venue slide is static marketing)
-  const [servicesSlides, setServicesSlides] = useState(FALLBACK_SERVICES_SLIDES);
-  const [servicesIndex, setServicesIndex] = useState(0);
-  const [servicesFade, setServicesFade]   = useState(true);
+  const [roomsPaused, setRoomsPaused] = useState(false);
+  const [eventsPaused, setEventsPaused] = useState(false);
+  const [foodPaused, setFoodPaused] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchRoomsCatalog()
-      .then((list) => {
-        if (cancelled) return;
-        const built = catalogRoomsToSlides(list);
-        if (built && built.length > 0) setServicesSlides(built);
-      })
-      .catch(() => {
-        /* keep FALLBACK_SERVICES_SLIDES */
-      });
-    return () => {
-      cancelled = true;
-    };
+  const roomsCarousel = useFadeCarousel(roomSlides, {
+    intervalMs: CAROUSEL_AUTO_MS,
+    paused: roomsPaused,
+  });
+  const eventsCarousel = useFadeCarousel(eventSlides, {
+    intervalMs: CAROUSEL_AUTO_MS + 400,
+    paused: eventsPaused,
+  });
+  const foodCarousel = useFadeCarousel(foodSlides, {
+    intervalMs: CAROUSEL_AUTO_MS + 800,
+    paused: foodPaused,
+  });
+
+  const syncLandingCatalogs = useCallback(async () => {
+    const [roomsRes, eventsRes, menuRes] = await Promise.allSettled([
+      fetchRoomsCatalog(),
+      fetchPublicEventVenuesCatalog(),
+      fetchPublicMenuCatalog(),
+    ]);
+
+    if (roomsRes.status === "fulfilled") {
+      const built = catalogRoomsToSlides(roomsRes.value);
+      if (built) {
+        setRoomSlides((prev) => (slidesEqual(prev, built) ? prev : built));
+      }
+    }
+    if (eventsRes.status === "fulfilled") {
+      const built = catalogEventsToSlides(eventsRes.value);
+      if (built) {
+        setEventSlides((prev) => (slidesEqual(prev, built) ? prev : built));
+      }
+    }
+    if (menuRes.status === "fulfilled") {
+      const built = catalogMenuToSlides(menuRes.value);
+      if (built) {
+        setFoodSlides((prev) => (slidesEqual(prev, built) ? prev : built));
+      }
+    }
   }, []);
 
   useEffect(() => {
-    setServicesIndex((i) => {
-      const len = servicesSlides.length;
-      if (len === 0) return 0;
-      return Math.min(i, len - 1);
-    });
-  }, [servicesSlides]);
+    let cancelled = false;
+    const run = async () => {
+      if (cancelled) return;
+      await syncLandingCatalogs();
+    };
+    run();
+    const id = window.setInterval(run, LANDING_SYNC_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [syncLandingCatalogs]);
 
-  /* Pixel min-height for hero <main> — fixes cream band below hero when global CSS
-     from admin/booking (body flex, html/body height:100%) makes 100dvh/max() unreliable. */
   const [heroMinPx, setHeroMinPx] = useState(() =>
     typeof window !== "undefined" ? window.innerHeight : 0
   );
@@ -168,7 +384,6 @@ export default function HomeDashboard() {
       document.documentElement.style.setProperty("--hero-vh-px", `${h}px`);
       setHeroMinPx(h);
     }
-    /* 1% of real inner height — used in CSS calc(var(--vh) * 100) so hero fills viewport on mobile */
     if (inner > 0) {
       document.documentElement.style.setProperty("--vh", `${inner * 0.01}px`);
     }
@@ -193,28 +408,6 @@ export default function HomeDashboard() {
     };
   }, [syncHeroViewportHeight]);
 
-  // --- Carousel handlers ---
-  function restoSlide(direction) {
-    setRestoFade(false);
-    setTimeout(() => {
-      setRestoIndex(i => (i + direction + RESTO_IMAGES.length) % RESTO_IMAGES.length);
-      setRestoFade(true);
-    }, 280);
-  }
-
-  function servicesSlide(direction) {
-    setServicesFade(false);
-    setTimeout(() => {
-      setServicesIndex((i) => {
-        const len = servicesSlides.length;
-        if (len === 0) return 0;
-        return (i + direction + len) % len;
-      });
-      setServicesFade(true);
-    }, 280);
-  }
-
-  // --- Scroll fade-in (observe all .fade-in-up inside this page after layout) ---
   useLayoutEffect(() => {
     const root = pageRootRef.current;
     if (!root) return;
@@ -258,32 +451,8 @@ export default function HomeDashboard() {
         padding: 0,
       }}
     >
-      {/* ── NAVBAR ── */}
-      <nav className="navbar">
-        <div className="nav-brand">
-          <img
-            src="/logo.png"
-            alt=""
-            className="nav-logo-img"
-            width={46}
-            height={46}
-            onError={(e) => {
-              e.currentTarget.src = "/favicon.svg";
-            }}
-          />
-          <span className="brand-name">Abela Suites</span>
-        </div>
-        <ul className="nav-links">
-          <li><a href="#top">Home</a></li>
-          <li><Link to="/testimonials">Testimonials</Link></li>
-          <li><Link to="/contact">Contact Us</Link></li>
-        </ul>
-        <Link to="/login" className="btn-login-nav">
-          Login
-        </Link>
-      </nav>
+      <MarketingNavbar />
 
-      {/* ── HERO — inline minHeight (px) beats broken vh chain from bundled global layouts ── */}
       <main
         className="main-content"
         style={heroMinPx > 0 ? { minHeight: heroMinPx } : undefined}
@@ -291,7 +460,7 @@ export default function HomeDashboard() {
         <div className="hero-box">
           <h1 className="hero-title">Welcome to Abela Suites</h1>
           <div className="hero-rule">
-            <span className="hero-rule-diamond"></span>
+            <span className="hero-rule-diamond" />
           </div>
           <h2 className="hero-subtitle">Where Services and Comforts Meet</h2>
           <p className="hero-desc">
@@ -302,82 +471,54 @@ export default function HomeDashboard() {
         </div>
       </main>
 
-      {/* ── ROOMS & EVENTS (first section after hero) ── */}
-      <section className="services-section" id="services">
-        <div className="services-inner fade-in-up">
-          <div className="services-carousel">
-            <button className="services-arrow services-prev" onClick={() => servicesSlide(-1)} aria-label="Previous">&#8249;</button>
-            <div className="services-img-wrapper">
-              <img
-                src={servicesSlides[servicesIndex].image}
-                alt={servicesSlides[servicesIndex].name}
-                className="services-img"
-                style={{
-                  opacity: servicesFade ? 1 : 0,
-                  transform: servicesFade ? "scale(1)" : "scale(1.04)",
-                  transition: "opacity 0.28s ease, transform 0.28s ease",
-                }}
-              />
-            </div>
-            <button className="services-arrow services-next" onClick={() => servicesSlide(1)} aria-label="Next">&#8250;</button>
-          </div>
-          <div className="services-text">
-            <span className="services-label">Accommodations &amp; Events</span>
-            <h2 className="services-title">Rooms &amp; Events</h2>
-            <p className="services-room-pill">
-              {servicesSlides[servicesIndex].name}
-              <span className="services-room-pill__price">
-                ₱{servicesSlides[servicesIndex].price.toLocaleString("en-PH")}
-              </span>
-            </p>
-            <div className="services-rule"></div>
-            <p className="services-desc">
-              Experience comfort in our well-equipped rooms and celebrate your special
-              occasions in our elegant event venues. Perfect for relaxation, gatherings,
-              and memorable moments that last a lifetime.
-            </p>
-          </div>
-        </div>
-      </section>
+      <div id="services" className="landing-services-hub" aria-label="Our services">
+        <CatalogCarouselSection
+          id="rooms"
+          label="Accommodations"
+          title="Rooms"
+          description="Browse our live room catalog — the same listings used for guest bookings and front desk availability. Rates and packages update automatically when staff changes them."
+          slides={roomSlides}
+          carousel={roomsCarousel}
+          onHoverChange={setRoomsPaused}
+          linkTo="/rooms"
+          linkLabel="View & book rooms"
+          liveCount={roomSlides.length}
+        />
 
-      {/* ── RESTAURANT SECTION ── */}
-      <section className="restaurant-section" id="restaurant">
-        <div className="restaurant-inner fade-in-up">
-          <div className="resto-carousel">
-            <button className="resto-arrow resto-prev" onClick={() => restoSlide(-1)} aria-label="Previous">&#8249;</button>
-            <div className="resto-img-wrapper">
-              <img
-                src={RESTO_IMAGES[restoIndex]}
-                alt="Restaurant Food"
-                className="resto-img"
-                style={{
-                  opacity: restoFade ? 1 : 0,
-                  transform: restoFade ? "scale(1)" : "scale(1.04)",
-                  transition: "opacity 0.28s ease, transform 0.28s ease",
-                }}
-              />
-            </div>
-            <button className="resto-arrow resto-next" onClick={() => restoSlide(1)} aria-label="Next">&#8250;</button>
-          </div>
-          <div className="resto-text">
-            <span className="resto-label">Culinary Experience</span>
-            <h2 className="resto-title">Abela's Restaurant Food</h2>
-            <div className="resto-rule"></div>
-            <p className="resto-desc">
-              Enjoy a relaxing stay paired with delicious meals at our on-site restaurant.
-              Abela Hotel and Restaurant offers cozy accommodations, tasty dishes, and a
-              welcoming atmosphere — perfect for both rest and memorable dining.
-            </p>
-          </div>
-        </div>
-      </section>
+        <CatalogCarouselSection
+          id="events"
+          reverse
+          label="Celebrations & gatherings"
+          title="Event packages"
+          description="Explore bookable event venues and packages synced from our events module. Perfect for weddings, birthdays, meetings, and special occasions."
+          slides={eventSlides}
+          carousel={eventsCarousel}
+          onHoverChange={setEventsPaused}
+          linkTo="/event-venues"
+          linkLabel="Explore event venues"
+          liveCount={eventSlides.length}
+        />
 
-      {/* ── WHY CHOOSE US ── */}
+        <CatalogCarouselSection
+          id="restaurant"
+          reverse
+          label="Culinary experience"
+          title="Available food"
+          description="Today's available dishes from our restaurant menu — the same catalog our cashier POS uses. Items marked available appear here in real time."
+          slides={foodSlides}
+          carousel={foodCarousel}
+          onHoverChange={setFoodPaused}
+          linkTo="/login"
+          linkLabel="Sign in to order"
+          liveCount={foodSlides.length}
+        />
+      </div>
+
       <section className="why-section" id="testimonials">
         <span className="section-label">Our Promise</span>
         <h2 className="why-title">Why Choose Us?</h2>
         <div className="ornament-divider">
-          <span className="ornament-diamond"></span>
+          <span className="ornament-diamond" />
         </div>
         <div className="why-grid">
           {WHY_CARDS.map((card) => (
@@ -394,12 +535,11 @@ export default function HomeDashboard() {
         </div>
       </section>
 
-      {/* ── HAVE QUESTIONS ── */}
       <section className="questions-section" id="contact">
         <span className="questions-eyebrow">Get In Touch</span>
         <h2 className="questions-title">Have Questions?</h2>
         <div className="ornament-divider" style={{ marginBottom: "20px" }}>
-          <span className="ornament-diamond"></span>
+          <span className="ornament-diamond" />
         </div>
         <p className="questions-sub">Our team is here to help you plan your perfect stay or event</p>
         <Link to="/contact" className="btn-contact">
@@ -407,7 +547,6 @@ export default function HomeDashboard() {
         </Link>
       </section>
 
-      {/* ── FOOTER ── */}
       <footer className="footer">
         <p className="footer-brand">Abela Suites</p>
         <p className="footer-main">&copy; 2026 Abela Suites. All rights reserved.</p>

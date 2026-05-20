@@ -871,7 +871,17 @@
     padding: 10px 8px 12px;
     background: #ffffff;
     max-width: 100%;
-    overflow-x: auto;
+    overflow: visible;
+  }
+  .booking-day-picker-wrap--checkout-locked {
+    opacity: 0.78;
+    border-style: dashed;
+  }
+  .booking-checkout-locked-label {
+    font-family: "Roboto", sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-mid);
   }
   .booking-day-picker-wrap--error {
     border-color: #c0392b;
@@ -888,9 +898,25 @@
     margin: 0 auto;
   }
   /* react-day-picker v9 renders a <table> — keep table layout intact */
-  .booking-form .booking-day-picker .rdp-month_grid {
+  .booking-form .booking-day-picker .rdp-month {
     width: 100%;
+  }
+  .booking-form .booking-day-picker .rdp-month_grid {
+    display: table !important;
+    width: 100%;
+    min-width: 280px;
     table-layout: fixed;
+    border-collapse: separate;
+    border-spacing: 2px;
+  }
+  .booking-form .booking-day-picker .rdp-weeks {
+    display: table-row-group !important;
+  }
+  .booking-form .booking-day-picker .rdp-week {
+    display: table-row !important;
+  }
+  .booking-form .booking-day-picker .rdp-day {
+    display: table-cell !important;
   }
   /*
    * Front desk dashboard calendar tones (dashboard.css: .fd-cal-cell, --occupied, --reserved)
@@ -932,6 +958,9 @@
     box-shadow: none !important;
     font-size: 13px;
     font-weight: 600;
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
   }
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell--reserved .rdp-day_button {
     color: #4a3d08 !important;
@@ -951,7 +980,24 @@
     margin: 4px 0 0;
   }
   .booking-form-fd-cal-legend .fd-cal-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 24px;
     margin-top: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-mid, #6b5a3e);
+  }
+  .booking-form-fd-cal-legend .fd-cal-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .booking-form-fd-cal-legend .fd-cal-legend-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.15);
   }
   .booking-cal-legend-help {
     margin: 10px 0 0;
@@ -979,10 +1025,50 @@
     border: 1px solid #d4c4a8;
   }
 
+  .booking-stay-estimate {
+    margin: 0;
+    padding: 14px 16px;
+    border-radius: 10px;
+    border: 1px solid #e3d5c4;
+    background: linear-gradient(180deg, #fffefb 0%, #faf7f2 100%);
+  }
+  .booking-stay-estimate__label {
+    margin: 0 0 6px;
+    font-family: "Montserrat", sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold-dark, #8b6914);
+  }
+  .booking-stay-estimate__dates {
+    margin: 0 0 6px;
+    font-family: "Roboto", sans-serif;
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--text-dark);
+  }
+  .booking-stay-estimate__nights {
+    font-weight: 600;
+    color: var(--text-mid);
+  }
+  .booking-stay-estimate__rate {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--gold-dark);
+  }
+  .booking-stay-estimate__preview-note {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-mid);
+  }
   .booking-form-billing-block {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    margin-top: 4px;
   }
   .booking-bill-hint {
     margin: 0;

@@ -1,3 +1,5 @@
+@import './authShared.css';
+
 /* Full-width shell: other routes load global #root { display:flex } so fixed
      children leave <main> as the only in-flow flex item and it shrinks to the
      card width. One wrapper restores full width (same idea as login-page). */
@@ -49,104 +51,6 @@
     inset: 0;
     background: linear-gradient(135deg, rgba(20,13,3,0.45) 0%, rgba(60,42,8,0.30) 100%);
     z-index: 1;
-  }
-  
-  /* ── NAVBAR ── */
-  .navbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 36px;
-    background: var(--cream);
-    border-bottom: 1px solid rgba(216, 205, 184, 0.65);
-    z-index: 100;
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
-  }
-  
-  .navBrand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-  
-  .navLogoImg {
-    height: 70px;
-    width: 70px;
-    object-fit: contain;
-    border-radius: 50%;
-  }
-  
-  .brandName {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--gold);
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-  }
-  
-  .navLinks {
-    display: flex;
-    list-style: none;
-    gap: 44px;
-    margin-left: auto;
-    margin-right: 48px;
-  }
-  
-  .navLinks a {
-    text-decoration: none;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--gold);
-    letter-spacing: 0.04em;
-    transition: color 0.2s;
-  }
-  
-  .navLinks a:hover {
-    color: var(--gold-light);
-  }
-  
-  .btnLoginNav {
-    background: var(--gold);
-    color: var(--white);
-    text-decoration: none;
-    padding: 9px 26px;
-    border-radius: 8px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: background 0.2s, transform 0.15s;
-  }
-  
-  .btnLoginNav:hover {
-    background: var(--gold-light);
-    transform: translateY(-1px);
-  }
-  
-  /* ── MAIN CONTENT ── */
-  .mainContent {
-    position: relative;
-    z-index: 10;
-    box-sizing: border-box;
-    width: 100%;
-    max-width: 100%;
-    min-height: calc(100vh - 64px);
-    min-height: calc(100dvh - 64px);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 88px 16px 48px;
   }
   
   /* ── SIGN UP CARD (match login.css .login-card — #fdf8f0 + rim shadow) ── */
@@ -629,15 +533,6 @@
     .signupCard {
       margin: 0;
       padding: 28px 20px 26px;
-    }
-    .navbar {
-      padding: 0 16px;
-    }
-    .navLinks {
-      display: none;
-    }
-    .brandName {
-      font-size: 17px;
     }
     .formRow {
       grid-template-columns: 1fr;

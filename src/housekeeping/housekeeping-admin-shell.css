@@ -1,0 +1,263 @@
+/**
+ * Housekeeping modals + success toasts — aligned with admin_1 room-management.css.
+ * Import after page CSS so these overrides win. No JS / API changes.
+ */
+
+@keyframes hkAdminToastIn {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ── Success snackbar (rooms / events / dashboard) ── */
+.rc-success-toast,
+.rm-success-toast.active {
+  position: fixed;
+  bottom: 28px;
+  top: auto;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  z-index: 10050;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: min(420px, calc(100vw - 24px));
+  min-width: 0;
+  height: auto;
+  max-height: none;
+  flex: none;
+  align-self: auto;
+  margin: 0;
+  padding: 14px 20px;
+  background: #fff;
+  border: 1px solid #d4edda;
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-dark, #3a2e1e);
+  pointer-events: none;
+  overflow: visible;
+  animation: hkAdminToastIn 0.25s ease both;
+}
+
+.rm-success-toast {
+  display: none;
+}
+
+.rm-success-toast.active {
+  display: inline-flex;
+}
+
+#root > div.rc-success-toast,
+#root > div.rm-success-toast.active {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: max-content;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+.rc-success-toast svg,
+.rm-success-toast.active svg {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+}
+
+.rc-success-inner,
+.rm-success-inner {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  min-width: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.rc-success-title,
+.rm-success-title {
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark, #3a2e1e);
+  margin: 0;
+  line-height: 1.35;
+}
+
+.rc-success-sub,
+.rm-success-sub {
+  font-family: "Roboto", sans-serif;
+  font-size: 12px;
+  color: var(--text-mid, #6b5a3e);
+  margin: 2px 0 0;
+  line-height: 1.35;
+}
+
+/* ── Form modals (Modal.jsx portals to body — scope via :has on shell in #root) ── */
+body:has(.housekeeping-portal-layout) .modal-overlay.abel-modal--center,
+body:has(.housekeeping-portal-layout) .modal-overlay.abel-modal--top {
+  background: rgba(58, 46, 30, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box.abel-modal-panel,
+body:has(.housekeeping-portal-layout) .rm-modal.modal-box.abel-modal-panel {
+  background: #fff;
+  border: 1px solid #e8dcc8;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  max-width: 640px;
+}
+
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box .modal-header,
+body:has(.housekeeping-portal-layout) .rm-modal.modal-box .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #f0e8d8;
+}
+
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box .modal-title,
+body:has(.housekeeping-portal-layout) .rm-modal.modal-box .modal-title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+  text-align: left;
+  flex: 1;
+  margin: 0;
+}
+
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box .modal-close,
+body:has(.housekeeping-portal-layout) .rm-modal.modal-box .modal-close {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: #f5f0e8;
+  color: var(--text-mid, #6b5a3e);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box .modal-close:hover,
+body:has(.housekeeping-portal-layout) .rm-modal.modal-box .modal-close:hover {
+  background: #ebe4d8;
+  color: var(--text-dark, #3a2e1e);
+}
+
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box .abel-modal-body,
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box .rc-modal-body {
+  padding: 20px;
+}
+
+body:has(.housekeeping-portal-layout) .rc-modal.modal-box .abel-modal-footer {
+  padding: 16px 20px 20px;
+  border-top: 1px solid #f0e8d8;
+}
+
+/* Legacy backdrop modals (in-page, not portaled) */
+.housekeeping-portal-layout .rc-modal-backdrop,
+.housekeeping-portal-layout .rm-modal-backdrop {
+  background: rgba(58, 46, 30, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.housekeeping-portal-layout .rc-modal-backdrop .rc-modal,
+.housekeeping-portal-layout .rm-modal-backdrop .rm-modal,
+.housekeeping-portal-layout .rc-modal,
+.housekeeping-portal-layout .rm-modal {
+  background: #fff;
+  border: 1px solid #e8dcc8;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+}
+
+.housekeeping-portal-layout .rc-modal-header,
+.housekeeping-portal-layout .rm-modal-header {
+  padding: 18px 20px;
+  border-bottom: 1px solid #f0e8d8;
+}
+
+.housekeeping-portal-layout .rc-modal-title,
+.housekeeping-portal-layout .rm-modal-title {
+  text-align: left;
+}
+
+.housekeeping-portal-layout .rc-modal-close,
+.housekeeping-portal-layout .rm-modal-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #f5f0e8;
+}
+
+.housekeeping-portal-layout .rc-modal-body,
+.housekeeping-portal-layout .rm-modal-body {
+  padding: 20px;
+}
+
+.housekeeping-portal-layout .rc-modal-actions,
+.housekeeping-portal-layout .rm-modal-actions {
+  padding: 16px 20px 20px;
+  border-top: 1px solid #f0e8d8;
+}
+
+/* ── Confirm dialogs ── */
+.housekeeping-portal-layout .rc-confirm-backdrop,
+.housekeeping-portal-layout .rm-confirm-backdrop,
+body:has(.housekeeping-portal-layout) .rc-confirm-backdrop,
+body:has(.housekeeping-portal-layout) .rm-confirm-backdrop {
+  background: rgba(58, 46, 30, 0.45);
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.housekeeping-portal-layout .rc-confirm-dialog,
+.housekeeping-portal-layout .rm-confirm-dialog,
+body:has(.housekeeping-portal-layout) .rc-confirm-dialog,
+body:has(.housekeeping-portal-layout) .rm-confirm-dialog {
+  background: #fff;
+  border: 1px solid #e8dcc8;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
+  max-width: 380px;
+  padding: 28px 24px 24px;
+}
+
+@media (max-width: 768px) {
+  .rc-success-toast,
+  .rm-success-toast.active {
+    max-width: calc(100vw - 24px);
+    padding: 12px 16px;
+  }
+
+  body:has(.housekeeping-portal-layout) .rc-modal.modal-box.abel-modal-panel {
+    width: 100%;
+    max-width: none;
+  }
+}

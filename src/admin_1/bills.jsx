@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+﻿import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -6,430 +6,24 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { useAuthRole } from "../context/AuthRoleContext";
-import { getBilling, updatePayment, getBillingById } from "../api/cashier.service";
+import { getBilling, getBillingById } from "../api/cashier.service";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { pdfSafeText, openPdfPrintOrDownload } from "../utils/pdfClientExport";
+import BillsPrintModal from "../components/BillsPrintModal";
+import {
+  billCreatedSortKey,
+  bookingTypeLabel,
+  cashierBillingRowToLedgerRow,
+  displayLedgerDate,
+  fetchAllBillingForExport,
+  formatPrintMonthLabel,
+  paymentMethodLabel,
+  paymentStatusLabel,
+  rowInSelectedMonth,
+} from "../utils/billingLedgerReport";
 import "./bills.css";
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
-
-const BM_PRINT_LOGO_SRC = `${import.meta.env.BASE_URL}logo.jpg`;
-
-const PDF_HEAD_RGB = [184, 146, 42];
-
-const BILLS_SUMMARY_COLS = ["Ref", "Guest", "Type", "Booking", "Total", "Paid", "Balance", "Status", "Billed"];
-
-function parseDateForMonthFilter(d) {
-  if (d == null || d === "" || d === "—") return null;
-  const s = String(d);
-  const dt = s.includes("T") ? new Date(s) : new Date(`${s}T12:00:00`);
-  return Number.isNaN(dt.getTime()) ? null : dt;
-}
-
-/** When month is "" (YYYY-MM), include all rows; otherwise filter by billing `createdAt`. */
-function rowInSelectedMonth(sortDate, monthYyyyMm) {
-  if (!monthYyyyMm) return true;
-  const dt = parseDateForMonthFilter(sortDate);
-  if (!dt) return false;
-  const [y, m] = monthYyyyMm.split("-").map(Number);
-  return dt.getFullYear() === y && dt.getMonth() + 1 === m;
-}
-
-function billCreatedSortKey(r) {
-  const d = r?.createdAt;
-  if (d == null || d === "") return "";
-  if (typeof d === "string") return d;
-  try {
-    return new Date(d).toISOString();
-  } catch {
-    return "";
-  }
-}
-
-function shortBillId(id) {
-  const s = String(id ?? "").trim();
-  if (s.length <= 14) return s;
-  return `${s.slice(0, 6)}…${s.slice(-6)}`;
-}
-
-function billsPdfLineH(fsPt) {
-  return (fsPt * 0.352778) * 1.38;
-}
-
-function billsPdfEnsure(doc, y, needMm, margin, pageH) {
-  if (y + needMm > pageH - margin) {
-    doc.addPage();
-    return margin;
-  }
-  return y;
-}
-
-function sanitizeBillsPrintCell(v) {
-  let s = String(v ?? "");
-  s = s.replace(/<[^>]*>/g, " ");
-  s = s.replace(/&nbsp;/gi, " ");
-  s = s.replace(/&times;/gi, "x");
-  s = s.replace(/&apos;/gi, "'");
-  s = s.replace(/&quot;/gi, '"');
-  s = s.replace(/&lt;/gi, "<");
-  s = s.replace(/&gt;/gi, ">");
-  s = s.replace(/&#x([0-9a-f]{1,6});?/gi, (_, hex) => {
-    const cp = parseInt(hex, 16);
-    return Number.isFinite(cp) && cp >= 32 && cp < 0x110000 ? String.fromCodePoint(cp) : "";
-  });
-  s = s.replace(/&#(\d{1,7});?/g, (_, dec) => {
-    const cp = parseInt(dec, 10);
-    return Number.isFinite(cp) && cp >= 32 && cp < 0x110000 ? String.fromCodePoint(cp) : "";
-  });
-  s = s.replace(/&amp;/gi, "&");
-  s = s.replace(/\u20b1/gi, "PHP ");
-  s = s.replace(/₱/g, "PHP ");
-  s = s.replace(/×/g, "x");
-  s = s.replace(/\u00d7/g, "x");
-  s = s.replace(/[\u00a0\u202f\u2007\u200b\u200c\u200d\ufeff]/g, " ");
-  s = s.replace(/\r\n|\r|\n/g, " ");
-  s = s.replace(/\s+/g, " ").trim();
-  return s;
-}
-
-function billsPdfSafe(v, maxLen = 4000) {
-  return pdfSafeText(sanitizeBillsPrintCell(v), maxLen);
-}
-
-function fmtSummaryPhp(n) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return "—";
-  return `PHP ${x.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
-
-function formatBilledAt(createdAt) {
-  if (createdAt == null || createdAt === "") return "—";
-  try {
-    const d = typeof createdAt === "string" ? new Date(createdAt) : new Date(createdAt);
-    if (Number.isNaN(d.getTime())) return "—";
-    return d.toLocaleString("en-PH", { dateStyle: "short", timeStyle: "short" });
-  } catch {
-    return "—";
-  }
-}
-
-function computeBillsSummary(rows) {
-  const byStatus = {};
-  let sumTotal = 0;
-  let sumPaid = 0;
-  let sumBal = 0;
-  for (const r of rows) {
-    const st = paymentStatusLabel(r.paymentStatus);
-    byStatus[st] = (byStatus[st] || 0) + 1;
-    sumTotal += Number(r.totalAmount) || 0;
-    sumPaid += Number(r.amountPaid) || 0;
-    sumBal += Number(r.balance) || 0;
-  }
-  return { count: rows.length, byStatus, sumTotal, sumPaid, sumBal };
-}
-
-function billRowToSummaryCells(r) {
-  return [
-    shortBillId(r.id),
-    sanitizeBillsPrintCell(r.guestName),
-    bookingTypeLabel(r.bookingType),
-    sanitizeBillsPrintCell(r.contextLabel),
-    fmtSummaryPhp(Number(r.totalAmount) || 0),
-    fmtSummaryPhp(Number(r.amountPaid) || 0),
-    fmtSummaryPhp(Number(r.balance) || 0),
-    paymentStatusLabel(r.paymentStatus),
-    formatBilledAt(r.createdAt),
-  ];
-}
-
-function summaryCellPdf(v) {
-  return pdfSafeText(sanitizeBillsPrintCell(v), 240);
-}
-
-function billsReportTitle(variant) {
-  if (variant === "room") return "Room bills — overall summary";
-  if (variant === "event") return "Event bills — overall summary";
-  return "All billing records — overall summary";
-}
-
-function billsReportEmptyMessage(variant) {
-  if (variant === "room") return "No room billing rows for this period.";
-  if (variant === "event") return "No event billing rows for this period.";
-  return "No billing rows for this period.";
-}
-
-/** Client-side PDF: overall summary + compact table (A4 landscape). */
-function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const margin = 12;
-  const pageW = doc.internal.pageSize.getWidth();
-  const pageH = doc.internal.pageSize.getHeight();
-  const contentW = pageW - 2 * margin;
-  let y = margin + 4;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.text("ABELA SUITES", margin, y);
-  y += 8;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.text(`Period: ${billsPdfSafe(monthLabel, 200)}`, margin, y);
-  y += 6;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
-  doc.text(billsReportTitle(variant), margin, y);
-  y += 7;
-  doc.setDrawColor(210, 198, 178);
-  doc.setLineWidth(0.35);
-  doc.line(margin, y, margin + contentW, y);
-  y += 6;
-
-  if (rows.length === 0) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(billsReportEmptyMessage(variant), margin, y);
-  } else {
-    const sum = computeBillsSummary(rows);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text("Summary", margin, y);
-    y += 5.5;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    doc.text(`Total rows: ${sum.count}`, margin, y);
-    y += 5;
-    const statusParts = Object.entries(sum.byStatus)
-      .sort((a, b) => b[1] - a[1])
-      .map(([k, v]) => `${billsPdfSafe(k, 120)}: ${v}`);
-    const statusBlob = statusParts.join("   ");
-    const statusLines = doc.splitTextToSize(statusBlob, contentW);
-    for (let i = 0; i < statusLines.length; i += 1) {
-      y = billsPdfEnsure(doc, y, billsPdfLineH(9.5), margin, pageH);
-      doc.text(statusLines[i], margin, y);
-      y += billsPdfLineH(9.5);
-    }
-    y += 2;
-    doc.text(`Total billed: ${billsPdfSafe(fmtSummaryPhp(sum.sumTotal), 80)}`, margin, y);
-    y += 5;
-    doc.text(`Total collected (paid): ${billsPdfSafe(fmtSummaryPhp(sum.sumPaid), 80)}`, margin, y);
-    y += 5;
-    doc.text(`Total balance: ${billsPdfSafe(fmtSummaryPhp(sum.sumBal), 80)}`, margin, y);
-    y += 8;
-
-    doc.setDrawColor(210, 198, 178);
-    doc.line(margin, y, margin + contentW, y);
-    y += 5;
-
-    const head = [BILLS_SUMMARY_COLS];
-    const body = rows.map((r) => billRowToSummaryCells(r).map(summaryCellPdf));
-
-    autoTable(doc, {
-      startY: y,
-      head,
-      body,
-      theme: "striped",
-      styles: {
-        fontSize: 8.5,
-        cellPadding: 1.05,
-        overflow: "linebreak",
-        valign: "top",
-        font: "helvetica",
-      },
-      headStyles: { fillColor: PDF_HEAD_RGB, fontSize: 8.5, textColor: 255, fontStyle: "bold" },
-      bodyStyles: { fontSize: 8.5 },
-      margin: { left: margin, right: margin },
-    });
-  }
-
-  const slug = (printMonthKey || "all-time").replace(/[^\d-]/g, "") || "all-time";
-  const vslug = variant === "all" ? "all" : variant;
-  const filename = `Abela_bills_${vslug}_${slug}.pdf`;
-  return { doc, filename };
-}
-
-function downloadBillsReportPdf(opts) {
-  const { doc, filename } = buildBillsReportPdf(opts);
-  doc.save(filename);
-}
-
-function printBillsReportPdf(opts) {
-  const { doc, filename } = buildBillsReportPdf(opts);
-  openPdfPrintOrDownload(doc, filename);
-}
-
-async function fetchAllBillingForExport(typeFilter, search, signal) {
-  const type = typeFilter === "room" || typeFilter === "event" ? typeFilter : "";
-  const out = [];
-  let pageNum = 1;
-  const pageLimit = 100;
-  for (;;) {
-    const res = await getBilling(
-      pageNum,
-      pageLimit,
-      {
-        ...(type ? { type } : {}),
-        search: search || undefined,
-      },
-      { signal },
-    );
-    const list = Array.isArray(res?.data) ? res.data : [];
-    out.push(...list);
-    const tp = Math.max(1, Number(res?.totalPages) || 1);
-    if (pageNum >= tp || list.length === 0) break;
-    pageNum += 1;
-    if (pageNum > 2000) break;
-  }
-  return out;
-}
-
-function BillsPrintModal({ open, onClose, monthLabel, variant, rows, printMonthKey, loading, error }) {
-  const summary = useMemo(() => computeBillsSummary(rows), [rows]);
-
-  if (!open) return null;
-
-  const heading = billsReportTitle(variant);
-
-  const handleDownloadPdf = () => {
-    downloadBillsReportPdf({
-      variant,
-      monthLabel,
-      rows,
-      printMonthKey,
-    });
-  };
-
-  const handlePrintPdf = () => {
-    printBillsReportPdf({
-      variant,
-      monthLabel,
-      rows,
-      printMonthKey,
-    });
-  };
-
-  return (
-    <div
-      className="bm-print-backdrop"
-      role="presentation"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bm-print-dialog" role="dialog" aria-modal="true" aria-labelledby="bills-print-heading">
-        <div className="bm-print-dialog-bar no-print">
-          <h2 id="bills-print-heading" className="bm-print-dialog-title">
-            Print preview
-          </h2>
-          <button type="button" className="bm-print-close" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
-        </div>
-
-        <div className="bm-print-surface" id="bills-print-surface">
-          <header className="bm-print-header">
-            <div className="bm-print-logo-mark" aria-hidden>
-              <img
-                src={BM_PRINT_LOGO_SRC}
-                alt=""
-                className="bm-print-logo-img"
-                width={56}
-                height={56}
-                decoding="async"
-              />
-            </div>
-            <div className="bm-print-brand">ABELA SUITES</div>
-            <div className="bm-print-period">Period: {monthLabel}</div>
-            <div className="bm-print-subtitle">{heading}</div>
-            <p className="bm-print-summary-note">
-              Totals and a compact list for this period (respects the search box and tab when you opened the report). Use
-              per-row PDF on the table for a single billing snapshot.
-            </p>
-          </header>
-
-          <section className="bm-print-section">
-            <h3 className="bm-print-section-title">Billing summary</h3>
-            {loading ? (
-              <div className="bm-print-empty bm-print-empty--card">Loading billing records…</div>
-            ) : error ? (
-              <div className="bm-print-empty bm-print-empty--card">{error}</div>
-            ) : rows.length === 0 ? (
-              <div className="bm-print-empty bm-print-empty--card">{billsReportEmptyMessage(variant)}</div>
-            ) : (
-              <div className="bm-print-cards-wrap bm-print-summary-wrap">
-                <div className="bm-print-summary-stats">
-                  <div className="bm-print-summary-stats-grid">
-                    <div className="bm-print-summary-stat">
-                      <span className="bm-print-summary-stat-label">Total rows</span>
-                      <strong className="bm-print-summary-stat-value">{summary.count}</strong>
-                    </div>
-                    <div className="bm-print-summary-stat">
-                      <span className="bm-print-summary-stat-label">Total billed</span>
-                      <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumTotal)}</strong>
-                    </div>
-                    <div className="bm-print-summary-stat">
-                      <span className="bm-print-summary-stat-label">Total collected</span>
-                      <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumPaid)}</strong>
-                    </div>
-                    <div className="bm-print-summary-stat">
-                      <span className="bm-print-summary-stat-label">Total balance</span>
-                      <strong className="bm-print-summary-stat-value">{fmtSummaryPhp(summary.sumBal)}</strong>
-                    </div>
-                  </div>
-                  <div className="bm-print-summary-pills" aria-label="By payment status">
-                    {Object.entries(summary.byStatus)
-                      .sort((a, b) => b[1] - a[1])
-                      .map(([label, n]) => (
-                        <span key={label} className="bm-print-summary-pill">
-                          {label}: {n}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-                <div className="bm-print-table-wrap bm-print-summary-table-wrap">
-                  <table className="bm-print-summary-table">
-                    <thead>
-                      <tr>
-                        {BILLS_SUMMARY_COLS.map((c) => (
-                          <th key={c}>{c}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((r) => (
-                        <tr key={r.id}>
-                          {billRowToSummaryCells(r).map((cell, i) => (
-                            <td key={i}>{cell}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </section>
-        </div>
-
-        <div className="bm-print-footer no-print">
-          <button type="button" className="bm-print-footer-btn secondary" onClick={onClose}>
-            Close
-          </button>
-          <button type="button" className="bm-print-footer-btn pdf" onClick={handleDownloadPdf} disabled={loading || !!error || rows.length === 0}>
-            Download PDF
-          </button>
-          <button type="button" className="bm-print-footer-btn primary" onClick={handlePrintPdf} disabled={loading || !!error || rows.length === 0}>
-            Print
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function visiblePageNumbers(currentPage, totalPages) {
   const t = Math.max(1, Math.min(5000, Number(totalPages) || 1));
@@ -443,19 +37,6 @@ function fmtPeso(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return "—";
   return `₱${x.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function paymentStatusLabel(st) {
-  const k = String(st || "").toLowerCase();
-  if (k === "paid") return "Paid";
-  if (k === "partial") return "Partial";
-  return "Unpaid";
-}
-
-function bookingTypeLabel(t) {
-  const k = String(t || "").toLowerCase();
-  if (k === "event") return "Event";
-  return "Room";
 }
 
 /** Read-only snapshot from the current table row — no API, no DB writes. */
@@ -481,6 +62,12 @@ function downloadAdminBillingRowPdf(r) {
   doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString("en-PH")}`, 90), margin, y);
   y += 8;
 
+  const isEvent = String(r?.bookingType || "").toLowerCase() === "event";
+  const startLabel = isEvent ? "Event date" : "Check-in";
+  const endLabel = isEvent ? "End date" : "Check-out";
+  const startDate = displayLedgerDate(r.checkIn || r.eventDate || "");
+  const endDate = displayLedgerDate(r.checkOut || r.eventEndDate || "");
+
   const body = [
     ["Billing ID", pdfSafeText(r.id, 48)],
     ["Booking ID", pdfSafeText(r.bookingId, 48)],
@@ -488,7 +75,10 @@ function downloadAdminBillingRowPdf(r) {
     ["Guest", pdfSafeText(String(r.guestName || "").trim() || "—", 80)],
     ["Type", pdfSafeText(bookingTypeLabel(r.bookingType), 24)],
     ["Booking / context", pdfSafeText(String(r.contextLabel || "").trim() || "—", 100)],
-    ["Payment status", pdfSafeText(String(r.paymentStatus || "—"), 24)],
+    [startLabel, pdfSafeText(startDate, 40)],
+    [endLabel, pdfSafeText(endDate, 40)],
+    ["Payment method", pdfSafeText(paymentMethodLabel(r.paymentMethod), 32)],
+    ["Payment status", pdfSafeText(paymentStatusLabel(r.paymentStatus), 24)],
   ];
 
   autoTable(doc, {
@@ -524,7 +114,7 @@ function downloadAdminBillingRowPdf(r) {
   openPdfPrintOrDownload(doc, `Abela_AdminBilling_${safeId}_${stamp}.pdf`);
 }
 
-/* ── SVG ICONS ── */
+/* â”€â”€ SVG ICONS â”€â”€ */
 const Icons = {
   Room: () => (
     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden>
@@ -716,88 +306,6 @@ function DetailsModal({ billingId, onClose }) {
   );
 }
 
-function PaymentModal({ row, onClose, onSaved }) {
-  const total = Number(row?.totalAmount) || 0;
-  const currentPaid = Number(row?.amountPaid) || 0;
-  const [amountStr, setAmountStr] = useState(String(currentPaid));
-  const [busy, setBusy] = useState(false);
-  const [formErr, setFormErr] = useState("");
-
-  useEffect(() => {
-    setAmountStr(String(currentPaid));
-    setFormErr("");
-  }, [row?.id, currentPaid]);
-
-  if (!row) return null;
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    const n = Number(String(amountStr).replace(/[₱,\s]/g, ""));
-    if (!Number.isFinite(n) || n < 0) {
-      setFormErr("Enter a valid non-negative amount.");
-      return;
-    }
-    if (n > total + 1e-6) {
-      setFormErr(`Amount paid cannot exceed total (${fmtPeso(total)}).`);
-      return;
-    }
-    setBusy(true);
-    setFormErr("");
-    try {
-      await updatePayment(row.id, n);
-      onSaved?.();
-      onClose();
-    } catch (err) {
-      setFormErr(err?.message || "Payment update failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="rm-modal-backdrop active" onClick={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="rm-modal bills-payment-modal">
-        <div className="rm-modal-header">
-          <h2 className="rm-modal-title">Record payment</h2>
-          <button type="button" className="rm-modal-close" disabled={busy} onClick={onClose}>
-            &#x2715;
-          </button>
-        </div>
-        <form className="rm-modal-body" onSubmit={handleSubmit}>
-          <div className="bill-detail-row">
-            <strong>Guest:</strong> {String(row.guestName || "").trim() || "—"}
-          </div>
-          <div className="bill-detail-row">
-            <strong>Total due:</strong> {fmtPeso(total)}
-          </div>
-          <div className="bills-form-group">
-            <label className="bills-form-label" htmlFor="cashier-amount-paid">
-              Total amount paid (cumulative)
-            </label>
-            <input
-              id="cashier-amount-paid"
-              className="bills-search-input"
-              type="text"
-              inputMode="decimal"
-              autoComplete="off"
-              value={amountStr}
-              onChange={(e) => setAmountStr(e.target.value)}
-            />
-          </div>
-          {formErr ? <div className="bills-modal-error">{formErr}</div> : null}
-          <div className="bills-payment-actions">
-            <button type="button" className="bills-btn-secondary" disabled={busy} onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="bills-btn-primary" disabled={busy}>
-              {busy ? "Saving…" : "Save payment"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 function Toast({ message, visible }) {
   return (
@@ -810,8 +318,6 @@ function Toast({ message, visible }) {
 
 export default function Bills() {
   const { mainStyle } = useAdminShell();
-  const { role: authRole } = useAuthRole();
-  const staffRole = String(authRole || "").trim().toLowerCase();
   const [billingTab, setBillingTab] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -823,7 +329,6 @@ export default function Bills() {
   const [loading, setLoading] = useState(true);
   const [loadNotice, setLoadNotice] = useState("");
   const [detailId, setDetailId] = useState(null);
-  const [paymentRow, setPaymentRow] = useState(null);
   const [toast, setToast] = useState({ visible: false, message: "" });
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
 
@@ -837,14 +342,13 @@ export default function Bills() {
   const [printLoading, setPrintLoading] = useState(false);
   const [printError, setPrintError] = useState("");
 
-  const printMonthLabel = useMemo(() => {
-    if (!printMonth) return "All time";
-    const [y, m] = printMonth.split("-");
-    return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
-  }, [printMonth]);
+  const printMonthLabel = useMemo(() => formatPrintMonthLabel(printMonth), [printMonth]);
 
   const printRowsFiltered = useMemo(
-    () => printRawRows.filter((r) => rowInSelectedMonth(billCreatedSortKey(r), printMonth)),
+    () =>
+      printRawRows
+        .filter((r) => rowInSelectedMonth(billCreatedSortKey(r), printMonth))
+        .map(cashierBillingRowToLedgerRow),
     [printRawRows, printMonth],
   );
 
@@ -881,9 +385,6 @@ export default function Bills() {
     },
     [debouncedSearch],
   );
-
-  const canRecordPayment =
-    staffRole === "cashier" || staffRole === "admin" || staffRole === "superadmin";
 
   const showToast = (msg) => {
     setToast({ visible: true, message: msg });
@@ -948,26 +449,6 @@ export default function Bills() {
     };
   }, [page, limit, billingTab, debouncedSearch]);
 
-  const handlePaymentSaved = () => {
-    showToast("Payment saved. List refreshed.");
-    void (async () => {
-      try {
-        const result = await getBilling(page, limit, {
-          type: billingTab === "room" || billingTab === "event" ? billingTab : "",
-          search: debouncedSearch || undefined,
-        });
-        const list = Array.isArray(result?.data) ? result.data : [];
-        const tp = Number(result?.totalPages);
-        const ti = Number(result?.totalItems);
-        setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
-        setTotalItems(Number.isFinite(ti) && ti >= 0 ? ti : list.length);
-        setRows(list);
-      } catch {
-        /* ignore */
-      }
-    })();
-  };
-
   const printRowSummary = (r) => {
     try {
       downloadAdminBillingRowPdf(r);
@@ -989,7 +470,7 @@ export default function Bills() {
           <div>
             <div className="bills-title">Billings management</div>
             <div className="bills-sub">
-              Paginated ledger from MongoDB — cashiers and admins can record payments; front desk can view balances.
+              Paginated ledger from MongoDB — view balances, details, and print bills.
             </div>
           </div>
 
@@ -1083,9 +564,6 @@ export default function Bills() {
             </div>
           </div>
           <div className="bm-toolbar-subrow bills-toolbar-subrow">
-            {!canRecordPayment && staffRole === "frontdesk" ? (
-              <span className="bills-role-hint">Front desk: view-only · Payments require cashier or admin</span>
-            ) : null}
             <p className="bm-toolbar-hint">
               Leave empty to include all billing rows. Month filter uses the billing record created date.
             </p>
@@ -1143,16 +621,6 @@ export default function Bills() {
                         <button type="button" className="icon-action print-btn" title="Open bill PDF (read-only)" onClick={() => printRowSummary(r)}>
                           <Icons.Print />
                         </button>
-                        {canRecordPayment ? (
-                          <button
-                            type="button"
-                            className="icon-action bills-pay-btn"
-                            title="Record payment"
-                            onClick={() => setPaymentRow(r)}
-                          >
-                            Pay
-                          </button>
-                        ) : null}
                       </td>
                     </tr>
                   ))
@@ -1237,15 +705,13 @@ export default function Bills() {
             printMonthKey={printMonth}
             loading={printLoading}
             error={printError}
+            rootClass="bills-page"
+            note="Totals and transaction list for this period (respects search and tab). Use per-row PDF on the table for a single billing snapshot."
           />
         </main>
       </RailPortalShell>
 
       <DetailsModal billingId={detailId} onClose={() => setDetailId(null)} />
-
-      {paymentRow ? (
-        <PaymentModal row={paymentRow} onClose={() => setPaymentRow(null)} onSaved={handlePaymentSaved} />
-      ) : null}
 
       <Toast message={toast.message} visible={toast.visible} />
 

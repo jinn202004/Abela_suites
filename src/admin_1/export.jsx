@@ -175,6 +175,7 @@ export default function ExportSettings() {
         rootClassName="app-layout admin-app-layout"
         rootStyle={{ minHeight: "100vh", background: "var(--bg-page, #f5f0e8)" }}
         mainStyle={mainStyle}
+        sidebar={<AdminSidebarNav logoSrc="/public/logo.png" />}
       >
         {/* ── TOP BAR ── */}
         <header className="topbar">

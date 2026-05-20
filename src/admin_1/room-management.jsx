@@ -635,7 +635,7 @@ export default function RoomManagement() {
             </div>
             <div className="rm-stat-card">
               <div className="rm-stat-label">
-                <IconOccupied /> Pending / review
+                <IconOccupied /> Pending Approval
               </div>
               <div className="rm-stat-value">{statsLoading ? "…" : statPendingBookings}</div>
             </div>
@@ -688,12 +688,12 @@ export default function RoomManagement() {
                     <col />
                     <col />
                     <col />
-                    <col />
+                    <col className="rm-col--status" />
                   </colgroup>
                   <thead>
                     <tr>
                       <th>Number</th><th>Housekeeping</th>
-                      <th>Package</th><th>Type</th><th>Status</th>
+                      <th>Package</th><th>Type</th><th className="rm-th-status">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -710,7 +710,7 @@ export default function RoomManagement() {
                           <td>{s.housekeeping}</td>
                           <td>{s.package}</td>
                           <td>{s.type}</td>
-                          <td>
+                          <td className="rm-td-status">
                             <span className={`rm-badge ${s.badgeClass}`}>{s.status}</span>
                           </td>
                         </tr>

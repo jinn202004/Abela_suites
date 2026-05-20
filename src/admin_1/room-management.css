@@ -336,8 +336,13 @@
   font-weight: 700;
   color: var(--text-mid);
   background: #faf6ef;
+  background-color: #faf6ef;
   border-bottom: 1px solid #e8dcc8;
   white-space: nowrap;
+}
+
+.rm-app .rm-table thead tr {
+  background-color: #faf6ef;
 }
 
 .rm-table tbody td {
@@ -345,6 +350,27 @@
   border-bottom: none;
   color: var(--text-dark);
   vertical-align: middle;
+}
+
+/* Row-level background so every column (including Action) stays uniform */
+.rm-app .rm-table tbody tr {
+  background-color: #fff;
+  transition: background-color 0.12s ease;
+}
+
+.rm-app .rm-table tbody td {
+  background-color: transparent;
+}
+
+.rm-app .rm-table tbody tr:hover {
+  background-color: #fdf8f0;
+}
+
+/* Cancel per-cell hover paints from other bundles (e.g. housekeeping rooms.css) */
+.rm-app .rm-table tbody tr:hover td,
+.rm-app .rm-table tbody tr:hover td.rm-td-action,
+.rm-app .rm-table tbody tr:hover td.action-cell {
+  background-color: transparent;
 }
 
 /* Single full-width row divider (avoids gaps at the Action column) */
@@ -465,26 +491,70 @@
   color: #004085;
 }
 
+/* Status column: fits "Pending Approval" badge without clipping at table edge */
+.rm-app col.rm-col--status {
+  width: 10rem;
+}
+
+.rm-app .rm-table thead th.rm-th-status,
+.rm-app .rm-table tbody td.rm-td-status {
+  width: 10rem;
+  min-width: 10rem;
+  box-sizing: border-box;
+  padding-right: 18px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Last column: keep badge inset from .rm-table-wrap clip edge */
+.rm-app .rm-table thead th.rm-th-status:last-child,
+.rm-app .rm-table tbody td.rm-td-status:last-child {
+  padding-right: 20px;
+}
+
+/* Image column (venue / room catalog tables) */
+.rm-app col.rm-col--thumb {
+  width: 72px;
+}
+
 /* Action column: <colgroup> + classed th/td; inner .rm-action-btns flex (not the <td>) */
 .rm-app col.rm-col--action {
   width: 112px;
 }
 
-.rm-app .rm-table thead th.rm-th-action,
-.rm-app .rm-table tbody td.rm-td-action {
+.rm-app .rm-table thead th.rm-th-action {
   width: 112px;
+  min-width: 112px;
   max-width: 112px;
   box-sizing: border-box;
-  padding: 14px 12px 14px 16px;
+  padding: 14px 16px;
   text-align: left;
   vertical-align: middle;
   white-space: nowrap;
+  background: #faf6ef;
+  background-color: #faf6ef;
+  border-bottom: 1px solid #e8dcc8;
+}
+
+.rm-app .rm-table tbody td.rm-td-action,
+.rm-app .rm-table tbody td.action-cell {
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  background-color: transparent;
 }
 
 .rm-app .rm-action-btns {
   display: inline-flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 4px;
+  background: transparent;
 }
 
 /* Override global staff.css .icon-action { margin-right: 6px } */
@@ -513,6 +583,20 @@
 
 .rm-table td.action-cell .icon-action svg {
   display: block;
+}
+
+/* Admin catalog tables: subtle icon hover — no large white/beige blocks in the cell */
+.rm-app .rm-table .icon-action:hover {
+  background: rgba(184, 146, 42, 0.14);
+}
+
+.rm-app .rm-table .icon-action.edit-btn:hover {
+  color: var(--gold-dark);
+}
+
+.rm-app .rm-table .icon-action.delete-btn:hover {
+  color: #e74c3c;
+  background: rgba(231, 76, 60, 0.12);
 }
 
 .icon-action:hover {
@@ -833,7 +917,7 @@
   cursor: pointer;
 }
 
-/* ── Toast ── */
+/* ── Toast (compact snackbar; matches room / event / resto success feedback) ── */
 .rm-toast {
   position: fixed;
   bottom: 28px;
@@ -844,9 +928,13 @@
   width: max-content;
   max-width: min(420px, calc(100vw - 24px));
   min-width: 0;
+  height: auto;
+  max-height: none;
   box-sizing: border-box;
   margin: 0;
-  display: flex;
+  flex: none;
+  align-self: auto;
+  display: inline-flex;
   align-items: center;
   gap: 10px;
   padding: 14px 20px;
@@ -858,6 +946,12 @@
   font-size: 14px;
   color: var(--text-dark);
   z-index: 10050;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.rm-toast svg {
+  flex-shrink: 0;
 }
 
 .rm-toast span {
@@ -868,6 +962,18 @@
 
 .rm-toast.active {
   animation: rmToastIn 0.25s ease both;
+}
+
+/* Staff / attendance mount toast as #root siblings — undo global `#root > div` flex shell */
+#root > div.rm-toast,
+#root > div.rm-toast.active {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: max-content;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
 }
 
 @keyframes rmToastIn {

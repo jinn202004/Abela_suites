@@ -41,7 +41,12 @@ import {
   uploadBookingGuestValidIdDirectBackend,
   uploadPaymentProofDirectBackend,
 } from "../api/imageUploadApi";
-import { handleImageFileInputChange, isStoredImageRef } from "../utils/s3ImageUpload";
+import {
+  handleImageFileInputChange,
+  isBookingSubmitImageRef,
+  isHttpImageUrl,
+  resolveImageUrlForSubmit,
+} from "../utils/s3ImageUpload";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import GuestSidebar from "./GuestSidebar";
 import { GuestArchiveIcon } from "./guestArchiveIcon";
@@ -50,7 +55,6 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
 import { DayPicker, labelDayButton as defaultLabelDayButton } from "react-day-picker";
 import "react-day-picker/style.css";
-import "../frontdesks/dashboard.css";
 import "./guest-room.css";
 
 /** GCash mark for payment card: `public/Gcash.png`. Scan-to-pay QR: `public/gcash-payment-qr.png`. */
@@ -175,6 +179,12 @@ function parsePriceToNumber(priceStr) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatStayDateLabel(ymd) {
+  const d = parseLocalYmd(ymd);
+  if (!d) return String(ymd || "").trim() || "—";
+  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+}
+
 function buildRoomReservationPayload(
   viewRooms,
   form,
@@ -184,8 +194,8 @@ function buildRoomReservationPayload(
   const room = viewRooms.find((r) => r.name === resRoom);
   const total = bill?.total ?? 0;
   const email = form.customerEmail.trim().toLowerCase();
-  const hasId = isStoredImageRef(idDataUrl);
-  const hasProof = isStoredImageRef(paymentProofData);
+  const hasId = isHttpImageUrl(idDataUrl);
+  const hasProof = isHttpImageUrl(paymentProofData);
   return {
     roomId: String(room?.id ?? ""),
     customerName: form.customerName.trim(),
@@ -380,18 +390,37 @@ export default function Rooms() {
     [rooms, resRoom],
   );
 
+  const nightlyRateForBill = useMemo(() => {
+    if (!selectedRoom) return 0;
+    if (selectedRoom.priceNum > 0) return selectedRoom.priceNum;
+    return parsePriceToNumber(selectedRoom.priceNew);
+  }, [selectedRoom]);
+
+  const stayNightsCount = useMemo(() => {
+    if (!form.checkInDate || !form.checkOutDate) return 0;
+    return countStayNights(form.checkInDate, form.checkOutDate);
+  }, [form.checkInDate, form.checkOutDate]);
+
   const stayBill = useMemo(() => {
     if (!selectedRoom || !form.checkInDate || !form.checkOutDate) return null;
-    if (countStayNights(form.checkInDate, form.checkOutDate) < 1) return null;
+    if (stayNightsCount < 1) return null;
     return computeRoomBookingBill({
       roomTitle: resRoom,
-      nightlyRate: selectedRoom.priceNum,
+      nightlyRate: nightlyRateForBill,
       checkIn: form.checkInDate,
       checkOut: form.checkOutDate,
       includedGuests: selectedRoom.maxGuests,
       additionalGuests: form.additionalGuest,
     });
-  }, [selectedRoom, resRoom, form.checkInDate, form.checkOutDate, form.additionalGuest]);
+  }, [
+    selectedRoom,
+    resRoom,
+    form.checkInDate,
+    form.checkOutDate,
+    form.additionalGuest,
+    stayNightsCount,
+    nightlyRateForBill,
+  ]);
 
   const livePayment = useMemo(() => {
     if (!stayBill) return null;
@@ -621,9 +650,11 @@ export default function Rooms() {
     await handleImageFileInputChange(file, {
       uploadFn: uploadBookingGuestValidIdDirectBackend,
       setPreview: setIdPreview,
+      requireS3: true,
       setError: (msg) => {
         setIdPreview(null);
-        setFormErrors((fe) => ({ ...fe, id: msg }));
+        setFormErrors((fe) => ({ ...fe, id: msg || "Please upload a valid government ID." }));
+        if (msg) window.alert(msg);
       },
     });
   }
@@ -650,7 +681,7 @@ export default function Rooms() {
     ) {
       errs.checkOutDate = "These dates overlap an existing stay for this room. Please adjust your check-out.";
     }
-    if (!isStoredImageRef(idPreview)) errs.id = "Please upload a valid government ID.";
+    if (!isBookingSubmitImageRef(idPreview)) errs.id = "Please upload a valid government ID.";
     if (!form.termsCheck)   errs.termsCheck = "You must accept the Terms and Conditions.";
     if (!form.privacyCheck) errs.privacyCheck = "You must agree to the Data Privacy & Policy.";
     if (!form.stayCheck)    errs.stayCheck = "You must agree to the Terms & Conditions of Stay.";
@@ -715,12 +746,24 @@ export default function Rooms() {
       }
       setResSubmitting(true);
       try {
+        const idUrl = await resolveImageUrlForSubmit(
+          idPreview,
+          idFile,
+          uploadBookingGuestValidIdDirectBackend,
+          "Government ID photo",
+        );
+        const proofUrl = await resolveImageUrlForSubmit(
+          pendingGcash.proofPreview,
+          pendingGcash.proofFile,
+          uploadPaymentProofDirectBackend,
+          "Payment proof",
+        );
         const payload = buildRoomReservationPayload(rooms, form, resRoom, {
           bill: stayBill,
           paymentAmountNum: pendingGcash.paidNum,
           transactionId: pendingGcash.txId,
-          idDataUrl: idPreview,
-          paymentProofData: pendingGcash.proofPreview || "",
+          idDataUrl: idUrl,
+          paymentProofData: proofUrl,
           paymentDate: pendingGcash.date,
         });
         await saveRoomReservation(payload);
@@ -744,10 +787,16 @@ export default function Rooms() {
     }
     setResSubmitting(true);
     try {
+      const idUrl = await resolveImageUrlForSubmit(
+        idPreview,
+        idFile,
+        uploadBookingGuestValidIdDirectBackend,
+        "Government ID photo",
+      );
       const payload = buildRoomReservationPayload(rooms, form, resRoom, {
         bill: stayBill,
         paymentAmountNum: 0,
-        idDataUrl: idPreview,
+        idDataUrl: idUrl,
       });
       await saveRoomReservation(payload);
       dispatchFrontdeskNotificationsRefresh();
@@ -814,9 +863,11 @@ export default function Rooms() {
     await handleImageFileInputChange(file, {
       uploadFn: uploadPaymentProofDirectBackend,
       setPreview: setProofPreview,
+      requireS3: true,
       setError: (msg) => {
         setProofPreview(null);
-        setPayErrors((pe) => ({ ...pe, proof: msg }));
+        setPayErrors((pe) => ({ ...pe, proof: msg || "Please upload proof of payment." }));
+        if (msg) window.alert(msg);
       },
     });
   }
@@ -826,8 +877,7 @@ export default function Rooms() {
     if (!payForm.amount.trim()) errs.amount = "Amount paid is required.";
     if (!payForm.date.trim())   errs.date = "Payment date is required.";
     if (!payForm.txId.trim())   errs.txId = "Transaction ID is required.";
-    const hasProof = isStoredImageRef(proofPreview);
-    if (!hasProof) errs.proof = "Please upload proof of payment.";
+    if (!isBookingSubmitImageRef(proofPreview)) errs.proof = "Please upload proof of payment.";
     setPayErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -868,6 +918,7 @@ export default function Rooms() {
       date: payForm.date.trim(),
       txId: payForm.txId.trim(),
       proofPreview: proofPreview || "",
+      proofFile: proofFile || null,
       paidNum: paid,
     });
     setPayOpen(false);
@@ -1122,6 +1173,7 @@ export default function Rooms() {
                   <span className="form-label-static" id="booking-checkin-label">Check-in date <span className="required">*</span></span>
                   <div className={formErrors.checkInDate ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"}>
                     <DayPicker
+                      key={`guest-ci-${resRoomId}`}
                       mode="single"
                       selected={form.checkInDate ? parseLocalYmd(form.checkInDate) : undefined}
                       onSelect={handleSelectCheckIn}
@@ -1149,9 +1201,17 @@ export default function Rooms() {
                   {formErrors.checkInDate && <span className="field-error">{formErrors.checkInDate}</span>}
                 </div>
                 <div className="form-group">
-                  <span className="form-label-static" id="booking-checkout-label">Check-out date <span className="required">*</span></span>
-                  <div className={formErrors.checkOutDate ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"}>
+                  <span className="form-label-static" id="booking-checkout-label">
+                    Check-out date <span className="required">*</span>
+                    {!form.checkInDate ? (
+                      <span className="booking-checkout-locked-label"> — choose check-in first</span>
+                    ) : null}
+                  </span>
+                  <div
+                    className={`${formErrors.checkOutDate ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"}${!form.checkInDate ? " booking-day-picker-wrap--checkout-locked" : ""}`}
+                  >
                     <DayPicker
+                      key={`guest-co-${resRoomId}-${form.checkInDate || "none"}`}
                       mode="single"
                       selected={form.checkOutDate ? parseLocalYmd(form.checkOutDate) : undefined}
                       onSelect={handleSelectCheckOut}
@@ -1212,6 +1272,48 @@ export default function Rooms() {
                 <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk calendar: <strong>Occupied</strong> (red) and <strong>Reserved</strong> (gold) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
               </p>
 
+              {stayNightsCount >= 1 && form.checkInDate && form.checkOutDate ? (
+                <div className="booking-stay-estimate" aria-live="polite">
+                  <p className="booking-stay-estimate__label">Your stay</p>
+                  <p className="booking-stay-estimate__dates">
+                    <strong>{formatStayDateLabel(form.checkInDate)}</strong>
+                    {" → "}
+                    <strong>{formatStayDateLabel(form.checkOutDate)}</strong>
+                    <span className="booking-stay-estimate__nights">
+                      ({stayNightsCount} night{stayNightsCount !== 1 ? "s" : ""})
+                    </span>
+                  </p>
+                  {nightlyRateForBill > 0 ? (
+                    <p className="booking-stay-estimate__rate">
+                      Room rate: {formatPeso(nightlyRateForBill)} / night
+                    </p>
+                  ) : null}
+                  <p className="booking-stay-estimate__preview-note">
+                    Amounts below are calculated on this device only. Nothing is saved until you submit your reservation.
+                  </p>
+                </div>
+              ) : null}
+
+              {stayBill ? (
+                <div className="booking-form-billing-block">
+                  <BillingSummary bill={stayBill} title="Billing summary" showMinimumDown />
+                  {livePayment ? (
+                    <BillingPaymentPills
+                      total={livePayment.total}
+                      amountPaid={livePayment.amountPaid}
+                      balanceDue={livePayment.balanceDue}
+                      minimumDownPayment={livePayment.minimumDownPayment}
+                    />
+                  ) : null}
+                </div>
+              ) : stayNightsCount >= 1 ? (
+                <p className="booking-bill-hint" role="status">
+                  {nightlyRateForBill <= 0
+                    ? "We could not read this room's nightly rate. The front desk will confirm your total when you arrive."
+                    : "Choose a room above to see your billing summary."}
+                </p>
+              ) : null}
+
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="booking-additional-guests">Additional guests</label>
@@ -1237,24 +1339,6 @@ export default function Rooms() {
                   placeholder="Special requests or notes (optional)"
                   onChange={handleFormChange} />
               </div>
-
-              {stayBill ? (
-                <div className="booking-form-billing-block">
-                  <BillingSummary bill={stayBill} title="Billing summary" showMinimumDown />
-                  {livePayment ? (
-                    <BillingPaymentPills
-                      total={livePayment.total}
-                      amountPaid={livePayment.amountPaid}
-                      balanceDue={livePayment.balanceDue}
-                      minimumDownPayment={livePayment.minimumDownPayment}
-                    />
-                  ) : null}
-                </div>
-              ) : form.checkInDate && form.checkOutDate && form.checkOutDate > form.checkInDate ? (
-                <p className="booking-bill-hint" role="status">
-                  Select a room and valid stay dates to see your billing summary.
-                </p>
-              ) : null}
 
               <div className="form-section form-section--payment">
                 <div className="form-section__head">

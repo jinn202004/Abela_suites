@@ -934,10 +934,72 @@
   gap: 16px 20px;
 }
 
+.walkin-room-booking-root .booking-stay-estimate {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid #e3d5c4;
+  background: linear-gradient(180deg, #fffefb 0%, #faf7f2 100%);
+}
+.walkin-room-booking-root .booking-stay-estimate__label {
+  margin: 0 0 6px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold-dark);
+}
+.walkin-room-booking-root .booking-stay-estimate__dates {
+  margin: 0 0 6px;
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-dark);
+}
+.walkin-room-booking-root .booking-stay-estimate__nights {
+  font-weight: 600;
+  color: var(--text-mid);
+}
+.walkin-room-booking-root .booking-stay-estimate__rate {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold-dark);
+}
+.walkin-room-booking-root .booking-stay-estimate__preview-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-mid);
+}
+.walkin-room-booking-root .booking-form-error-banner {
+  margin: 0;
+  padding: 10px 14px;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+.walkin-room-booking-root .booking-bill-hint {
+  margin: 0;
+  padding: 10px 14px;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-mid);
+  background: #faf7f2;
+  border: 1px dashed #d4c4a8;
+  border-radius: 8px;
+}
 .walkin-room-booking-root .booking-form-billing-block {
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 4px;
 }
 
 .walkin-room-booking-root .booking-form-fd-cal-legend .fd-cal-legend-swatch--available {

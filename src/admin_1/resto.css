@@ -44,6 +44,45 @@
   animation: restoMenuToastIn 0.25s ease both;
 }
 
+/* Portaled select menu (Add Dish modal) — above modal backdrop (9000) */
+.rm-select-dropdown--portal {
+  position: fixed;
+  z-index: 10050;
+  background: #fff;
+  border: 1.5px solid #e8dcc8;
+  border-radius: 7px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+  overflow-y: auto;
+}
+
+.rm-select-dropdown--portal .rm-select-option {
+  padding: 10px 14px;
+  font-size: 13.5px;
+  font-family: "Montserrat", sans-serif;
+  color: #2c2824;
+  cursor: pointer;
+  background: #fff;
+}
+
+.rm-select-dropdown--portal .rm-select-option:hover {
+  background: #f0f2f5;
+}
+
+.rm-select-dropdown--portal .rm-select-option.selected {
+  color: #b8922a;
+  font-weight: 700;
+}
+
+.rm-select-dropdown--portal .rm-select-option--muted {
+  color: #888;
+  cursor: default;
+  font-style: italic;
+}
+
+.rm-select-dropdown--portal .rm-select-option--muted:hover {
+  background: #fff;
+}
+
 /* Restaurant admin — same gold rail / topbar as other admin pages (staff.css → admin-dashboard.css).
    room-management.css: delete confirm + toast + shared .rm-modal-* base (overridden below where needed). */
 
@@ -497,6 +536,10 @@
     box-shadow: 0 20px 60px rgba(0,0,0,0.25);
     animation: modalIn 0.22s ease both;
   }
+
+  .rm-modal:has(.rm-select-wrap.is-open) {
+    overflow: visible;
+  }
   
   @keyframes modalIn {
     from { opacity: 0; transform: scale(0.94); }
@@ -535,11 +578,13 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    overflow: visible;
   }
   
   .rm-form-row {
     display: flex;
     gap: 16px;
+    overflow: visible;
   }
   
   .rm-form-group {
@@ -547,6 +592,13 @@
     flex-direction: column;
     gap: 6px;
     flex: 1;
+    overflow: visible;
+  }
+
+  /* Keep open custom selects above fields below (e.g. Description). */
+  .rm-form-group:has(.rm-select-wrap.is-open) {
+    position: relative;
+    z-index: 40;
   }
   
   .rm-label {
@@ -567,6 +619,13 @@
   }
   
   .rm-input:focus { border-color: var(--gold); }
+
+  select.rm-input.rm-native-select {
+    width: 100%;
+    background: #fff;
+    cursor: pointer;
+    appearance: auto;
+  }
   
   .rm-textarea {
     padding: 10px 12px;
@@ -665,6 +724,10 @@
     position: relative;
     outline: none;
   }
+
+  .rm-select-wrap.is-open {
+    z-index: 50;
+  }
   
   .rm-select-display {
     display: flex;
@@ -695,13 +758,15 @@
   .rm-select-dropdown {
     position: absolute;
     top: calc(100% + 4px);
-    left: 0; right: 0;
+    left: 0;
+    right: 0;
     background: var(--white);
     border: 1.5px solid var(--border);
     border-radius: 7px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-    z-index: 100;
-    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+    z-index: 200;
+    max-height: min(220px, 40vh);
+    overflow-y: auto;
     animation: ddFadeIn 0.15s ease both;
   }
   

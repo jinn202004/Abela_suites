@@ -56,7 +56,12 @@ import {
   buildEventTimeSlotLabel,
   eventNewRangeOverlapsExisting,
   parseEventStartEndMinutes,
+  EVENT_BASE_INCLUDED_HOURS,
 } from "../guests/eventVenueTimeShared";
+import BillingSummary from "../guests/BillingSummary";
+import BillingPaymentPills from "../guests/BillingPaymentPills";
+import { computeEventBookingBill, paymentSnapshotFromBill } from "../guests/bookingBilling";
+import "../guests/billing-summary.css";
 import { useFrontdeskShell } from "./FrontdeskShellContext";
 import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "./FrontdeskSidebarToggle";
@@ -1597,6 +1602,14 @@ function walkinEventPricingFootnote(bill) {
   );
 }
 
+function eventCalendarRowAccent(statusRaw) {
+  const s = String(statusRaw || "").toLowerCase();
+  if (s === "occupied") return "#e74c3c";
+  if (s === "pending") return "#f1c40f";
+  if (s === "approved" || s === "confirmed") return "#3498db";
+  return "#95a5a6";
+}
+
 const WALKIN_EVENT_EMPTY_FORM = {
   package: "",
   eventName: "",
@@ -1647,11 +1660,14 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
             ? v.price
             : parsePesoNum(String(v.price ?? "0")) || 0;
         const name = String(v.name ?? v.title ?? v.package ?? "Venue").trim();
+        const capacity = Number(v?.capacity);
+        const maxGuests = Number.isFinite(capacity) && capacity > 0 ? capacity : 100;
         return {
           id,
           name,
           label: `${name} - ${formatStoredEventNumberForDisplay(v.eventNum)}`,
           priceNum,
+          maxGuests,
         };
       })
       .filter((r) => r.id);
@@ -1662,6 +1678,7 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
         name: v.name,
         label: `${v.name} - ${formatStoredEventNumberForDisplay(v.eventNum)}`,
         priceNum: 0,
+        maxGuests: 100,
       }));
     }
     return [];
@@ -1757,6 +1774,27 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
     };
   }, [form.payment, payForm.amountpaid, payForm.paydate, payForm.transid, proofPreview]);
 
+  const walkinEventBookingBill = useMemo(() => {
+    if (!selectedVenueOption || !form.startTime || !form.endTime) return null;
+    const hours = durationHoursDecimalFromTimes(form.startTime, form.endTime);
+    if (!(hours > 0)) return null;
+    return computeEventBookingBill({
+      venueName: selectedVenueOption.name,
+      basePrice: selectedVenueOption.priceNum,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      includedPax: selectedVenueOption.maxGuests ?? 100,
+      expectedPax: form.attendees,
+    });
+  }, [selectedVenueOption, form.startTime, form.endTime, form.attendees]);
+
+  const walkinLivePayment = useMemo(() => {
+    if (!walkinEventBookingBill) return null;
+    const paidNum =
+      form.payment === "gcash" && walkinPendingGcash ? Number(walkinPendingGcash.paidNum) || 0 : 0;
+    return paymentSnapshotFromBill(walkinEventBookingBill, paidNum);
+  }, [walkinEventBookingBill, form.payment, walkinPendingGcash]);
+
   const walkinCalendarOverlapRows = useMemo(() => {
     if (!Array.isArray(eventBookingsRaw)) return [];
     return eventBookingsRaw
@@ -1851,6 +1889,13 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
     setShowBanner(false);
     setForm((f) => ({ ...f, date: s }));
     setErrors((er) => ({ ...er, date: "" }));
+  }
+
+  function handlePackageSelect(e) {
+    const packageVal = e.target.value;
+    setShowBanner(false);
+    setForm((f) => ({ ...f, package: packageVal, date: "" }));
+    setErrors((er) => ({ ...er, package: "", date: "" }));
   }
 
   async function handleIdFile(e) {
@@ -2125,15 +2170,57 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
               </button>
             </div>
             <div className="ev-modal-body ev-modal-body--reservation">
-              <div className="ev-reservation-form">
-                <div className={`ev-error-banner${showBanner ? " visible" : ""}`}>
-                  {(errors.startTime || errors.endTime) && (
-                    <p style={{ margin: "0 0 8px" }}>
-                      Check event times: end must be after start (0.5–72 hours), and your range must not overlap another reservation
-                      or the 2-hour cleaning buffer after an existing event.
-                    </p>
-                  )}
-                  Please fill in all required fields before submitting.
+              <div className="booking-form booking-form--event ev-reservation-form">
+                {showBanner ? (
+                  <p className="booking-form-error-banner" role="alert">
+                    {(errors.startTime || errors.endTime) && (
+                      <>
+                        Check event times: end must be after start (0.5–72 hours), and your range must not overlap another
+                        reservation or the 2-hour cleaning buffer after an existing event.
+                        <br />
+                      </>
+                    )}
+                    Please fill in all required fields before submitting.
+                  </p>
+                ) : null}
+
+                <div className="ev-form-row">
+                  <div className="ev-form-group ev-full-width">
+                    <label htmlFor="wi-ev-venue-select">
+                      Select event venue / package <span style={{ color: "#e74c3c" }}>*</span>
+                    </label>
+                    {listLoading ? (
+                      <p className="booking-cal-hint" role="status">
+                        Loading event venues from the server…
+                      </p>
+                    ) : (
+                      <p className="booking-cal-hint">
+                        Choose the venue or package for this walk-in guest. Pick a date below to see availability for the selected
+                        venue.
+                      </p>
+                    )}
+                    <select
+                      id="wi-ev-venue-select"
+                      className={errors.package ? "ev-error" : ""}
+                      value={form.package}
+                      onChange={handlePackageSelect}
+                      disabled={listLoading && walkinFullVenueOptions.length === 0}
+                      aria-busy={listLoading}
+                    >
+                      <option value="">— Select event venue / package —</option>
+                      {venueOptions.map((o) => (
+                        <option key={`${o.id}|${o.label}`} value={o.label}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    {!listLoading && venueOptions.length === 0 ? (
+                      <span className="ev-field-err visible">
+                        No event venues are configured — add venues in Admin or sign in to load the catalog.
+                      </span>
+                    ) : null}
+                    {errors.package ? <span className={`ev-field-err${errors.package ? " visible" : ""}`}>{errors.package}</span> : null}
+                  </div>
                 </div>
 
                 <div className="ev-form-row">
@@ -2202,49 +2289,18 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                   </div>
                 </div>
 
-                <div className="ev-form-row">
-                  <div className="ev-form-group ev-full-width">
-                    <label htmlFor="wi-ev-venue-select">
-                      Select venue <span style={{ color: "#e74c3c" }}>*</span>
-                    </label>
-                    {listLoading ? <p className="walkin-load-hint">Loading event venues from the server…</p> : null}
-                    <select
-                      id="wi-ev-venue-select"
-                      className={errors.package ? "ev-error" : ""}
-                      value={form.package}
-                      onChange={(e) => {
-                        set("package", e.target.value);
-                        setErrors((er) => ({ ...er, package: "" }));
-                      }}
-                      disabled={listLoading && walkinFullVenueOptions.length === 0}
-                      aria-busy={listLoading}
-                    >
-                      <option value="">— Select venue —</option>
-                      {venueOptions.map((o) => (
-                        <option key={`${o.id}|${o.label}`} value={o.label}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                    {!listLoading && venueOptions.length === 0 ? (
-                      <span className={`ev-field-err visible`}>
-                        No event venues are configured — add venues in Admin or sign in to load the catalog.
-                      </span>
-                    ) : null}
-                    {errors.package ? (
-                      <span className={`ev-field-err${errors.package ? " visible" : ""}`}>{errors.package}</span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="ev-form-row ev-form-row--guest-event-date-cal">
+                <div className="form-row form-row--event-schedule ev-form-row ev-form-row--guest-event-date-cal">
+                  <p className="booking-cal-unavailable-hint">
+                    <strong>How to book:</strong> Past dates are disabled. Red or gold marks full-day holds. When times are on file,
+                    pick a date and choose start/end that do not overlap another booking or the 2-hour cleaning buffer.
+                  </p>
                   <div className="ev-form-group">
-                    <span className="ev-form-label-static" id="ev-wi-guest-date-label">
-                      Date <span style={{ color: "#e74c3c" }}>*</span>
+                    <span className="form-label-static" id="ev-wi-guest-date-label">
+                      Date <span className="required">*</span>
                     </span>
                     <div
                       className={
-                        errors.date ? "ev-guest-ev-day-picker-wrap ev-guest-ev-day-picker-wrap--error" : "ev-guest-ev-day-picker-wrap"
+                        errors.date ? "booking-day-picker-wrap booking-day-picker-wrap--error" : "booking-day-picker-wrap"
                       }
                     >
                       <DayPicker
@@ -2268,47 +2324,55 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                           evOccupied: "fd-cal-cell fd-cal-cell--occupied",
                           evReserved: "fd-cal-cell fd-cal-cell--reserved",
                         }}
-                        className="ev-guest-ev-day-picker"
+                        className="booking-day-picker"
                         id="wi-ev-date-calendar"
                         aria-labelledby="ev-wi-guest-date-label"
                       />
                     </div>
                     <span className={`ev-field-err${errors.date ? " visible" : ""}`}>Please select a date (not in the past).</span>
                   </div>
-                  <div className="ev-form-group">
-                    <label>
-                      Event start time <span style={{ color: "#e74c3c" }}>*</span>
-                    </label>
-                    <input
-                      type="time"
-                      name="startTime"
-                      value={form.startTime}
-                      className={errors.startTime ? "ev-error" : ""}
-                      onChange={(e) => {
-                        set("startTime", e.target.value);
-                        setErrors((er) => ({ ...er, startTime: "", endTime: "" }));
-                      }}
-                    />
-                    <label style={{ marginTop: 10 }}>
-                      Event end time <span style={{ color: "#e74c3c" }}>*</span>
-                    </label>
-                    <input
-                      type="time"
-                      name="endTime"
-                      value={form.endTime}
-                      className={errors.endTime ? "ev-error" : ""}
-                      onChange={(e) => {
-                        set("endTime", e.target.value);
-                        setErrors((er) => ({ ...er, startTime: "", endTime: "" }));
-                      }}
-                    />
+                  <div className="ev-form-group ev-form-group--event-times">
+                    <div className="ev-time-stack">
+                      <div className="ev-time-field">
+                        <label className="form-label-static" htmlFor="wi-ev-start-time">
+                          Event start time <span className="required">*</span>
+                        </label>
+                        <input
+                          id="wi-ev-start-time"
+                          type="time"
+                          name="startTime"
+                          value={form.startTime}
+                          className={errors.startTime ? "ev-error" : ""}
+                          onChange={(e) => {
+                            set("startTime", e.target.value);
+                            setErrors((er) => ({ ...er, startTime: "", endTime: "" }));
+                          }}
+                        />
+                      </div>
+                      <div className="ev-time-field">
+                        <label className="form-label-static" htmlFor="wi-ev-end-time">
+                          Event end time <span className="required">*</span>
+                        </label>
+                        <input
+                          id="wi-ev-end-time"
+                          type="time"
+                          name="endTime"
+                          value={form.endTime}
+                          className={errors.endTime ? "ev-error" : ""}
+                          onChange={(e) => {
+                            set("endTime", e.target.value);
+                            setErrors((er) => ({ ...er, startTime: "", endTime: "" }));
+                          }}
+                        />
+                      </div>
+                    </div>
                     <span className={`ev-field-err${errors.startTime || errors.endTime ? " visible" : ""}`}>
                       Choose end after start (0.5–72 hours). Times must not overlap another booking or the 2-hour cleaning buffer
                       after an existing event.
                     </span>
-                    <p className="ev-field-hint ev-field-hint--time">
-                      The first {EVENT_WALKIN_INCLUDED_HOURS} hours are covered by the listed base rate. Each additional hour adds{" "}
-                      {fmtPeso(EVENT_WALKIN_EXTRA_HOUR_FLAT_RATE)}. Duration is calculated from your start and end times.
+                    <p className="booking-schedule-note" role="note">
+                      <strong>Note:</strong> The first {EVENT_BASE_INCLUDED_HOURS} hours are included in the venue base rate. Each
+                      additional hour is {fmtPeso(EVENT_WALKIN_EXTRA_HOUR_FLAT_RATE)}.
                     </p>
                   </div>
                 </div>
@@ -2346,22 +2410,25 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                             r.startTime && r.endTime
                               ? buildEventTimeSlotLabel(r.startTime, r.endTime)
                               : (r.timeSlot && r.timeSlot.trim()) || "Time on file";
-                          const st = r.status ? String(r.status) : "";
-                          const who = r.customerName ? String(r.customerName) : "";
+                          const accent = eventCalendarRowAccent(r.status);
                           return (
                             <li
                               key={r.id}
                               style={{
+                                borderLeft: `4px solid ${accent}`,
                                 padding: "8px 10px",
-                                marginBottom: 6,
-                                border: "1px solid #e0e0e0",
+                                marginBottom: 8,
+                                background: "#faf9f6",
                                 borderRadius: 6,
-                                background: "#fafafa",
                               }}
                             >
-                              <strong>Booked:</strong> {slot}
-                              {st ? ` · ${st}` : ""}
-                              {who ? ` · ${who}` : ""}
+                              <strong>{slot}</strong>
+                              <span style={{ color: "#6b5a3e", marginLeft: 8 }}>
+                                · {String(r.status || "").trim() || "—"}
+                              </span>
+                              {r.customerName ? (
+                                <span style={{ color: "#6b5a3e", marginLeft: 6 }}>({r.customerName})</span>
+                              ) : null}
                             </li>
                           );
                         })
@@ -2370,34 +2437,22 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                   </div>
                 ) : null}
 
-                {walkinEventBill ? (
-                  <div className="ev-form-row">
-                    <section className="ev-billing-summary" aria-live="polite">
-                    <h3 className="ev-billing-summary__title">Billing summary</h3>
-                    <dl className="ev-billing-summary__grid">
-                      <div className="ev-billing-summary__row">
-                        <dt>Base price ({EVENT_WALKIN_INCLUDED_HOURS} h included)</dt>
-                        <dd>{fmtPeso(walkinEventBill.basePrice)}</dd>
-                      </div>
-                      <div className="ev-billing-summary__row">
-                        <dt>Additional hours</dt>
-                        <dd>{walkinEventBill.extraHours > 0 ? `${walkinEventBill.extraHours} h beyond base` : "—"}</dd>
-                      </div>
-                      <div className="ev-billing-summary__row">
-                        <dt>Additional charges</dt>
-                        <dd>
-                          {walkinEventBill.extraHours > 0
-                            ? `${fmtPeso(walkinEventBill.hourlyRate)}/h × ${walkinEventBill.extraHours} h = ${fmtPeso(walkinEventBill.additionalCharge)}`
-                            : fmtPeso(0)}
-                        </dd>
-                      </div>
-                      <div className="ev-billing-summary__row ev-billing-summary__row--total">
-                        <dt>Final total</dt>
-                        <dd>{fmtPeso(walkinEventBill.total)}</dd>
-                      </div>
-                    </dl>
-                  </section>
+                {walkinEventBookingBill ? (
+                  <div className="booking-form-billing-block">
+                    <BillingSummary bill={walkinEventBookingBill} title="Billing summary" showMinimumDown />
+                    {walkinLivePayment ? (
+                      <BillingPaymentPills
+                        total={walkinLivePayment.total}
+                        amountPaid={walkinLivePayment.amountPaid}
+                        balanceDue={walkinLivePayment.balanceDue}
+                        minimumDownPayment={walkinLivePayment.minimumDownPayment}
+                      />
+                    ) : null}
                   </div>
+                ) : form.startTime && form.endTime ? (
+                  <p className="booking-bill-hint" role="status">
+                    Set valid start and end times to see your billing summary.
+                  </p>
                 ) : null}
 
                 <div className="ev-form-row">
@@ -2572,14 +2627,24 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                         <span className="ev-booking-review-summary__k">Contact</span>
                         <span className="ev-booking-review-summary__v">{form.customerName.trim() || "—"}</span>
                       </li>
-                      {walkinEventBill ? (
+                      <li>
+                        <span className="ev-booking-review-summary__k">Estimated attendees</span>
+                        <span className="ev-booking-review-summary__v">{form.attendees || "—"}</span>
+                      </li>
+                      {walkinEventBookingBill ? (
                         <li>
                           <span className="ev-booking-review-summary__k">Total due</span>
-                          <span className="ev-booking-review-summary__v">{fmtPeso(walkinEventBill.total)}</span>
+                          <span className="ev-booking-review-summary__v">{fmtPeso(walkinEventBookingBill.total)}</span>
+                        </li>
+                      ) : null}
+                      {walkinLivePayment ? (
+                        <li>
+                          <span className="ev-booking-review-summary__k">Remaining balance</span>
+                          <span className="ev-booking-review-summary__v">{fmtPeso(walkinLivePayment.balanceDue)}</span>
                         </li>
                       ) : null}
                       <li>
-                        <span className="ev-booking-review-summary__k">Payment</span>
+                        <span className="ev-booking-review-summary__k">Payment method</span>
                         <span className="ev-booking-review-summary__v">{form.payment === "gcash" ? "GCash" : "Cash on arrival"}</span>
                       </li>
                       {form.payment === "gcash" && walkinPendingGcash ? (
@@ -2604,7 +2669,7 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
 
                 {form.payment === "gcash" && walkinPendingGcash ? (
                   <p className="ev-gcash-draft-note" role="status">
-                    GCash details are saved in this form only. Review the summary above, then click Submit Reservation to send your request.
+                    GCash details are saved in this form only. Review the summary above, then click Submit Reservation to send this walk-in to the hotel.
                   </p>
                 ) : null}
 

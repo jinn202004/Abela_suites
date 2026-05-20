@@ -30,7 +30,6 @@ export function resolveHousekeepingAssignLabel(task, teamNames, rawStatus) {
   if ((st === "pending" || st === "in_progress") && teamNames.length) {
     return teamNames.join(", ");
   }
-  if (st === "pending" || st === "in_progress") return "Unassigned";
   return "—";
 }
 
@@ -69,16 +68,13 @@ export function tasksForVenue(tasks, venueId, eventNum) {
   });
 }
 
-/** Room/venue inventory row: assignee from the best matching cleaning task. */
+/** Room/venue inventory row: name of staff who started, or active HK team when cleaning is open. */
 export function resolveAssetHousekeepingLabel(task, teamNames, assetStatus) {
   const assigned = String(task?.assignedTo?.name || "").trim();
   if (assigned) return assigned;
-  if (task) {
-    const st = String(task.status || "").toLowerCase();
-    if ((st === "pending" || st === "in_progress") && teamNames.length) {
-      return teamNames.join(", ");
-    }
-    if (st === "pending" || st === "in_progress") return "Unassigned";
+  const st = task ? String(task.status || "").toLowerCase() : "";
+  if ((st === "pending" || st === "in_progress") && teamNames.length) {
+    return teamNames.join(", ");
   }
   const s = String(assetStatus || "").toLowerCase();
   if (["needs_cleaning", "cleaning_in_progress"].includes(s) && teamNames.length) {

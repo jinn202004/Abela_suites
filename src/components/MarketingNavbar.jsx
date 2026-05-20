@@ -1,22 +1,30 @@
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import "./MarketingNavbar.css";
 
-function navLinkClass({ isActive }) {
-  return isActive ? "nav-link nav-link--active" : "nav-link";
+function isHomePath(pathname) {
+  return pathname === "/" || pathname === "/home-dashboard";
+}
+
+function isAuthPath(pathname) {
+  return (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/forgot-password" ||
+    pathname === "/enter-code" ||
+    pathname === "/set-password" ||
+    pathname === "/verify-email"
+  );
 }
 
 export default function MarketingNavbar() {
   const { pathname } = useLocation();
-
-  const handleHomeClick = (e) => {
-    if (pathname !== "/") return;
-    e.preventDefault();
-    const top = document.getElementById("top");
-    if (top) top.scrollIntoView({ behavior: "smooth" });
-    else window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+  const homeActive = isHomePath(pathname);
+  const testimonialsActive = pathname === "/testimonials";
+  const contactActive = pathname === "/contact";
+  const loginActive = isAuthPath(pathname);
 
   return (
-    <nav className="navbar" aria-label="Primary">
+    <nav className="navbar marketing-navbar" aria-label="Primary">
       <Link to="/" className="nav-brand">
         <img
           src="/logo.png"
@@ -32,22 +40,38 @@ export default function MarketingNavbar() {
       </Link>
       <ul className="nav-links">
         <li>
-          <NavLink to="/" end className={navLinkClass} onClick={handleHomeClick}>
+          <Link
+            to="/"
+            className={homeActive ? "tm-nav-current" : undefined}
+            aria-current={homeActive ? "page" : undefined}
+          >
             Home
-          </NavLink>
+          </Link>
         </li>
         <li>
-          <NavLink to="/testimonials" className={navLinkClass}>
+          <Link
+            to="/testimonials"
+            className={testimonialsActive ? "tm-nav-current" : undefined}
+            aria-current={testimonialsActive ? "page" : undefined}
+          >
             Testimonials
-          </NavLink>
+          </Link>
         </li>
         <li>
-          <NavLink to="/contact" className={navLinkClass}>
+          <Link
+            to="/contact"
+            className={contactActive ? "tm-nav-current" : undefined}
+            aria-current={contactActive ? "page" : undefined}
+          >
             Contact Us
-          </NavLink>
+          </Link>
         </li>
       </ul>
-      <Link to="/login" className="btn-login-nav">
+      <Link
+        to="/login"
+        className={`btn-login-nav${loginActive ? " tm-nav-current" : ""}`}
+        aria-current={loginActive ? "page" : undefined}
+      >
         Login
       </Link>
     </nav>

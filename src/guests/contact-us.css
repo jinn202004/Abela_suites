@@ -8,5 +8,9 @@
 
 .contact-page-shell .contact-us-section {
   background: transparent;
-  padding-top: calc(64px + env(safe-area-inset-top, 0px) + 16px);
+  padding-top: calc(64px + env(safe-area-inset-top, 0px) + 24px);
+}
+
+.contact-page-shell .footer {
+  margin-top: 8px;
 }

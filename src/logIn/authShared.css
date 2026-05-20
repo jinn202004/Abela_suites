@@ -1,0 +1,53 @@
+/* Shared layout below MarketingNavbar on full-page auth routes (matches home / contact). */
+
+.abela-auth-page-shell,
+.login-page {
+  --gold: #b89635;
+  --gold-light: #c9a54a;
+  --cream: #fdf8f0;
+  --auth-card-bg: #fdf8f0;
+  --auth-card-border: #e8e2d8;
+  --white: #ffffff;
+  --text-dark: #1a1a1a;
+  --text-mid: #5c5348;
+  --text-light: #8a7f72;
+  --border: #d8cdb8;
+}
+
+.abela-auth-page-shell .main-content,
+.login-page .main-content {
+  position: relative;
+  z-index: 10;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-height: calc(100vh - 64px);
+  min-height: calc(100dvh - 64px);
+  padding-top: calc(64px + max(24px, env(safe-area-inset-top, 0px)));
+  padding-bottom: max(48px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(36px, env(safe-area-inset-left, 0px));
+  padding-right: max(36px, env(safe-area-inset-right, 0px));
+}
+
+.abela-auth-page-shell .main-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-page .main-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: center;
+  align-content: start;
+}
+
+@media (max-width: 600px) {
+  .abela-auth-page-shell .main-content,
+  .login-page .main-content {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-top: calc(64px + max(16px, env(safe-area-inset-top, 0px)));
+  }
+}

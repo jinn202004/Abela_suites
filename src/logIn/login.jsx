@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import MarketingNavbar from "../components/MarketingNavbar";
 import { useAuthRole } from "../context/AuthRoleContext";
 import { getHomePathForRole } from "./rolePaths";
 import { tryCredentials } from "./tryCredentials";
@@ -134,20 +135,9 @@ export default function Login() {
         pointerEvents: "none",
       }}></div>
 
-      <nav className="navbar">
-        <div className="nav-brand">
-          <img src="/logo.png" alt="Abela Suites Logo" className="nav-logo-img" />
-          <span className="brand-name">Abela Suites</span>
-        </div>
-        <ul className="nav-links">
-          <li><Link to="/">Home</Link></li>
-          <li><a href="#testimonials">Testimonials</a></li>
-          <li><Link to="/contact">Contact Us</Link></li>
-        </ul>
-        <Link to="/login" className="btn-login-nav">Login</Link>
-      </nav>
+      <MarketingNavbar />
 
-      <main className="main-content">
+<main className="main-content">
         <div className="login-card">
 
           <div className="card-logo">

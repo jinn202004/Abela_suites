@@ -1438,13 +1438,6 @@
   }
 
 /* Event reservation modal — match guest-room booking-form */
-.booking-form--event .ev-form-row {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px 24px;
-  align-items: start;
-}
-
 .booking-form--event .ev-form-group {
   display: flex;
   flex-direction: column;
@@ -1466,7 +1459,8 @@
 .booking-form--event .ev-form-group input[type="text"],
 .booking-form--event .ev-form-group input[type="email"],
 .booking-form--event .ev-form-group input[type="number"],
-.booking-form--event .ev-form-group input[type="time"] {
+.booking-form--event .ev-form-group input[type="time"],
+.booking-form--event .ev-time-field input[type="time"] {
   width: 100%;
   height: 46px;
   min-height: 46px;
@@ -1480,9 +1474,26 @@
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
   box-sizing: border-box;
+  color-scheme: light;
+  line-height: 1.2;
 }
 
-.booking-form--event .ev-form-group input:focus {
+.booking-form--event .ev-form-group input:-webkit-autofill,
+.booking-form--event .ev-form-group input:-webkit-autofill:hover,
+.booking-form--event .ev-form-group input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-dark);
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+.booking-form--event .form-label-static .required,
+.booking-form--event .ev-form-group label .required {
+  color: #e74c3c;
+}
+
+.booking-form--event .ev-form-group input:focus,
+.booking-form--event .ev-time-field input:focus {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(184, 146, 42, 0.12);
 }
@@ -1522,19 +1533,188 @@
   border-radius: 8px;
 }
 
+.booking-form--event .form-row,
+.booking-form--event .ev-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  align-items: start;
+}
+
+.booking-form--event .form-row.form-row--event-schedule,
 .booking-form--event .ev-form-row--guest-event-date-cal {
   grid-template-columns: repeat(2, minmax(280px, 1fr));
   gap: 16px 20px;
 }
 
+.booking-form--event .form-row--event-schedule .booking-cal-unavailable-hint,
 .booking-form--event .ev-form-row--guest-event-date-cal .booking-cal-unavailable-hint {
   grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 12px;
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dark);
+  background: rgba(184, 146, 42, 0.1);
+  border: 1px solid rgba(212, 196, 168, 0.95);
+  border-radius: 8px;
 }
 
-.booking-form--event .event-time-fields {
+.booking-form--event .form-row--event-schedule .booking-cal-unavailable-hint strong {
+  color: var(--gold-dark);
+  font-weight: 700;
+}
+
+.booking-form--event .booking-day-picker-wrap {
+  border: 1.5px solid #d4c4a8;
+  border-radius: 8px;
+  padding: 10px 8px 12px;
+  background: #ffffff;
+  max-width: 100%;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.booking-form--event .booking-day-picker-wrap--error {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.1);
+}
+
+.booking-form--event .booking-day-picker.rdp-root {
+  --rdp-accent-color: #b8922a;
+  --rdp-accent-background-color: rgba(184, 146, 42, 0.14);
+  --rdp-day-height: 34px;
+  --rdp-day-width: 34px;
+  --rdp-day_button-height: 32px;
+  --rdp-day_button-width: 32px;
+  --rdp-day_button-border-radius: 8px;
+  margin: 0 auto;
+}
+
+.booking-form--event .booking-day-picker .rdp-month {
+  width: 100%;
+}
+
+.booking-form--event .booking-day-picker .rdp-month_grid {
+  display: table !important;
+  width: 100%;
+  min-width: 280px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+
+.booking-form--event .booking-day-picker .rdp-weeks {
+  display: table-row-group !important;
+}
+
+.booking-form--event .booking-day-picker .rdp-week {
+  display: table-row !important;
+}
+
+.booking-form--event .booking-day-picker .rdp-day {
+  display: table-cell !important;
+}
+
+.booking-form--event .booking-day-picker .rdp-day.fd-cal-cell {
+  vertical-align: middle;
+  text-align: center;
+  padding: 2px;
+  aspect-ratio: unset;
+  max-height: none;
+  width: var(--rdp-day-width);
+  height: var(--rdp-day-height);
+}
+
+.booking-form--event .booking-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--rdp-day_button-width);
+  height: var(--rdp-day_button-height);
+  margin: 0 auto;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+  z-index: 1;
+  pointer-events: auto;
+}
+
+.booking-form--event .booking-day-picker .rdp-day.fd-cal-cell--reserved {
+  background: #f1c40f;
+  border: 1px solid #d4ac0d;
+  border-radius: 8px;
+}
+
+.booking-form--event .booking-day-picker .rdp-day.fd-cal-cell--occupied {
+  background: #e74c3c;
+  border: 1px solid #c0392b;
+  border-radius: 8px;
+}
+
+.booking-form--event .booking-day-picker .rdp-day.fd-cal-cell--reserved .rdp-day_button {
+  color: #4a3d08 !important;
+}
+
+.booking-form--event .booking-day-picker .rdp-day.fd-cal-cell--occupied .rdp-day_button {
+  color: #fff !important;
+}
+
+.booking-form--event .booking-schedule-note {
+  margin: 0;
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-mid);
+  background: rgba(184, 146, 42, 0.08);
+  border: 1px solid rgba(212, 196, 168, 0.95);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+
+.booking-form--event .booking-schedule-note strong {
+  color: var(--gold-dark);
+  font-weight: 700;
+}
+
+.booking-form--event .ev-guest-ev-cal-legend-wrap .fd-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid, #6b5a3e);
+}
+
+.booking-form--event .ev-guest-ev-cal-legend-wrap .fd-cal-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.booking-form--event .ev-guest-ev-cal-legend-wrap .fd-cal-legend-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.booking-form--event .ev-time-stack {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.booking-form--event .ev-time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .booking-form--event .ev-form-group--event-times .booking-schedule-note {
@@ -1583,6 +1763,8 @@
 
 @media (max-width: 640px) {
   .booking-form--event .ev-form-row,
+  .booking-form--event .form-row,
+  .booking-form--event .form-row.form-row--event-schedule,
   .booking-form--event .ev-form-row--guest-event-date-cal {
     grid-template-columns: 1fr;
     gap: 14px;

@@ -8,107 +8,8 @@
     --text-light: #9a8060;
     --border:     #d4b97a;
   }
-  
-  /* ── BACKGROUND ── */
-  .bgImage {
-    position: fixed;
-    inset: 0;
-    background-image: url("/login-background.png");
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    z-index: 0;
-  }
-  
-  .bgOverlay {
-    position: fixed;
-    inset: 0;
-    background: linear-gradient(135deg, rgba(20,13,3,0.45) 0%, rgba(60,42,8,0.30) 100%);
-    z-index: 1;
-  }
-  
-  /* ── NAVBAR ── */
-  .navbar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 36px;
-    background: var(--cream);
-    border-bottom: 1px solid var(--border);
-    z-index: 100;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.13);
-  }
-  
-  .navBrand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-shrink: 0;
-  }
-  
-  .navLogoImg {
-    height: 70px;
-    width: 70px;
-    object-fit: contain;
-    border-radius: 50%;
-  }
-  
-  .brandName {
-    font-family: 'Montserrat', sans-serif;
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--gold);
-    letter-spacing: 0.05em;
-    white-space: nowrap;
-  }
-  
-  .navLinks {
-    display: flex;
-    list-style: none;
-    gap: 44px;
-    margin-left: auto;
-    margin-right: 48px;
-  }
-  
-  .navLinks a {
-    text-decoration: none;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--gold);
-    letter-spacing: 0.04em;
-    transition: color 0.2s;
-  }
-  
-  .navLinks a:hover {
-    color: var(--gold-light);
-  }
-  
-  .btnLoginNav {
-    background: var(--gold);
-    color: var(--white);
-    text-decoration: none;
-    padding: 9px 26px;
-    border-radius: 6px;
-    font-family: 'Montserrat', sans-serif;
-    font-size: 14px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    white-space: nowrap;
-    flex-shrink: 0;
-    transition: background 0.2s, transform 0.15s;
-  }
-  
-  .btnLoginNav:hover {
-    background: var(--gold-light);
-    transform: translateY(-1px);
-  }
-  
+  /* Navbar: components/MarketingNavbar.css */
+
   /* ── MAIN CONTENT ── */
   .mainContent {
     position: relative;
@@ -543,9 +444,6 @@
     .signupCard {
       margin: 16px;
       padding: 28px 20px 26px;
-    }
-    .navbar {
-      padding: 0 16px;
     }
     .navLinks {
       display: none;

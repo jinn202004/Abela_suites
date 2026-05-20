@@ -1,5 +1,16 @@
 @import "./room-management.css";
 
+/* Event admin tables: header + body action column match the rest of the row */
+.em-event.rm-app .rm-table thead th.rm-th-action {
+  background: #faf6ef;
+  background-color: #faf6ef;
+}
+
+.em-event.rm-app .rm-table tbody td.rm-td-action,
+.em-event.rm-app .rm-table tbody td.action-cell {
+  background-color: transparent;
+}
+
 /* Breadcrumb matches admin shell: › Dashboard */
 .em-event .em-event-breadcrumb-link {
   text-decoration: none;

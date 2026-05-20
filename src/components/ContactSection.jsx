@@ -1,12 +1,11 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import './ContactSection.css'
-
-const MAP_EMBED_SRC =
-  'https://www.openstreetmap.org/export/embed.html?bbox=124.88%2C8.71%2C124.99%2C8.78&layer=mapnik&marker=8.7442%2C124.9419'
-
-const DIRECTIONS_URL =
-  'https://www.google.com/maps/search/?api=1&query=Balingasag%2C+Misamis+Oriental+Philippines'
+import { useState } from "react";
+import {
+  ABELA_CONTACT,
+  buildMapEmbedSrc,
+  GOOGLE_MAPS_DIRECTIONS_URL,
+  FACEBOOK_PAGES,
+} from "../config/contactConfig";
+import "./ContactSection.css";
 
 function IconPin() {
   return (
@@ -19,7 +18,7 @@ function IconPin() {
       />
       <circle cx="12" cy="10" r="2.2" fill="currentColor" />
     </svg>
-  )
+  );
 }
 
 function IconPhone() {
@@ -32,7 +31,7 @@ function IconPhone() {
         strokeLinejoin="round"
       />
     </svg>
-  )
+  );
 }
 
 function IconMail() {
@@ -41,7 +40,7 @@ function IconMail() {
       <rect x="2" y="4" width="20" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
       <path d="M22 6l-10 7L2 6" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
     </svg>
-  )
+  );
 }
 
 function IconClock() {
@@ -50,7 +49,7 @@ function IconClock() {
       <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="1.6" />
       <path d="M12 7.5V12l3.5 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
-  )
+  );
 }
 
 function IconExternal() {
@@ -59,24 +58,27 @@ function IconExternal() {
       <path d="M18 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" stroke="currentColor" strokeWidth="1.5" />
       <path d="M15 3h6v6M10 14L21 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
-  )
+  );
 }
 
-function IconChevron() {
+function IconFacebook() {
   return (
-    <span className="contact-us__chevron" aria-hidden>
-      &gt;
-    </span>
-  )
+    <svg className="contact-us__row-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+    </svg>
+  );
 }
 
 export default function ContactSection({
-  businessName = 'Abela Suites',
-  addressLine = 'Balingasag, Misamis Oriental',
-  phone = '09123456789',
-  email = 'info@abelasuites.com',
-}) {
-  const [popupOpen, setPopupOpen] = useState(true)
+  businessName = ABELA_CONTACT.businessName,
+  addressLine = ABELA_CONTACT.addressLine,
+  addressDetail = ABELA_CONTACT.addressDetail,
+  phone = ABELA_CONTACT.phone,
+  email = ABELA_CONTACT.email,
+} = {}) {
+  const [popupOpen, setPopupOpen] = useState(true);
+  const facebook = FACEBOOK_PAGES[0];
+  const mapSrc = buildMapEmbedSrc();
 
   return (
     <section className="contact-us-section" id="contact" aria-labelledby="contact-us-heading">
@@ -94,34 +96,8 @@ export default function ContactSection({
         </header>
 
         <div className="contact-us__grid">
-          <div className="contact-us__map-col">
-            <div className="contact-us__map-frame">
-              <iframe
-                title={`Map showing ${businessName}`}
-                className="contact-us__map"
-                src={MAP_EMBED_SRC}
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-              />
-              {popupOpen ? (
-                <div className="contact-us__map-popup" role="status">
-                  <button
-                    type="button"
-                    className="contact-us__popup-close"
-                    onClick={() => setPopupOpen(false)}
-                    aria-label="Close location card"
-                  >
-                    ×
-                  </button>
-                  <p className="contact-us__popup-name">{businessName}</p>
-                  <p className="contact-us__popup-addr">{addressLine}</p>
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <aside className="contact-us__sidebar" aria-label="Contact details and links">
-            <div className="contact-us__card contact-us__card--elevated">
+          <aside className="contact-us__sidebar" aria-label="Contact details">
+            <div className="contact-us__card">
               <span className="contact-us__card-kicker">Get In Touch</span>
               <h3 className="contact-us__card-title">Contact Information</h3>
 
@@ -132,9 +108,10 @@ export default function ContactSection({
                 <div>
                   <p className="contact-us__label">Address</p>
                   <p className="contact-us__value">{addressLine}</p>
+                  {addressDetail ? <p className="contact-us__muted">{addressDetail}</p> : null}
                   <a
-                    href={DIRECTIONS_URL}
-                    className="contact-us__link-green"
+                    href={GOOGLE_MAPS_DIRECTIONS_URL}
+                    className="contact-us__link-action"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -150,7 +127,7 @@ export default function ContactSection({
                 <IconPhone />
                 <div>
                   <p className="contact-us__label">Phone</p>
-                  <a href={`tel:${phone.replace(/\s/g, '')}`} className="contact-us__value contact-us__value--link">
+                  <a href={`tel:${phone.replace(/\s/g, "")}`} className="contact-us__value contact-us__value--link">
                     {phone}
                   </a>
                 </div>
@@ -175,65 +152,61 @@ export default function ContactSection({
                 <div>
                   <p className="contact-us__label">Business Hours</p>
                   <p className="contact-us__value">Monday – Sunday: 24/7</p>
-                  <p className="contact-us__muted">Front Desk Available Round the Clock</p>
+                  <p className="contact-us__muted">Front desk available round the clock</p>
                 </div>
               </div>
-            </div>
 
-            <div className="contact-us__card contact-us__card--mint">
-              <span className="contact-us__card-kicker contact-us__card-kicker--muted">Quick Links</span>
-              <ul className="contact-us__quick-list">
-                <li>
-                  <a href="/#services" className="contact-us__quick-link">
-                    <IconChevron />
-                    View Our Services
+              {facebook ? (
+                <>
+                  <div className="contact-us__divider" />
+                  <a
+                    href={facebook.href}
+                    className="contact-us__facebook"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span className="contact-us__facebook-icon" aria-hidden>
+                      <IconFacebook />
+                    </span>
+                    <span className="contact-us__facebook-text">
+                      <span className="contact-us__facebook-label">Facebook</span>
+                      <span className="contact-us__facebook-sub">{facebook.label}</span>
+                    </span>
+                    <IconExternal />
                   </a>
-                </li>
-                <li>
-                  <Link to="/guest-room" className="contact-us__quick-link">
-                    <IconChevron />
-                    Book a Room
-                  </Link>
-                </li>
-                <li>
-                  <Link to="/guest-events" className="contact-us__quick-link">
-                    <IconChevron />
-                    Book an Event
-                  </Link>
-                </li>
-              </ul>
-            </div>
-
-            <div className="contact-us__card contact-us__card--elevated">
-              <span className="contact-us__card-kicker contact-us__card-kicker--muted">Follow Us</span>
-              <div className="contact-us__social">
-                <a
-                  href="https://www.facebook.com/"
-                  className="contact-us__social-btn contact-us__social-btn--fb"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Facebook"
-                >
-                  <span className="contact-us__social-f">f</span>
-                </a>
-                <a
-                  href="https://www.instagram.com/"
-                  className="contact-us__social-btn contact-us__social-btn--ig"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="Instagram"
-                >
-                  <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden>
-                    <rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                    <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="1.8" />
-                    <circle cx="17" cy="7" r="1.2" fill="currentColor" />
-                  </svg>
-                </a>
-              </div>
+                </>
+              ) : null}
             </div>
           </aside>
+
+          <div className="contact-us__map-col">
+            <div className="contact-us__map-frame">
+              <iframe
+                title={`Map showing ${businessName}`}
+                className="contact-us__map"
+                src={mapSrc}
+                loading="lazy"
+                referrerPolicy="no-referrer-when-downgrade"
+                allowFullScreen
+              />
+              {popupOpen ? (
+                <div className="contact-us__map-popup" role="status">
+                  <button
+                    type="button"
+                    className="contact-us__popup-close"
+                    onClick={() => setPopupOpen(false)}
+                    aria-label="Close location card"
+                  >
+                    ×
+                  </button>
+                  <p className="contact-us__popup-name">{businessName}</p>
+                  <p className="contact-us__popup-addr">{addressLine}</p>
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       </div>
     </section>
-  )
+  );
 }

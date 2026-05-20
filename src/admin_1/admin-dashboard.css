@@ -157,6 +157,34 @@ body { font-family: 'Roboto', sans-serif; background: var(--bg-page); min-height
 .db-title { font-family: 'Montserrat', sans-serif; font-size: 22px; font-weight: 800; color: var(--gold); }
 .db-sub   { font-size: 13px; color: var(--text-mid); margin-top: 2px; }
 
+.db-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.db-refresh-btn {
+  padding: 8px 16px;
+  border: 1.5px solid var(--gold-dark);
+  border-radius: 8px;
+  background: #fff;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--gold-dark);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.db-refresh-btn:hover:not(:disabled) {
+  background: #fdf8f0;
+  border-color: var(--gold);
+}
+.db-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* STAT CARDS */
 .db-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
 

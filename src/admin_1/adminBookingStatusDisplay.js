@@ -23,12 +23,12 @@ export function formatAdminBookingStatusLabel(raw) {
     .trim()
     .toLowerCase();
   if (k === "approved" || k === "confirmed") return "Approved";
-  if (k === "pending") return "Pending approval";
+  if (k === "pending") return "Pending Approval";
   if (k === "rejected" || k === "declined") return "Rejected";
   if (k === "cancelled") return "Cancelled";
   if (k === "completed") return "Completed";
   if (k === "occupied") return "Occupied";
-  if (!k) return "Pending approval";
+  if (!k) return "Pending Approval";
   return k
     .replace(/_/g, " ")
     .split(/\s+/)

@@ -8,7 +8,6 @@ import {
   fetchHousekeepingTasksBackend,
   postHousekeepingReconcileMissingBackend,
   putHousekeepingTaskStatusBackend,
-  deleteHousekeepingTaskBackend,
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
   HOUSEKEEPING_TASKS_STORAGE_PING_KEY,
   dispatchHousekeepingTasksRefresh,
@@ -20,7 +19,14 @@ import HousekeepingSidebar from "./HousekeepingSidebar";
 import HousekeepingSidebarToggle from "./HousekeepingSidebarToggle";
 import { useHousekeepingSidebarLayout } from "./useHousekeepingSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
+import {
+  assetStatusToDisplayLabel,
+  assetStatusForInventoryDisplay,
+  getAssetStatusBadgeClass,
+  taskTabToLabel,
+} from "./housekeepingStatusDisplay";
 import "./housekeepingrooms.css";
+import "./housekeeping-admin-shell.css";
 
 // ── Icons ──────────────────────────────────────────────────────────────
 const DashIcon = () => (
@@ -71,16 +77,6 @@ function readDamageMap() {
   }
 }
 
-function assetStatusToLabel(statusRaw) {
-  const s = String(statusRaw || "").toLowerCase();
-  if (s === "available") return "Available";
-  if (s === "occupied") return "Occupied";
-  if (s === "needs_cleaning") return "Need Clean";
-  if (s === "cleaning_in_progress") return "In Progress";
-  if (s === "ready") return "Ready";
-  return statusRaw || "—";
-}
-
 function formatDateLabel(s) {
   if (s == null || s === "") return "—";
   const str = String(s);
@@ -106,8 +102,11 @@ function roomRowFromTask(t) {
   const phone = b?.contactNumber?.trim() || "";
   const checkIn = formatDateLabel(b?.checkIn);
   const checkOut = formatDateLabel(b?.checkOut);
-  const assetLabel = assetStatusToLabel(asset.status);
-  const displayStatus = t.status === "completed" ? "Available" : assetLabel;
+  const assetLabel = assetStatusToDisplayLabel(asset.status);
+  const displayStatus =
+    t.status === "completed"
+      ? assetStatusForInventoryDisplay(asset.status || "available")
+      : assetLabel;
   return {
     taskId: t.id,
     number: num,
@@ -350,43 +349,8 @@ export default function RoomCleaning() {
     }
   }
 
-  async function handleDelete(taskId) {
-    if (
-      !window.confirm(
-        "Remove this cleaning task from the list? This does not change the room’s catalog status. You can reconcile later if a new task is needed."
-      )
-    ) {
-      return;
-    }
-    setBusyId(taskId);
-    try {
-      await deleteHousekeepingTaskBackend(taskId);
-      setDamageByTaskId((prev) => {
-        const next = { ...prev };
-        delete next[taskId];
-        return next;
-      });
-      await loadTasks();
-      dispatchHousekeepingTasksRefresh();
-      dispatchHousekeepingInboxRefresh();
-      showToast("Removed", "Task removed from the queue.");
-    } catch (e) {
-      showToast("Delete failed", e?.message || "Request failed.");
-    } finally {
-      setBusyId("");
-    }
-  }
-
   function getBadgeClass(displayStatus) {
-    if (displayStatus === "Need Clean") return "badge-needclean";
-    if (displayStatus === "In Progress") return "badge-inprogress";
-    if (displayStatus === "Ready" || displayStatus === "Available") return "badge-available";
-    if (displayStatus === "Occupied") return "badge-occupied";
-    const lower = String(displayStatus || "").toLowerCase();
-    if (lower === "approved" || lower === "confirmed") return "badge-booking-approved";
-    if (lower === "pending" || lower.includes("pending")) return "badge-booking-pending";
-    if (lower === "rejected" || lower === "declined" || lower === "cancelled") return "badge-booking-rejected";
-    return "badge-neutral";
+    return getAssetStatusBadgeClass(displayStatus);
   }
 
   /** No room/venue status yet — hide cell so a neutral pill is not mistaken for a control beside Start. */
@@ -501,7 +465,7 @@ export default function RoomCleaning() {
                   className={`rc-tab${currentTab === tab ? " active" : ""}`}
                   onClick={() => setCurrentTab(tab)}
                 >
-                  {{ pending: "Pending", inprogress: "In progress", completed: "Completed" }[tab]}
+                  {taskTabToLabel(tab)}
                 </button>
               ))}
             </div>
@@ -526,22 +490,23 @@ export default function RoomCleaning() {
               <table className="rc-table">
                 <thead>
                   <tr>
-                    <th>Number</th>
+                    <th>Room</th>
                     <th>Package</th>
+                    <th>Guest</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={4} className="rc-empty">
+                      <td colSpan={5} className="rc-empty">
                         Loading…
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="rc-empty" style={{ textAlign: "center", padding: "28px 20px", verticalAlign: "top" }}>
+                      <td colSpan={5} className="rc-empty" style={{ textAlign: "center", padding: "28px 20px", verticalAlign: "top" }}>
                         {loadError ? (
                           <span style={{ fontSize: 13, color: "#9a8060" }}>See the message above.</span>
                         ) : (
@@ -555,9 +520,20 @@ export default function RoomCleaning() {
                   ) : (
                     filtered.map((r) => (
                       <tr key={r.taskId}>
-                        <td>{r.number}</td>
+                        <td className="rc-td-room">
+                          <span className="rc-room-num">{r.number}</span>
+                          {r.stayLabel !== "—" ? (
+                            <span className="rc-room-meta">{r.stayLabel}</span>
+                          ) : null}
+                        </td>
                         <td>{r.package}</td>
-                        <td>{taskStatusCell(r.displayStatus)}</td>
+                        <td className="rc-td-guest">
+                          <span className="rc-guest-name">{r.guest}</span>
+                          {r.guestDetail !== "—" ? (
+                            <span className="rc-guest-meta">{r.guestDetail}</span>
+                          ) : null}
+                        </td>
+                        <td className="rc-td-status">{taskStatusCell(r.displayStatus)}</td>
                         <td>
                           <div className="rc-action-cell">
                           {r.taskStatus === "pending" ? (
@@ -577,7 +553,7 @@ export default function RoomCleaning() {
                               disabled={busyId === r.taskId}
                               onClick={() => handleComplete(r.taskId)}
                             >
-                              Completed
+                              Mark complete
                             </button>
                           ) : null}
                           {r.taskStatus === "completed" ? (
@@ -594,17 +570,6 @@ export default function RoomCleaning() {
                                 Report Damage
                               </button>
                             )
-                          ) : null}
-                          {(r.taskStatus === "pending" || r.taskStatus === "in_progress") ? (
-                            <button
-                              type="button"
-                              className="rc-action-btn btn-delete-task"
-                              disabled={busyId === r.taskId}
-                              title="Remove this task from the list"
-                              onClick={() => void handleDelete(r.taskId)}
-                            >
-                              Delete
-                            </button>
                           ) : null}
                           </div>
                         </td>

@@ -5,10 +5,11 @@ import { useEffect } from "react";
  * @param {(direction: number) => void} advance — e.g. slide handler with direction `1` for next
  * @param {number} slideCount
  * @param {number} [intervalMs=5000]
+ * @param {boolean} [paused=false] — pause timer (e.g. while hovering the carousel)
  */
-export function useCarouselAutoAdvance(advance, slideCount, intervalMs = 5000) {
+export function useCarouselAutoAdvance(advance, slideCount, intervalMs = 5000, paused = false) {
   useEffect(() => {
-    if (slideCount <= 1) return;
+    if (slideCount <= 1 || paused) return;
 
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
@@ -16,5 +17,5 @@ export function useCarouselAutoAdvance(advance, slideCount, intervalMs = 5000) {
     }, intervalMs);
 
     return () => window.clearInterval(id);
-  }, [advance, slideCount, intervalMs]);
+  }, [advance, slideCount, intervalMs, paused]);
 }

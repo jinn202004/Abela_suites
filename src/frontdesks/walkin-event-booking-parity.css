@@ -1329,3 +1329,129 @@
     line-height: 1.2;
     box-sizing: border-box;
   }
+
+/* Guest event reservation form parity (walk-in modal) */
+.walkin-event-booking-root .booking-form--event {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.walkin-event-booking-root .booking-form--event .booking-form-error-banner {
+  margin: 0;
+  padding: 10px 14px;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #92400e;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+}
+.walkin-event-booking-root .booking-form--event .booking-cal-hint {
+  display: block;
+  margin: 0 0 6px;
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-mid);
+}
+.walkin-event-booking-root .booking-form--event .form-row--event-schedule,
+.walkin-event-booking-root .booking-form--event .ev-form-row--guest-event-date-cal {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 20px;
+  align-items: start;
+}
+.walkin-event-booking-root .booking-form--event .form-row--event-schedule .booking-cal-unavailable-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 12px;
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-dark);
+  background: rgba(184, 146, 42, 0.1);
+  border: 1px solid rgba(212, 196, 168, 0.95);
+  border-radius: 8px;
+}
+.walkin-event-booking-root .booking-form--event .form-row--event-schedule .booking-cal-unavailable-hint strong {
+  color: var(--gold-dark);
+  font-weight: 700;
+}
+.walkin-event-booking-root .booking-form--event .form-label-static .required {
+  color: #e74c3c;
+}
+.walkin-event-booking-root .booking-form--event .booking-day-picker-wrap {
+  border: 1.5px solid #d4c4a8;
+  border-radius: 10px;
+  padding: 10px 8px 12px;
+  background: #ffffff;
+  max-width: 100%;
+  overflow-x: auto;
+}
+.walkin-event-booking-root .booking-form--event .booking-day-picker-wrap--error {
+  border-color: #c0392b;
+  box-shadow: 0 0 0 3px rgba(192, 57, 43, 0.1);
+}
+.walkin-event-booking-root .booking-form--event .booking-day-picker.rdp-root {
+  --rdp-accent-color: #b8922a;
+  --rdp-accent-background-color: rgba(184, 146, 42, 0.14);
+  margin: 0 auto;
+}
+.walkin-event-booking-root .booking-form--event .ev-time-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.walkin-event-booking-root .booking-form--event .ev-time-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.walkin-event-booking-root .booking-form--event .booking-schedule-note {
+  margin: 4px 0 0;
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-mid);
+}
+.walkin-event-booking-root .booking-form--event .booking-form-billing-block {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 4px;
+}
+.walkin-event-booking-root .booking-form--event .booking-bill-hint {
+  margin: 0;
+  padding: 10px 14px;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-mid);
+  background: #faf7f2;
+  border: 1px dashed #d4c4a8;
+  border-radius: 8px;
+}
+.walkin-event-booking-root .booking-form--event .ev-guest-ev-day-schedule {
+  margin-top: 4px;
+  padding: 12px 14px;
+  border: 1px solid #e8dcc8;
+  border-radius: 8px;
+  background: #faf8f4;
+}
+.walkin-event-booking-root .booking-form--event .ev-guest-ev-cal-legend-wrap .fd-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 24px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid);
+}
+@media (max-width: 720px) {
+  .walkin-event-booking-root .booking-form--event .form-row--event-schedule,
+  .walkin-event-booking-root .booking-form--event .ev-form-row--guest-event-date-cal {
+    grid-template-columns: 1fr;
+  }
+}

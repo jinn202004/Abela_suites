@@ -504,53 +504,71 @@
   min-height: 14px;
 }
 
-/* ── TOAST (compact banner — do not reuse modalIn: it drops translateX(-50%) and can stretch in flex layouts) ── */
+/* ── TOAST (same compact snackbar as room-management .rm-toast) ── */
 @keyframes invToastIn {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(10px) scale(0.98);
+    transform: translateX(-50%) translateY(12px);
   }
   to {
     opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
+    transform: translateX(-50%) translateY(0);
   }
 }
 
 .inv-toast {
   position: fixed;
-  top: 70px;
+  bottom: 28px;
   left: 50%;
   right: auto;
-  bottom: auto;
+  top: auto;
   transform: translateX(-50%);
-  z-index: 700;
+  z-index: 10050;
   box-sizing: border-box;
   display: inline-flex;
   flex-direction: row;
   align-items: center;
   gap: 10px;
   width: max-content;
-  max-width: min(520px, calc(100vw - 24px));
+  max-width: min(420px, calc(100vw - 24px));
   min-width: 0;
-  flex-shrink: 0;
+  height: auto;
+  max-height: none;
+  flex: none;
+  align-self: auto;
   margin: 0;
-  padding: 14px 24px;
+  padding: 14px 20px;
   background: #fff;
-  border: 2px solid #27ae60;
+  border: 1px solid #d4edda;
   border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.13);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
   font-family: "Roboto", sans-serif;
-  font-size: 13.5px;
+  font-size: 14px;
   color: var(--text-dark);
   pointer-events: none;
-  animation: invToastIn 0.28s ease both;
+  overflow: visible;
+  animation: invToastIn 0.25s ease both;
+}
+
+.inv-toast svg {
+  flex-shrink: 0;
 }
 
 .inv-toast .inv-toast-msg {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  text-align: left;
+  word-break: break-word;
+}
+
+/* Inventory toast is a #root sibling — undo global `#root > div` full-viewport flex */
+#root > div.inv-toast {
+  display: inline-flex;
+  flex: 0 0 auto;
+  width: max-content;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  overflow: visible;
 }
 
 /* ── ACTIVITY LOG MODAL ── */

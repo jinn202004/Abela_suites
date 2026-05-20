@@ -6,7 +6,9 @@ import {
   fetchRoomsCatalog,
   fetchEventVenuesBackend,
   fetchHousekeepingTasksBackend,
+  fetchHousekeepingTeamBackend,
   postHousekeepingReconcileMissingBackend,
+  putHousekeepingTaskStatusBackend,
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
   HOUSEKEEPING_TASKS_STORAGE_PING_KEY,
 } from "../api/guestApi";
@@ -17,7 +19,19 @@ import HousekeepingSidebar from "./HousekeepingSidebar";
 import HousekeepingSidebarToggle from "./HousekeepingSidebarToggle";
 import { useHousekeepingSidebarLayout } from "./useHousekeepingSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
+import {
+  assetStatusForInventoryDisplay,
+  getAssetStatusBadgeClass,
+} from "./housekeepingStatusDisplay";
+import {
+  pickBestTask,
+  resolveAssetHousekeepingLabel,
+  tasksForRoom,
+  tasksForVenue,
+  teamNamesFromMembers,
+} from "./housekeepingAssignDisplay";
 import "./rooms.css";
+import "./housekeeping-admin-shell.css";
 
 const DAMAGE_STORAGE_KEY = "abela_hk_room_damage_reports";
 
@@ -83,50 +97,39 @@ function readDamageReportCount() {
   }
 }
 
-function assetStatusToLabel(statusRaw) {
-  const s = String(statusRaw || "").toLowerCase();
-  if (s === "available") return "Available";
-  if (s === "occupied") return "Occupied";
-  if (s === "needs_cleaning") return "Need Clean";
-  if (s === "cleaning_in_progress") return "In Progress";
-  if (s === "ready") return "Ready";
-  return statusRaw || "—";
-}
-
-/** Match reference: cleaned rooms show as "Available" (green). */
 function displayStatusLabel(statusRaw) {
-  const l = assetStatusToLabel(statusRaw);
-  if (l === "Ready") return "Available";
-  return l;
+  return assetStatusForInventoryDisplay(statusRaw);
 }
 
 function getBadgeClass(displayStatus) {
-  if (displayStatus === "Available") return "rm-badge badge-available";
-  if (displayStatus === "Occupied") return "rm-badge badge-occupied";
-  if (displayStatus === "Need Clean") return "rm-badge badge-needclean";
-  if (displayStatus === "In Progress") return "rm-badge badge-inprogress";
-  return "rm-badge";
+  return `rm-badge ${getAssetStatusBadgeClass(displayStatus)}`;
 }
 
-function buildInventoryRows(rooms, venues) {
-  const roomRows = (rooms || []).map((r) => ({
-    key: `room-${r.id}`,
-    number: r.roomNumber,
-    housekeeping: "—",
-    package: String(r.package || r.title || "—").trim() || "—",
-    type: "Room",
-    displayStatus: displayStatusLabel(r.status),
-    sort: sortKey(r.roomNumber),
-  }));
-  const venueRows = (venues || []).map((v) => ({
-    key: `venue-${v.id}`,
-    number: v.eventNum ?? "—",
-    housekeeping: "—",
-    package: String(v.name || v.package || "—").trim() || "—",
-    type: "Event",
-    displayStatus: displayStatusLabel(v.status),
-    sort: sortKey(v.eventNum),
-  }));
+function buildInventoryRows(rooms, venues, tasks, teamNames = []) {
+  const roomRows = (rooms || []).map((r) => {
+    const task = pickBestTask(tasksForRoom(tasks, r.id, r.roomNumber));
+    return {
+      key: `room-${r.id}`,
+      number: r.roomNumber,
+      housekeeping: resolveAssetHousekeepingLabel(task, teamNames, r.status),
+      package: String(r.package || r.title || "—").trim() || "—",
+      type: "Room",
+      displayStatus: displayStatusLabel(r.status),
+      sort: sortKey(r.roomNumber),
+    };
+  });
+  const venueRows = (venues || []).map((v) => {
+    const task = pickBestTask(tasksForVenue(tasks, v.id, v.eventNum));
+    return {
+      key: `venue-${v.id}`,
+      number: v.eventNum ?? "—",
+      housekeeping: resolveAssetHousekeepingLabel(task, teamNames, v.status),
+      package: String(v.name || v.package || "—").trim() || "—",
+      type: "Event",
+      displayStatus: displayStatusLabel(v.status),
+      sort: sortKey(v.eventNum),
+    };
+  });
   return [...roomRows, ...venueRows].sort((a, b) => a.sort - b.sort);
 }
 
@@ -134,6 +137,7 @@ export default function Dashboard() {
   const [rooms, setRooms] = useState([]);
   const [venues, setVenues] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [hkTeam, setHkTeam] = useState([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
   const [damageCount, setDamageCount] = useState(() => readDamageReportCount());
@@ -191,12 +195,32 @@ export default function Dashboard() {
           await postHousekeepingReconcileMissingBackend().catch(() => {});
         }
 
-        const [venList, taskList] = await Promise.all([
+        const [venList, taskList, teamList] = await Promise.all([
           fetchEventVenuesBackend().catch(() => []),
           fetchHousekeepingTasksBackend(true).catch(() => []),
+          fetchHousekeepingTeamBackend().catch(() => []),
         ]);
         setVenues(Array.isArray(venList) ? venList : []);
-        setTasks(Array.isArray(taskList) ? taskList : []);
+        setHkTeam(Array.isArray(teamList) ? teamList : []);
+
+        let tasksOut = Array.isArray(taskList) ? taskList : [];
+        if (role === "housekeeping") {
+          const needsAssignee = tasksOut.filter(
+            (t) =>
+              String(t?.status || "").toLowerCase() === "in_progress" &&
+              !String(t?.assignedTo?.name || "").trim(),
+          );
+          if (needsAssignee.length) {
+            await Promise.all(
+              needsAssignee.map((t) =>
+                putHousekeepingTaskStatusBackend(t.id, "in_progress").catch(() => null),
+              ),
+            );
+            const refreshed = await fetchHousekeepingTasksBackend(true).catch(() => null);
+            if (Array.isArray(refreshed)) tasksOut = refreshed;
+          }
+        }
+        setTasks(tasksOut);
         setLoadError("");
       } catch (e) {
         if (!silent) {
@@ -258,11 +282,15 @@ export default function Dashboard() {
     syncDamageCount();
   }, [rooms, venues, tasks, syncDamageCount]);
 
-  const inventoryRows = useMemo(() => buildInventoryRows(rooms, venues), [rooms, venues]);
+  const hkTeamNames = useMemo(() => teamNamesFromMembers(hkTeam), [hkTeam]);
+  const inventoryRows = useMemo(
+    () => buildInventoryRows(rooms, venues, tasks, hkTeamNames),
+    [rooms, venues, tasks, hkTeamNames],
+  );
 
   const stats = useMemo(() => {
-    const needClean = inventoryRows.filter((r) => r.displayStatus === "Need Clean").length;
-    const inProgress = inventoryRows.filter((r) => r.displayStatus === "In Progress").length;
+    const needClean = inventoryRows.filter((r) => r.displayStatus === "Needs Cleaning").length;
+    const inProgress = inventoryRows.filter((r) => r.displayStatus === "Cleaning in Progress").length;
     const completed = tasks.filter((t) => t.status === "completed").length;
     return {
       needClean,

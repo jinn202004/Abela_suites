@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Chart, registerables } from "chart.js";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
@@ -9,10 +9,8 @@ import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { useFrontdeskPendingNotifications } from "../frontdesks/useFrontdeskPendingNotifications";
 import { StaffNotificationDetailModal, useStaffNotificationDetail } from "../frontdesks/StaffNotificationDetailModal";
-import {
-  fetchFrontdeskDashboardBundleBackend,
-} from "../api/guestApi";
-import { formatPeso } from "../frontdesks/dashboard.service";
+import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { formatPeso, loadStaffDashboardBundle } from "../frontdesks/dashboard.service";
 import "./admin-dashboard.css";
 
 Chart.register(...registerables);
@@ -177,8 +175,8 @@ function recentRows(bookings, recentDays) {
   });
   return rows.slice(0, 12).map((b) => ({
     name:
+      String(b.customerName ?? "").trim() ||
       (b.guest && typeof b.guest === "object" && b.guest.displayName) ||
-      b.customerName ||
       b.email ||
       "Guest",
     status: mapStatusToRecentLabel(b.status),
@@ -227,65 +225,61 @@ export default function AdminDashboard() {
   });
   const [loadError, setLoadError] = useState("");
   const [dashboardLoading, setDashboardLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [overviewDays, setOverviewDays] = useState(7);
   const [recentDays, setRecentDays] = useState(7);
 
-  useEffect(() => {
-    let cancelled = false;
-    fetchFrontdeskDashboardBundleBackend()
-      .then((data) => {
-        if (cancelled) return;
-        const s = data.summary;
-        setSummary(
-          s && typeof s === "object"
-            ? {
-                reservationsToday: typeof s.reservationsToday === "number" ? s.reservationsToday : 0,
-                checkOutsToday: typeof s.checkOutsToday === "number" ? s.checkOutsToday : 0,
-                totalRevenue: typeof s.totalRevenue === "number" ? s.totalRevenue : 0,
-                outstandingBalances: typeof s.outstandingBalances === "number" ? s.outstandingBalances : 0,
-              }
-            : null,
-        );
-        setAvailableRoomsCount(
-          typeof data.availableRoomsCount === "number" ? data.availableRoomsCount : 0,
-        );
-        setBookings(
-          (data.bookingsLite || []).map((b) => ({
-            id: b.id,
-            type: b.type,
-            status: b.status,
-            checkIn: b.checkIn,
-            checkOut: b.checkOut,
-            eventDate: b.eventDate,
-            eventEndDate: b.eventEndDate,
-            customerName: b.customerName,
-            email: b.email,
-            paymentAmount: b.paymentAmount,
-            totalAmount: b.totalAmount,
-            venuePrice: b.venuePrice,
-            createdAt: b.createdAt,
-            updatedAt: b.updatedAt,
-            guest: { displayName: b.guestDisplayName || "" },
-          })),
-        );
-        setFetchOk({ summary: true, bookings: true, rooms: true });
-        setLoadError("");
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setSummary(null);
-        setBookings([]);
-        setAvailableRoomsCount(null);
-        setFetchOk({ summary: false, bookings: false, rooms: false });
-        setLoadError("Dashboard could not be loaded. Sign in as admin or front desk and ensure the API is running.");
-      })
-      .finally(() => {
-        if (!cancelled) setDashboardLoading(false);
+  const refreshDashboard = useCallback(async (opts = {}) => {
+    const silent = opts.silent === true;
+    if (!silent) setRefreshing(true);
+    try {
+      const data = await loadStaffDashboardBundle();
+      const s = data.summary;
+      setSummary(
+        s && typeof s === "object"
+          ? {
+              reservationsToday: typeof s.reservationsToday === "number" ? s.reservationsToday : 0,
+              checkOutsToday: typeof s.checkOutsToday === "number" ? s.checkOutsToday : 0,
+              totalRevenue: typeof s.totalRevenue === "number" ? s.totalRevenue : 0,
+              outstandingBalances: typeof s.outstandingBalances === "number" ? s.outstandingBalances : 0,
+            }
+          : null,
+      );
+      setAvailableRoomsCount(
+        typeof data.availableRoomsCount === "number" ? data.availableRoomsCount : 0,
+      );
+      setBookings(data.bookings ?? []);
+      setFetchOk({
+        summary: Boolean(s),
+        bookings: Array.isArray(data.bookings) && data.bookings.length >= 0,
+        rooms: typeof data.availableRoomsCount === "number",
       });
-    return () => {
-      cancelled = true;
-    };
+      setLoadError(data.loadError && !data.ok ? data.loadError : "");
+    } catch (e) {
+      setSummary(null);
+      setBookings([]);
+      setAvailableRoomsCount(null);
+      setFetchOk({ summary: false, bookings: false, rooms: false });
+      setLoadError(
+        e?.message ||
+          "Dashboard could not be loaded. Sign in as admin or front desk and ensure the API is running.",
+      );
+    } finally {
+      if (!silent) setRefreshing(false);
+      setDashboardLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void refreshDashboard();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount load only
+  }, []);
+
+  useEffect(() => {
+    const onAuth = () => void refreshDashboard({ silent: true });
+    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
+    return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
+  }, [refreshDashboard]);
 
   const overviewSeries = useMemo(
     () => bookingOverviewFromBookings(bookings, overviewDays),
@@ -483,10 +477,19 @@ export default function AdminDashboard() {
         {/* ── PAGE CONTENT ── */}
         <main className="content">
 
-          {/* Heading */}
-          <div>
-            <h2 className="db-title">Abela&rsquo;s Dashboard</h2>
-            <p className="db-sub">Overview of key metrics and performance indicators</p>
+          <div className="db-heading-row">
+            <div>
+              <h2 className="db-title">Abela&rsquo;s Dashboard</h2>
+              <p className="db-sub">Overview of key metrics and performance indicators</p>
+            </div>
+            <button
+              type="button"
+              className="db-refresh-btn"
+              disabled={refreshing}
+              onClick={() => void refreshDashboard()}
+            >
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
           </div>
 
           {loadError ? (
@@ -542,8 +545,8 @@ export default function AdminDashboard() {
                   ))}
                 </div>
                 <p className="db-sub" style={{ marginTop: "0.5rem", fontSize: "12px", opacity: 0.85 }}>
-                  Counts by booking creation date (approved vs pending vs cancelled/rejected). Uses{' '}
-                  <code style={{ fontSize: "11px" }}>/api/bookings</code>.
+                  Counts by booking creation date (approved vs pending vs cancelled/rejected). Loaded from{' '}
+                  <code style={{ fontSize: "11px" }}>/api/frontdesk/dashboard-bundle</code>.
                 </p>
               </div>
 

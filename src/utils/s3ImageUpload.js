@@ -17,9 +17,18 @@ export function isLikelyNetworkFailure(err) {
   );
 }
 
+export function isHttpImageUrl(value) {
+  return /^https?:\/\//i.test(String(value ?? "").trim());
+}
+
 export function isStoredImageRef(value) {
   const s = String(value || "").trim();
-  return s.startsWith("data:image/") || /^https?:\/\//i.test(s);
+  return s.startsWith("data:image/") || isHttpImageUrl(s);
+}
+
+/** Bookings with S3 enabled must submit an HTTPS URL, not a dev data-URL fallback. */
+export function isBookingSubmitImageRef(value) {
+  return isHttpImageUrl(value);
 }
 
 export function readImageFileAsDataUrlLimited(file, maxChars = MENU_IMAGE_DATA_URL_MAX_CHARS) {
@@ -72,16 +81,42 @@ export async function handleImageFileInputChange(file, opts) {
     onSuccess: opts.setPreview,
     onError: opts.setError,
     onFallbackToast: opts.onFallbackToast,
+    requireS3: opts.requireS3 === true,
   });
 }
 
+/**
+ * Ensure booking payload uses an S3 URL — re-upload from File if preview is still a data URL.
+ */
+export async function resolveImageUrlForSubmit(preview, file, uploadFn, label = "Image") {
+  const s = String(preview ?? "").trim();
+  if (isHttpImageUrl(s)) return s;
+  if (file) {
+    const result = await uploadFn(file);
+    if (!result?.publicUrl || !isHttpImageUrl(result.publicUrl)) {
+      throw new Error(`${label} upload did not return a valid URL. Please try again.`);
+    }
+    return result.publicUrl;
+  }
+  if (s.startsWith("data:image/")) {
+    throw new Error(
+      `${label} must finish uploading to the server before you submit. Please select the file again and wait until the preview appears.`,
+    );
+  }
+  throw new Error(`Please upload ${label.toLowerCase()}.`);
+}
+
 export async function uploadImageWithOptionalFallback(file, uploadFn, hooks) {
-  const { onSuccess, onError, onFallbackToast } = hooks;
+  const { onSuccess, onError, onFallbackToast, requireS3 = false } = hooks;
   try {
     const result = await uploadFn(file);
     onSuccess(result.publicUrl);
   } catch (err) {
-    if (IMAGE_LOCAL_FALLBACK_ENABLED && (err?.status === 503 || isLikelyNetworkFailure(err))) {
+    if (
+      !requireS3 &&
+      IMAGE_LOCAL_FALLBACK_ENABLED &&
+      (err?.status === 503 || isLikelyNetworkFailure(err))
+    ) {
       const dataUrl = await readImageFileAsDataUrlLimited(file);
       onSuccess(dataUrl);
       onFallbackToast?.(err?.status === 503 ? "s3-disabled" : "network");

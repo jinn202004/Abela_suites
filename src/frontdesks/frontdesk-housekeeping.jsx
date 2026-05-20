@@ -10,15 +10,18 @@ import { useFrontdeskShell } from "./FrontdeskShellContext";
 import { StaffNotificationDetailModal, useStaffNotificationDetail } from "./StaffNotificationDetailModal";
 import {
   fetchRoomsCatalog,
+  fetchEventVenuesBackend,
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
   patchRoomHousekeepingStatusBackend,
   dispatchHousekeepingTasksRefresh,
   dispatchHousekeepingInboxRefresh,
 } from "../api/guestApi";
+import {
+  FRONTDESK_HK_STATUS_OPTIONS,
+  frontDeskSelectValueFromRaw,
+  frontDeskStatusLabel,
+} from "../housekeeping/housekeepingStatusDisplay";
 import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
-import { jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
-import { pdfSafeText, openPdfPrintOrDownload } from "../utils/pdfClientExport";
 import "./frontdesk-housekeeping.css";
 
 const sidebarNav = [
@@ -100,98 +103,18 @@ function sortKey(n) {
   return Number.isNaN(v) ? 99999 : v;
 }
 
-function assetStatusToLabel(statusRaw) {
-  const s = String(statusRaw || "").toLowerCase();
-  if (s === "available") return "Available";
-  if (s === "occupied") return "Occupied";
-  if (s === "needs_cleaning") return "Need Clean";
-  if (s === "cleaning_in_progress") return "In Progress";
-  if (s === "ready") return "Ready";
-  return statusRaw || "—";
-}
-
-/** Match housekeeping dashboard: turnover-complete rooms show like available inventory. */
-function displayStatusLabel(statusRaw) {
-  const l = assetStatusToLabel(statusRaw);
-  if (l === "Ready") return "Available";
-  return l;
-}
-
-/** Values allowed by PATCH /api/rooms/:id/housekeeping-status */
-const HK_OPTIONS = [
-  { value: "needs_cleaning", label: "Needs clean" },
-  { value: "available", label: "Available" },
-];
-
-/** PDF of the current filtered list only — read-only; does not PATCH rooms or touch the database. */
-function downloadHousekeepingRoomListPdf(rows, searchFilter, getPendingLabel) {
-  const list = Array.isArray(rows) ? rows : [];
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const margin = 14;
-  let y = 14;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text("ABELA SUITES", margin, y);
-  y += 7;
-  doc.setFontSize(11);
-  doc.text("Housekeeping room list (read-only)", margin, y);
-  y += 5;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString("en-PH")}`, 88), margin, y);
-  y += 5;
-  const q = String(searchFilter || "").trim();
-  if (q) {
-    doc.text(pdfSafeText(`Search filter: ${q}`, 80), margin, y);
-    y += 5;
-  }
-  y += 2;
-
-  const head = [["Room #", "Type", "Status", "Pending selection"]];
-  const body =
-    list.length > 0
-      ? list.map((r) => [
-          pdfSafeText(r.number, 16),
-          pdfSafeText(r.type, 48),
-          pdfSafeText(r.displayStatus, 24),
-          pdfSafeText(typeof getPendingLabel === "function" ? getPendingLabel(r) : "—", 28),
-        ])
-      : [["—", "No rooms in this view", "", ""]];
-
-  autoTable(doc, {
-    startY: y,
-    head,
-    body,
-    styles: { fontSize: 8, cellPadding: 1.5 },
-    headStyles: { fillColor: [184, 146, 42], textColor: 255 },
-    margin: { left: margin, right: margin },
-    theme: "striped",
-  });
-
-  const stamp = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(new Date().getDate()).padStart(2, "0")}_${String(new Date().getHours()).padStart(2, "0")}${String(new Date().getMinutes()).padStart(2, "0")}${String(new Date().getSeconds()).padStart(2, "0")}`;
-  openPdfPrintOrDownload(doc, `Abela_Housekeeping_RoomList_${stamp}.pdf`);
-}
-
-function hkBackendFromRaw(raw) {
-  const s = String(raw || "").toLowerCase();
-  if (s === "needs_cleaning") return "needs_cleaning";
-  if (s === "ready" || s === "available") return "available";
-  /** Legacy DB value: no longer a dropdown option; treat as needs clean for the selector. */
-  if (s === "cleaning_in_progress") return "needs_cleaning";
-  /** Occupied (and any other state): map to needs clean so the two-option control stays valid. */
-  return "needs_cleaning";
-}
-
 export default function HousekeepingRooms() {
   const { isMobile, mainStyle } = useFrontdeskShell();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { pendingCount, displayNotifications, markStaffNotificationsSeen } = useFrontdeskPendingNotifications({
     bookingType: "all",
   });
+  const [viewMode, setViewMode] = useState("rooms");
   const [roomRows, setRoomRows] = useState([]);
+  const [venueRows, setVenueRows] = useState([]);
   const [loadError, setLoadError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [search, setSearch]       = useState("");
+  const [search, setSearch] = useState("");
   /** Client-side table pagination only; same `fetchRoomsCatalog` load as before (no API/DB change). */
   const [hkListPage, setHkListPage] = useState(1);
   const [hkListPageSize, setHkListPageSize] = useState(10);
@@ -207,7 +130,10 @@ export default function HousekeepingRooms() {
       setLoadError("");
     }
     try {
-      const rooms = await fetchRoomsCatalog();
+      const [rooms, venues] = await Promise.all([
+        fetchRoomsCatalog(),
+        fetchEventVenuesBackend().catch(() => []),
+      ]);
       const list = Array.isArray(rooms) ? rooms : [];
       const mapped = list
         .map((r) => ({
@@ -215,11 +141,24 @@ export default function HousekeepingRooms() {
           number: String(r.roomNumber ?? "").trim() || "—",
           type: String(r.package || r.title || "—").trim() || "—",
           rawStatus: String(r.status || "available").toLowerCase(),
-          displayStatus: displayStatusLabel(r.status),
+          displayStatus: frontDeskStatusLabel(r.status),
           sort: sortKey(r.roomNumber),
         }))
         .sort((a, b) => a.sort - b.sort);
       setRoomRows(mapped);
+      const vlist = Array.isArray(venues) ? venues : [];
+      setVenueRows(
+        vlist
+          .map((v) => ({
+            key: String(v.id),
+            number: String(v.eventNum ?? "").trim() || "—",
+            type: String(v.package || v.name || "—").trim() || "—",
+            rawStatus: String(v.status || "available").toLowerCase(),
+            displayStatus: frontDeskStatusLabel(v.status),
+            sort: sortKey(v.eventNum),
+          }))
+          .sort((a, b) => a.sort - b.sort),
+      );
       if (!silent) setLoadError("");
     } catch (e) {
       setRoomRows([]);
@@ -239,10 +178,12 @@ export default function HousekeepingRooms() {
     };
     const onHk = () => void loadRooms({ silent: true });
     const onAuth = () => void loadRooms({ silent: true });
+    const poll = window.setInterval(() => void loadRooms({ silent: true }), 5000);
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
     return () => {
+      window.clearInterval(poll);
       document.removeEventListener("visibilitychange", onVis);
       window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHk);
       window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
@@ -256,17 +197,20 @@ export default function HousekeepingRooms() {
   const countAvailable = roomRows.filter(
     (r) => r.rawStatus === "ready" || r.rawStatus === "available",
   ).length;
+  const countInProgress = roomRows.filter((r) => r.rawStatus === "cleaning_in_progress").length;
   const countTotal = roomRows.length;
+
+  const activeRows = viewMode === "venues" ? venueRows : roomRows;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return roomRows.filter(
+    return activeRows.filter(
       (r) =>
         r.number.toLowerCase().includes(q) ||
         r.type.toLowerCase().includes(q) ||
         r.displayStatus.toLowerCase().includes(q),
     );
-  }, [roomRows, search]);
+  }, [activeRows, search]);
 
   const hkPageSizeSafe = Math.min(100, Math.max(5, Number(hkListPageSize) || 10));
   const hkTotalPages = Math.max(1, Math.ceil(filtered.length / hkPageSizeSafe));
@@ -285,17 +229,10 @@ export default function HousekeepingRooms() {
     setHkListPage((p) => Math.min(Math.max(1, p), hkTotalPages));
   }, [hkTotalPages]);
 
-  function getBadgeClass(displayStatus) {
-    if (displayStatus === "Available") return "hk-badge badge-available";
-    if (displayStatus === "Occupied") return "hk-badge badge-occupied";
-    if (displayStatus === "In Progress") return "hk-badge badge-inprogress";
-    if (displayStatus === "Completed") return "hk-badge badge-completed";
-    return "hk-badge badge-needclean";
-  }
-
   async function handleHousekeepingStatusUpdate(r) {
-    const selected = statusDraft[r.key] ?? hkBackendFromRaw(r.rawStatus);
-    const baseline = hkBackendFromRaw(r.rawStatus);
+    if (viewMode === "venues") return;
+    const selected = statusDraft[r.key] ?? frontDeskSelectValueFromRaw(r.rawStatus);
+    const baseline = frontDeskSelectValueFromRaw(r.rawStatus);
     if (selected === baseline) return;
     setSavingRoomKey(r.key);
     setRowActionError((prev) => ({ ...prev, [r.key]: "" }));
@@ -318,11 +255,11 @@ export default function HousekeepingRooms() {
   }
 
   function selectValueForRow(r) {
-    return statusDraft[r.key] ?? hkBackendFromRaw(r.rawStatus);
+    return statusDraft[r.key] ?? frontDeskSelectValueFromRaw(r.rawStatus);
   }
 
   function isDirtyRow(r) {
-    return selectValueForRow(r) !== hkBackendFromRaw(r.rawStatus);
+    return selectValueForRow(r) !== frontDeskSelectValueFromRaw(r.rawStatus);
   }
 
   return (
@@ -358,7 +295,37 @@ export default function HousekeepingRooms() {
           {/* PAGE HEADING */}
           <div className="page-heading">
             <h1 className="page-title">Housekeeping Management</h1>
-            <p className="page-sub">View and update room housekeeping status (Needs clean, Available)</p>
+            <p className="page-sub">
+              View cleaning status for rooms and event venues. Override room status when needed — changes sync with
+              Housekeeping in real time.
+            </p>
+          </div>
+
+          <div className="fd-hk-view-tabs" role="tablist" aria-label="Housekeeping areas">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "rooms"}
+              className={`fd-hk-view-tab${viewMode === "rooms" ? " fd-hk-view-tab--active" : ""}`}
+              onClick={() => {
+                setViewMode("rooms");
+                setHkListPage(1);
+              }}
+            >
+              Rooms
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={viewMode === "venues"}
+              className={`fd-hk-view-tab${viewMode === "venues" ? " fd-hk-view-tab--active" : ""}`}
+              onClick={() => {
+                setViewMode("venues");
+                setHkListPage(1);
+              }}
+            >
+              Event venues
+            </button>
           </div>
 
           {/* STAT CARDS — fd-hk-stat-grid: scoped to avoid .stat-cards repeat(3) from bills CSS in bundle */}
@@ -400,7 +367,7 @@ export default function HousekeepingRooms() {
             </div>
           </div>
 
-          {/* SEARCH + PRINT */}
+          {/* SEARCH */}
           <div className="hk-toolbar">
             <div className="search-wrap">
               <span className="search-icon">
@@ -417,44 +384,32 @@ export default function HousekeepingRooms() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            <button
-              type="button"
-              className="btn-print"
-              title="Open room list as PDF (read-only; does not save changes)"
-              onClick={() => {
-                try {
-                  downloadHousekeepingRoomListPdf(filtered, search, (r) => {
-                    const v = statusDraft[r.key] ?? hkBackendFromRaw(r.rawStatus);
-                    const o = HK_OPTIONS.find((x) => x.value === v);
-                    return o ? o.label : String(v);
-                  });
-                } catch (e) {
-                  window.alert(String(e?.message || "Could not build PDF."));
-                }
-              }}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                <polyline points="6 9 6 2 18 2 18 9"/>
-                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
-                <rect x="6" y="14" width="12" height="8"/>
-              </svg>
-              Print Room Cleaning List
-            </button>
           </div>
 
           {loadError ? <p className="hk-inline-error">{loadError}</p> : null}
           <p className="hk-inline-hint">
-            Choose a status from the list (caret), then click Update to save. When you set <strong>Needs clean</strong>,
-            housekeeping gets a Room Cleaning task and an inbox alert (same data as the housekeeping app). You cannot
-            mark <strong>Available</strong> while the room is still checked in as occupied — use check-out first.
+            {viewMode === "rooms" ? (
+              <>
+                Set status to <strong>Needs Cleaning</strong> or <strong>Available</strong>, then click Update.
+                <strong>Needs Cleaning</strong> notifies housekeeping. You cannot set <strong>Available</strong> while
+                the room is still occupied — check out the guest first.
+              </>
+            ) : (
+              <>
+                Event venue status is updated by the Housekeeping team in Event Cleaning. This view refreshes
+                automatically when housekeeping completes a task.
+              </>
+            )}
           </p>
 
           {isMobile ? (
             <div className="fd-hk-mobile" aria-label="Room list">
               {loading ? (
-                <p className="fd-hk-mobile__empty">Loading rooms…</p>
+                <p className="fd-hk-mobile__empty">Loading…</p>
               ) : filtered.length === 0 ? (
-                <p className="fd-hk-mobile__empty">No rooms match your search.</p>
+                <p className="fd-hk-mobile__empty">
+                  No {viewMode === "venues" ? "venues" : "rooms"} match your search.
+                </p>
               ) : (
                 <ul className="fd-hk-mobile__list">
                   {pagedRows.map((r) => (
@@ -462,7 +417,6 @@ export default function HousekeepingRooms() {
                       <article className="fd-hk-card">
                         <div className="fd-hk-card__top">
                           <span className="fd-hk-card__room">{r.number}</span>
-                          <span className={getBadgeClass(r.displayStatus)}>{r.displayStatus}</span>
                         </div>
                         <dl className="fd-hk-card__dl">
                           <div className="fd-hk-card__row">
@@ -474,19 +428,20 @@ export default function HousekeepingRooms() {
                             <dd className="fd-hk-card__hk-actions">
                               <select
                                 className="hk-status-select"
-                                aria-label={`Housekeeping status for room ${r.number}`}
+                                aria-label={`Housekeeping status for ${viewMode === "venues" ? "venue" : "room"} ${r.number}`}
                                 value={selectValueForRow(r)}
-                                disabled={savingRoomKey === r.key}
+                                disabled={viewMode !== "rooms" || savingRoomKey === r.key}
                                 onChange={(e) =>
                                   setStatusDraft((d) => ({ ...d, [r.key]: e.target.value }))
                                 }
                               >
-                                {HK_OPTIONS.map((o) => (
+                                {FRONTDESK_HK_STATUS_OPTIONS.map((o) => (
                                   <option key={o.value} value={o.value}>
                                     {o.label}
                                   </option>
                                 ))}
                               </select>
+                              {viewMode === "rooms" ? (
                               <button
                                 type="button"
                                 className="hk-update-btn"
@@ -497,6 +452,7 @@ export default function HousekeepingRooms() {
                               >
                                 {savingRoomKey === r.key ? "Saving…" : "Update"}
                               </button>
+                              ) : null}
                               {rowActionError[r.key] ? (
                                 <span className="hk-row-error" role="alert">
                                   {rowActionError[r.key]}
@@ -522,23 +478,23 @@ export default function HousekeepingRooms() {
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>Room Number</th>
+                    <th>{viewMode === "venues" ? "Venue" : "Room"} #</th>
                     <th>Type</th>
-                    <th>Status</th>
-                    <th className="hk-th-actions">Actions</th>
+                    <th>Cleaning status</th>
+                    <th className="hk-th-actions">{viewMode === "rooms" ? "Override" : ""}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
                       <td colSpan={4} style={{ textAlign: "center", padding: "1.5rem" }}>
-                        Loading rooms…
+                        Loading…
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
                       <td colSpan={4} style={{ textAlign: "center", padding: "1.5rem" }}>
-                        No rooms match your search.
+                        No {viewMode === "venues" ? "venues" : "rooms"} match your search.
                       </td>
                     </tr>
                   ) : (
@@ -550,14 +506,14 @@ export default function HousekeepingRooms() {
                           <div className="hk-status-cell">
                             <select
                               className="hk-status-select"
-                              aria-label={`Housekeeping status for room ${r.number}`}
+                              aria-label={`Housekeeping status for ${viewMode === "venues" ? "venue" : "room"} ${r.number}`}
                               value={selectValueForRow(r)}
-                              disabled={savingRoomKey === r.key}
+                              disabled={viewMode !== "rooms" || savingRoomKey === r.key}
                               onChange={(e) =>
                                 setStatusDraft((d) => ({ ...d, [r.key]: e.target.value }))
                               }
                             >
-                              {HK_OPTIONS.map((o) => (
+                              {FRONTDESK_HK_STATUS_OPTIONS.map((o) => (
                                 <option key={o.value} value={o.value}>
                                   {o.label}
                                 </option>
@@ -571,16 +527,18 @@ export default function HousekeepingRooms() {
                           </div>
                         </td>
                         <td className="hk-td-actions">
-                          <button
-                            type="button"
-                            className="hk-update-btn"
-                            disabled={
-                              savingRoomKey === r.key || !isDirtyRow(r)
-                            }
-                            onClick={() => void handleHousekeepingStatusUpdate(r)}
-                          >
-                            {savingRoomKey === r.key ? "Saving…" : "Update"}
-                          </button>
+                          {viewMode === "rooms" ? (
+                            <button
+                              type="button"
+                              className="hk-update-btn"
+                              disabled={savingRoomKey === r.key || !isDirtyRow(r)}
+                              onClick={() => void handleHousekeepingStatusUpdate(r)}
+                            >
+                              {savingRoomKey === r.key ? "Saving…" : "Update"}
+                            </button>
+                          ) : (
+                            <span className="fd-hk-venues-readonly">—</span>
+                          )}
                         </td>
                       </tr>
                     ))

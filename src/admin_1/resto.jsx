@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+﻿import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
@@ -11,6 +11,8 @@ import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { fetchRestaurantMenuAdminBootstrap, uploadMenuImageDirectBackend } from "../api/menuApi";
 import { getMenus, createMenu, updateMenu, deleteMenu } from "../api/menu.service";
 import "./resto.css";
+
+const PESO = "\u20B1";
 
 /** Default category names created in MongoDB when the collection is empty (admin only). */
 const CATEGORIES_FALLBACK = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
@@ -113,7 +115,7 @@ const MENU_IMAGE_LOCAL_FALLBACK_ENABLED = !(
   import.meta.env.VITE_MENU_IMAGE_LOCAL_FALLBACK === "0"
 );
 
-/* ─── SVG Icons ─── */
+/* â”€â”€â”€ SVG Icons â”€â”€â”€ */
 const IconRestoGold  = () => (<svg viewBox="0 0 24 24" fill="none" stroke="#b8922a" strokeWidth="2" width="36" height="36"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3zm0 0v7"/></svg>);
 const IconSearch     = () => (<svg viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" width="15" height="15"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>);
 const IconPlus       = () => (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);
@@ -153,33 +155,74 @@ function menuItemToDish(m, categories = []) {
   };
 }
 
-/* ─── Custom Select ─── */
-function CustomSelect({ options, value, onChange }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="rm-select-wrap" onBlur={() => setOpen(false)} tabIndex={0}>
-      <div className={`rm-select-display${open ? " open" : ""}`} onClick={() => setOpen(o => !o)}>
-        <span>{value}</span>
-        <span className={`rm-select-arrow${open ? " open" : ""}`}>&#9662;</span>
-      </div>
-      {open && (
-        <div className="rm-select-dropdown">
-          {options.map(opt => (
-            <div
-              key={opt}
-              className={`rm-select-option${opt === value ? " selected" : ""}`}
-              onMouseDown={() => { onChange(opt); setOpen(false); }}
-            >
-              {opt}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
+/** Build GET /api/menu filters for a category tab or form row. */
+function menuListFilters(categories, categoryName, search) {
+  const name = String(categoryName ?? "").trim();
+  const row = Array.isArray(categories)
+    ? categories.find((c) => String(c?.name ?? "").trim() === name)
+    : null;
+  const filters = {
+    category: String(row?.name ?? name).trim(),
+    search: search || undefined,
+  };
+  const cid = categoryRowId(row);
+  if (cid) filters.categoryId = cid;
+  return filters;
 }
 
-/* ─── Dish card skeleton (same footprint as .rm-dish-card while menu is fetching) ─── */
+function shouldCacheMenuList(dishes, search) {
+  return (Array.isArray(dishes) ? dishes.length : 0) > 0 || Boolean(String(search ?? "").trim());
+}
+
+function categoryNameMatches(dishCategory, filterName) {
+  const a = String(dishCategory ?? "").trim().toLowerCase();
+  const b = String(filterName ?? "").trim().toLowerCase();
+  return Boolean(a && b && a === b);
+}
+
+async function fetchMenuForCategoryPage(page, limit, categories, categoryName, search, options = {}) {
+  const filterName = String(categoryName ?? "").trim();
+  const primary = await getMenus(
+    page,
+    limit,
+    menuListFilters(categories, filterName, search),
+    options,
+  );
+  const rows = Array.isArray(primary?.data) ? primary.data : [];
+  const totalItems = Number(primary?.totalItems) || 0;
+  if (rows.length > 0 || totalItems > 0 || !filterName || search) {
+    return primary;
+  }
+
+  const wide = await getMenus(1, 500, { search: search || undefined }, options);
+  const allRows = Array.isArray(wide?.data) ? wide.data : [];
+  const filtered = allRows.filter((m) =>
+    categoryNameMatches(menuItemToDish(m, categories).category, filterName),
+  );
+  const ti = filtered.length;
+  const tp = Math.max(1, Math.ceil(ti / limit));
+  const cur = Math.min(Math.max(1, page), tp);
+  const start = (cur - 1) * limit;
+  return {
+    currentPage: cur,
+    totalPages: tp,
+    totalItems: ti,
+    data: filtered.slice(start, start + limit),
+  };
+}
+
+function applyMenuPageResult(result, categories) {
+  const rows = Array.isArray(result?.data) ? result.data : [];
+  const tp = Number(result?.totalPages);
+  const ti = Number(result?.totalItems);
+  const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
+  const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
+  const mapped = rows.map((m) => menuItemToDish(m, categories));
+  return { mapped, nextTp, nextTi, rows };
+}
+
+
+/* â”€â”€â”€ Dish card skeleton (same footprint as .rm-dish-card while menu is fetching) â”€â”€â”€ */
 function DishCardSkeleton() {
   return (
     <div className="rm-dish-card rm-dish-card--skeleton" aria-hidden>
@@ -197,7 +240,7 @@ function DishCardSkeleton() {
   );
 }
 
-/* ─── Dish Image with fallback ─── */
+/* â”€â”€â”€ Dish Image with fallback â”€â”€â”€ */
 function DishImage({ src, alt }) {
   const [errored, setErrored] = useState(false);
   useEffect(() => {
@@ -224,7 +267,7 @@ function DishImage({ src, alt }) {
   );
 }
 
-/* ─── Main Component ─── */
+/* â”€â”€â”€ Main Component â”€â”€â”€ */
 export default function RestoMenu() {
   const { mainStyle } = useAdminShell();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
@@ -270,7 +313,7 @@ export default function RestoMenu() {
   const prevListKeyRef = useRef(null);
   /** Ignore stale GET responses when the user switches tabs quickly. */
   const menuFetchGenRef = useRef(0);
-  /** Cached menu pages: key → { dishes, totalPages, totalItems, savedAt } */
+  /** Cached menu pages: key â†’ { dishes, totalPages, totalItems, savedAt } */
   const menuListCacheRef = useRef(new Map());
   const prefetchInFlightRef = useRef(new Set());
   /** When unchanged, reload skips clearing menu cache (avoids refetch storm after token refresh). */
@@ -284,7 +327,10 @@ export default function RestoMenu() {
     dishesRef.current = dishes;
   }, [dishes]);
 
-  const categoryNames = orderCategoryNames(categories);
+  const categoryNames = useMemo(() => {
+    const ordered = orderCategoryNames(categories);
+    return ordered.length > 0 ? ordered : [...CATEGORIES_FALLBACK];
+  }, [categories]);
 
   const showToast = useCallback((msg) => {
     clearTimeout(toastTimer.current);
@@ -389,35 +435,40 @@ export default function RestoMenu() {
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
   }, [loadRestaurantBootstrap]);
 
-  /** Prefetch page 1 on tab hover/focus (no bulk warm-up — that competed with the first menu fetch and slowed cold loads). */
+  /** Prefetch page 1 on tab hover/focus (no bulk warm-up - that competed with the first menu fetch and slowed cold loads). */
   const prefetchCategoryMenu = useCallback(
     (catName) => {
-      const row = categories.find((c) => String(c?.name ?? "").trim() === String(catName ?? "").trim());
-      const filterName = String(row?.name ?? catName ?? "").trim();
+      const filterName = String(catName ?? "").trim();
       if (!filterName) return;
       const key = menuListCacheKey(filterName, debouncedSearch, 1, menuLimit);
       const existing = menuListCacheRef.current.get(key);
-      if (existing && Date.now() - existing.savedAt <= MENU_LIST_CACHE_MS) return;
+      if (
+        existing &&
+        Date.now() - existing.savedAt <= MENU_LIST_CACHE_MS &&
+        shouldCacheMenuList(existing.dishes, debouncedSearch)
+      ) {
+        return;
+      }
       if (prefetchInFlightRef.current.has(key)) return;
       prefetchInFlightRef.current.add(key);
       void (async () => {
         try {
-          const result = await getMenus(1, menuLimit, {
-            category: filterName,
-            search: debouncedSearch || undefined,
-          });
-          const rows = Array.isArray(result?.data) ? result.data : [];
-          const tp = Number(result?.totalPages);
-          const ti = Number(result?.totalItems);
-          const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
-          const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
-          const mapped = rows.map((m) => menuItemToDish(m, categories));
-          menuListCacheRef.current.set(key, {
-            dishes: mapped,
-            totalPages: nextTp,
-            totalItems: nextTi,
-            savedAt: Date.now(),
-          });
+          const result = await fetchMenuForCategoryPage(
+            1,
+            menuLimit,
+            categories,
+            filterName,
+            debouncedSearch,
+          );
+          const { mapped, nextTp, nextTi } = applyMenuPageResult(result, categories);
+          if (shouldCacheMenuList(mapped, debouncedSearch)) {
+            menuListCacheRef.current.set(key, {
+              dishes: mapped,
+              totalPages: nextTp,
+              totalItems: nextTi,
+              savedAt: Date.now(),
+            });
+          }
         } catch {
           /* ignore prefetch failures */
         } finally {
@@ -429,17 +480,14 @@ export default function RestoMenu() {
   );
 
   useEffect(() => {
-    if (categories.length === 0) {
+    const filterNameEarly = String(currentCat ?? "").trim();
+    if (!filterNameEarly) {
       setDishes([]);
       setTotalItems(0);
       setTotalPages(1);
       setMenuFetching(false);
       setDelayedListSkeleton(false);
       prevListKeyRef.current = null;
-      if (listSkelTimerRef.current) {
-        clearTimeout(listSkelTimerRef.current);
-        listSkelTimerRef.current = null;
-      }
       return undefined;
     }
 
@@ -452,17 +500,15 @@ export default function RestoMenu() {
     const fetchGen = ++menuFetchGenRef.current;
     let cancelled = false;
 
-    const catRow = categories.find(
-      (c) => String(c?.name ?? "").trim() === String(currentCat ?? "").trim(),
-    );
-    const filterName = String(catRow?.name ?? currentCat ?? "").trim();
+    const filterName = String(currentCat ?? "").trim();
     const key = menuListCacheKey(filterName, debouncedSearch, menuPage, menuLimit);
 
     const keyChanged = prevListKeyRef.current !== key;
     const hit = menuListCacheRef.current.get(key);
     const cacheFresh = Boolean(hit && Date.now() - hit.savedAt <= MENU_LIST_CACHE_MS);
+    const cacheUsable = cacheFresh && shouldCacheMenuList(hit?.dishes, debouncedSearch);
 
-    if (cacheFresh) {
+    if (cacheUsable) {
       if (keyChanged) {
         setDishes(hit.dishes);
         setTotalPages(hit.totalPages);
@@ -496,13 +542,12 @@ export default function RestoMenu() {
 
     const run = async () => {
       try {
-        const result = await getMenus(
+        const result = await fetchMenuForCategoryPage(
           menuPage,
           menuLimit,
-          {
-            category: filterName,
-            search: debouncedSearch || undefined,
-          },
+          categories,
+          filterName,
+          debouncedSearch,
           { signal: menuAc.signal },
         );
         if (cancelled || fetchGen !== menuFetchGenRef.current) return;
@@ -511,25 +556,24 @@ export default function RestoMenu() {
           listSkelTimerRef.current = null;
         }
         setDelayedListSkeleton(false);
-        const rows = Array.isArray(result?.data) ? result.data : [];
-        if (rows.length === 0 && (Number(result?.totalItems) || 0) > 0 && menuPage > 1) {
+        const { mapped, nextTp, nextTi, rows } = applyMenuPageResult(result, categories);
+        if (rows.length === 0 && nextTi > 0 && menuPage > 1) {
           setMenuPage((p) => Math.max(1, p - 1));
           return;
         }
-        const tp = Number(result?.totalPages);
-        const ti = Number(result?.totalItems);
-        const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
-        const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
-        const mapped = rows.map((m) => menuItemToDish(m, categories));
         setTotalPages(nextTp);
         setTotalItems(nextTi);
         setDishes(mapped);
-        menuListCacheRef.current.set(key, {
-          dishes: mapped,
-          totalPages: nextTp,
-          totalItems: nextTi,
-          savedAt: Date.now(),
-        });
+        if (shouldCacheMenuList(mapped, debouncedSearch)) {
+          menuListCacheRef.current.set(key, {
+            dishes: mapped,
+            totalPages: nextTp,
+            totalItems: nextTi,
+            savedAt: Date.now(),
+          });
+        } else {
+          menuListCacheRef.current.delete(key);
+        }
       } catch (e) {
         if (cancelled || fetchGen !== menuFetchGenRef.current) return;
         if (e?.name === "AbortError") return;
@@ -557,62 +601,60 @@ export default function RestoMenu() {
         clearTimeout(listSkelTimerRef.current);
         listSkelTimerRef.current = null;
       }
-      setDelayedListSkeleton(false);
-      setMenuFetching(false);
     };
   }, [categories, currentCat, menuPage, menuLimit, debouncedSearch]);
 
   const refreshMenuPage = useCallback(async (opts = {}) => {
-    if (categories.length === 0) return;
+    const filterName = String(currentCat ?? "").trim();
+    if (!filterName) return;
     const skipStaleGuard = Boolean(opts.skipStaleGuard);
     const gen = menuFetchGenRef.current;
-    const catRow = categories.find(
-      (c) => String(c?.name ?? "").trim() === String(currentCat ?? "").trim(),
-    );
-    const filterName = String(catRow?.name ?? currentCat ?? "").trim();
     const pageToFetch =
       opts.page != null
         ? Math.max(1, parseInt(String(opts.page), 10) || 1)
         : Math.max(1, parseInt(String(menuPage), 10) || 1);
     try {
-      const result = await getMenus(pageToFetch, menuLimit, {
-        category: filterName,
-        search: debouncedSearch || undefined,
-      });
+      const result = await fetchMenuForCategoryPage(
+        pageToFetch,
+        menuLimit,
+        categories,
+        filterName,
+        debouncedSearch,
+      );
       if (!skipStaleGuard && gen !== menuFetchGenRef.current) return;
-      const rows = Array.isArray(result?.data) ? result.data : [];
-      if (rows.length === 0 && (Number(result?.totalItems) || 0) > 0 && pageToFetch > 1) {
+      const { mapped, nextTp, nextTi, rows } = applyMenuPageResult(result, categories);
+      if (rows.length === 0 && nextTi > 0 && pageToFetch > 1) {
         setMenuPage((p) => Math.max(1, p - 1));
         return;
       }
-      const tp = Number(result?.totalPages);
-      const ti = Number(result?.totalItems);
-      const nextTp = Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1;
-      const nextTi = Number.isFinite(ti) && ti >= 0 ? ti : rows.length;
-      const mapped = rows.map((m) => menuItemToDish(m, categories));
       setTotalPages(nextTp);
       setTotalItems(nextTi);
       setDishes(mapped);
-      menuListCacheRef.current.set(menuListCacheKey(filterName, debouncedSearch, pageToFetch, menuLimit), {
-        dishes: mapped,
-        totalPages: nextTp,
-        totalItems: nextTi,
-        savedAt: Date.now(),
-      });
+      const cacheKey = menuListCacheKey(filterName, debouncedSearch, pageToFetch, menuLimit);
+      if (shouldCacheMenuList(mapped, debouncedSearch)) {
+        menuListCacheRef.current.set(cacheKey, {
+          dishes: mapped,
+          totalPages: nextTp,
+          totalItems: nextTi,
+          savedAt: Date.now(),
+        });
+      } else {
+        menuListCacheRef.current.delete(cacheKey);
+      }
     } catch {
-      /* silent — visibility / post-save refresh should not spam notices */
+      /* silent - visibility / post-save refresh should not spam notices */
     }
   }, [categories, currentCat, menuPage, menuLimit, debouncedSearch]);
 
   useEffect(() => {
-    if (categories.length === 0) return undefined;
+    if (!String(currentCat ?? "").trim()) return undefined;
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
       void refreshMenuPage();
     };
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [categories.length, refreshMenuPage]);
+  }, [currentCat, refreshMenuPage]);
 
   function defaultCategoryName() {
     return orderCategoryNames(categories)[0] ?? CATEGORIES_FALLBACK[0];
@@ -620,7 +662,7 @@ export default function RestoMenu() {
 
   function openAddModal() {
     if (categories.length === 0) {
-      showToast("No categories yet — refresh the page or check admin login.");
+      showToast("No categories yet - refresh the page or check admin login.");
       void loadRestaurantBootstrap();
       return;
     }
@@ -662,7 +704,7 @@ export default function RestoMenu() {
       setFormErr("Choose a category that exists in the database.");
       return;
     }
-    const priceNum = parseFloat(String(fPrice).replace(/[₱,\s]/g, ""));
+    const priceNum = parseFloat(String(fPrice).replace(/[\u20B1₱,\s]/g, ""));
     if (!Number.isFinite(priceNum) || priceNum <= 0) {
       setFormErr("Enter a valid price greater than 0.");
       return;
@@ -751,10 +793,10 @@ export default function RestoMenu() {
       setFImage(dataUrl);
       setFormErr("");
       if (reason === "s3-disabled") {
-        showToast("S3 is not configured — using a local preview. Fine for dev; use S3 in production.");
+        showToast("S3 is not configured - using a local preview. Fine for dev; use S3 in production.");
       } else {
         showToast(
-          "Could not reach the API — using a local preview. Check VITE_API_BASE_URL / backend if you need uploads.",
+          "Could not reach the API - using a local preview. Check VITE_API_BASE_URL / backend if you need uploads.",
         );
       }
     }
@@ -786,7 +828,7 @@ export default function RestoMenu() {
     }
   }
 
-  const tabsToShow = orderCategoryNames(categories);
+  const tabsToShow = categoryNames;
   const showDishPlaceholders =
     delayedListSkeleton &&
     menuFetching &&
@@ -849,7 +891,7 @@ export default function RestoMenu() {
             </button>
           </div>
 
-          {/* Category tabs — use resto-cat-* not .rm-tabs/.rm-tab (Room Management uses those globally). */}
+          {/* Category tabs - use resto-cat-* not .rm-tabs/.rm-tab (Room Management uses those globally). */}
           <div
             className="resto-cat-tabs"
             role="tablist"
@@ -875,7 +917,7 @@ export default function RestoMenu() {
             ))}
           </div>
 
-          {/* Dish grid — light shim first; full skeletons only if the request is slow */}
+          {/* Dish grid - light shim first; full skeletons only if the request is slow */}
           <div className={`rm-grid${menuFetching && dishes.length > 0 ? " rm-grid--refreshing" : ""}`}>
             {loading ? (
               <div className="rm-empty">Loading…</div>
@@ -884,20 +926,21 @@ export default function RestoMenu() {
             ) : showDishPlaceholders ? (
               Array.from({ length: dishSkeletonCount }, (_, i) => <DishCardSkeleton key={`menu-skel-${i}`} />)
             ) : dishes.length === 0 ? (
-              !menuFetching ? (
-                <div className="rm-empty">
-                  {debouncedSearch
-                    ? `No dishes match your search in ${currentCat}.`
-                    : `No dishes in ${currentCat} yet. Use “Add Dish” to create one.`}
-                </div>
-              ) : null
+              <div className="rm-empty">
+                {debouncedSearch
+                  ? `No dishes match your search in ${currentCat}.`
+                  : `No dishes in ${currentCat} yet. Use "Add Dish" to create one.`}
+              </div>
             ) : (
               dishes.map((dish) => (
                 <div className="rm-dish-card" key={dish.id || `${dish.name}-${dish.price}-${dish.category}`}>
                   <DishImage src={dish.image} alt={dish.name} />
                   <div className="rm-dish-body">
                     <p className="rm-dish-name">{dish.name}</p>
-                    <p className="rm-dish-price">₱{String(dish.price).replace(/&#8369;|₱/g, "")}</p>
+                    <p className="rm-dish-price">
+                      {PESO}
+                      {String(dish.price).replace(/[^\d.]/g, "")}
+                    </p>
                     <p className="rm-dish-desc">{dish.description}</p>
                   </div>
                   <div className="rm-dish-footer">
@@ -924,7 +967,7 @@ export default function RestoMenu() {
             <div className="rm-pagination-row">
               <div className="rm-pagination-meta">
                 <span className="rm-pagination-count">
-                  {totalItems} dish{totalItems === 1 ? "" : "es"} · Page {menuPage} of {totalPages}
+                  {totalItems} dish{totalItems === 1 ? "" : "es"} Â· Page {menuPage} of {totalPages}
                 </span>
                 <label className="rm-pagination-limit">
                   <span>Per page</span>
@@ -982,7 +1025,7 @@ export default function RestoMenu() {
         </main>
       </RailPortalShell>
 
-      {/* ── ADD / EDIT MODAL ── */}
+      {/* â”€â”€ ADD / EDIT MODAL â”€â”€ */}
       {modalOpen && (
         <div
           className="rm-modal-backdrop"
@@ -1023,11 +1066,32 @@ export default function RestoMenu() {
               <div className="rm-form-row">
                 <div className="rm-form-group">
                   <label className="rm-label">Category</label>
-                  <CustomSelect options={categoryNames} value={fCat} onChange={setFCat} />
+                  <select
+                    className="rm-input rm-native-select"
+                    value={fCat}
+                    onChange={(e) => setFCat(e.target.value)}
+                  >
+                    {categoryNames.length === 0 ? (
+                      <option value={fCat}>{fCat || "Main Course"}</option>
+                    ) : (
+                      categoryNames.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))
+                    )}
+                  </select>
                 </div>
                 <div className="rm-form-group">
                   <label className="rm-label">Availability</label>
-                  <CustomSelect options={["Available", "Unavailable"]} value={fAvail} onChange={setFAvail} />
+                  <select
+                    className="rm-input rm-native-select"
+                    value={fAvail}
+                    onChange={(e) => setFAvail(e.target.value)}
+                  >
+                    <option value="Available">Available</option>
+                    <option value="Unavailable">Unavailable</option>
+                  </select>
                 </div>
               </div>
               <div className="rm-form-group">
@@ -1105,7 +1169,7 @@ export default function RestoMenu() {
         </div>
       )}
 
-      {/* ── DELETE CONFIRM (same pattern as room-management.jsx) ── */}
+      {/* â”€â”€ DELETE CONFIRM (same pattern as room-management.jsx) â”€â”€ */}
       {deleteOpen && (
         <div
           className="rm-confirm-backdrop active"

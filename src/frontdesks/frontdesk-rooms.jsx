@@ -331,6 +331,12 @@ function splitWalkinRoomSelection(roomSel) {
   return { roomno, packageLabel: packageLabel || trimmed };
 }
 
+function formatStayDateLabel(ymd) {
+  const d = parseLocalYmd(ymd);
+  if (!d) return String(ymd || "").trim() || "—";
+  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+}
+
 /** Edit modal select e.g. `Single Suites - ₱824` → API `roomTitle` + optional `totalAmount`. */
 function parseEditRoomPackageSelect(option) {
   const s = String(option || "").trim();
@@ -1683,7 +1689,6 @@ function WalkinModal({ open, onClose, onSubmit }) {
     email: "",
     contact: "",
     address: "",
-    nationality: "Philippines",
     addguest: "",
     checkin: "",
     checkout: "",
@@ -1717,6 +1722,11 @@ function WalkinModal({ open, onClose, onSubmit }) {
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
     setErrors((er) => ({ ...er, [k]: "" }));
+  };
+  const handleRoomSelect = (e) => {
+    const room = e.target.value;
+    setForm((f) => ({ ...f, room, checkin: "", checkout: "" }));
+    setErrors((er) => ({ ...er, room: "", checkin: "", checkout: "" }));
   };
   const setBool = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.checked }));
@@ -1812,6 +1822,22 @@ function WalkinModal({ open, onClose, onSubmit }) {
         : 0;
     return paymentSnapshotFromBill(walkinStayBill, paidNum);
   }, [walkinStayBill, form.payment, payForm.amountpaid]);
+
+  const walkinStayNightsCount = useMemo(() => {
+    if (!form.checkin || !form.checkout) return 0;
+    return countStayNights(form.checkin, form.checkout);
+  }, [form.checkin, form.checkout]);
+
+  const walkinNightlyRate = useMemo(() => {
+    if (!selectedCatalogRoom) return 0;
+    return Number(selectedCatalogRoom.price) || 0;
+  }, [selectedCatalogRoom]);
+
+  const walkinModalTitle = useMemo(() => {
+    if (!form.room) return "Walk-in — Reservation";
+    const { packageLabel } = splitWalkinRoomSelection(form.room);
+    return `${packageLabel || form.room} — Reservation`;
+  }, [form.room]);
 
   const selectedRoomIdRef = useRef("");
   selectedRoomIdRef.current = selectedRoomId;
@@ -2139,9 +2165,9 @@ function WalkinModal({ open, onClose, onSubmit }) {
         className="walkin-room-booking-root modal-backdrop active"
         onClick={(e) => e.target === e.currentTarget && onClose()}
       >
-        <div className="modal modal--booking" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
+        <div className="modal modal--booking" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="wi-booking-modal-title">
           <div className="modal-header modal-header--booking">
-            <h2 className="modal-title">Room walk-in reservation</h2>
+            <h2 id="wi-booking-modal-title" className="modal-title">{walkinModalTitle}</h2>
             <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
               ✕
             </button>
@@ -2153,21 +2179,23 @@ function WalkinModal({ open, onClose, onSubmit }) {
                   <label htmlFor="wi-room-select">
                     Select room <span className="required">*</span>
                   </label>
-                  {wiLoadErr ? <p className="field-error" style={{ marginBottom: 6 }}>{wiLoadErr}</p> : null}
-                  <p className="walkin-load-hint">
-                    {wiLoading
-                      ? "Loading room catalog and bookings…"
-                      : "Rooms update from your catalog and current bookings. Pick check-in and check-out to hide rooms that overlap those dates."}
-                  </p>
-                  <p className="walkin-cal-server-hint">
-                    Gold and red nights reflect <strong>saved server bookings</strong> for the selected room. Walk-in
-                    reservations are saved to the database when you are signed in and the API is running.
-                  </p>
+                  {wiLoadErr ? (
+                    <p className="booking-form-error-banner" role="alert">
+                      {wiLoadErr}
+                    </p>
+                  ) : null}
+                  {wiLoading ? (
+                    <span className="booking-cal-hint">Loading room catalog and availability…</span>
+                  ) : (
+                    <span className="booking-cal-hint">
+                      Choose an available room for this walk-in guest. Pick check-in and check-out below to filter rooms that fit the stay.
+                    </span>
+                  )}
                   <select
                     id="wi-room-select"
                     className={errors.room ? "input-error" : ""}
                     value={form.room}
-                    onChange={set("room")}
+                    onChange={handleRoomSelect}
                     disabled={wiLoading}
                   >
                     <option value="">— Select a room —</option>
@@ -2189,28 +2217,28 @@ function WalkinModal({ open, onClose, onSubmit }) {
               <div className="form-row">
                 <div className="form-group">
                   <label htmlFor="wi-cust-name">
-                    Customer name <span className="required">*</span>
+                    Full name <span className="required">*</span>
                   </label>
                   <input
                     id="wi-cust-name"
                     type="text"
                     value={form.name}
                     onChange={set("name")}
-                    placeholder="Full name"
+                    placeholder="Enter your full name"
                     className={errors.name ? "input-error" : ""}
                   />
                   {errors.name ? <span className="field-error">{errors.name}</span> : null}
                 </div>
                 <div className="form-group">
                   <label htmlFor="wi-email">
-                    Email address <span className="required">*</span>
+                    Email <span className="required">*</span>
                   </label>
                   <input
                     id="wi-email"
                     type="email"
                     value={form.email}
                     onChange={set("email")}
-                    placeholder="name@email.com"
+                    placeholder="Enter your email"
                     className={errors.email ? "input-error" : ""}
                   />
                   {errors.email ? <span className="field-error">{errors.email}</span> : null}
@@ -2227,7 +2255,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
                     type="text"
                     value={form.contact}
                     onChange={set("contact")}
-                    placeholder="09XXXXXXXXX"
+                    placeholder="Enter contact number"
                     className={errors.contact ? "input-error" : ""}
                   />
                   {errors.contact ? <span className="field-error">{errors.contact}</span> : null}
@@ -2241,7 +2269,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
                     type="text"
                     value={form.address}
                     onChange={set("address")}
-                    placeholder="City, Province"
+                    placeholder="Enter your address"
                     className={errors.address ? "input-error" : ""}
                   />
                   {errors.address ? <span className="field-error">{errors.address}</span> : null}
@@ -2250,8 +2278,8 @@ function WalkinModal({ open, onClose, onSubmit }) {
 
               <div className="form-row form-row--stay-calendars">
                 <p className="booking-cal-unavailable-hint">
-                  <strong>How to pick dates:</strong> use the <strong>left</strong> calendar for check-in (avoid gold/red
-                  nights). The <strong>right</strong> calendar for check-out stays disabled until check-in is chosen.
+                  <strong>Calendar key:</strong> <span className="booking-cal-unavailable-hint__inline">Occupied</span> (red) and{" "}
+                  <span className="booking-cal-unavailable-hint__inline">Reserved</span> (gold) nights match the front desk view. They cannot be used as your check-in date for this room.
                 </p>
                 <div className="form-group">
                   <span className="form-label-static" id="wi-checkin-label">
@@ -2269,8 +2297,10 @@ function WalkinModal({ open, onClose, onSubmit }) {
                       disabled={checkInDisabledMatchers}
                       labels={bookingCalendarLabels}
                       modifiers={{
-                        stayOccupied: (date) => occupiedNightSet.has(formatLocalYmd(date)),
-                        stayReserved: (date) => reservedNightSet.has(formatLocalYmd(date)),
+                        stayOccupied: (date) =>
+                          Boolean(selectedRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
+                        stayReserved: (date) =>
+                          Boolean(selectedRoomId) && reservedNightSet.has(formatLocalYmd(date)),
                       }}
                       modifiersClassNames={{
                         stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
@@ -2283,7 +2313,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
                   </div>
                   {occLoading ? <span className="booking-cal-hint">Loading availability…</span> : null}
                   {!selectedRoomId ? (
-                    <span className="booking-cal-hint">Select a room above — check-in dates stay disabled until a room is chosen.</span>
+                    <span className="booking-cal-hint">Select a room above to enable check-in dates.</span>
                   ) : null}
                   {errors.checkin ? <span className="field-error">{errors.checkin}</span> : null}
                 </div>
@@ -2313,8 +2343,10 @@ function WalkinModal({ open, onClose, onSubmit }) {
                       disabled={checkoutDisabledMatcher}
                       labels={bookingCalendarLabels}
                       modifiers={{
-                        stayOccupied: (date) => occupiedNightSet.has(formatLocalYmd(date)),
-                        stayReserved: (date) => reservedNightSet.has(formatLocalYmd(date)),
+                        stayOccupied: (date) =>
+                          Boolean(selectedRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
+                        stayReserved: (date) =>
+                          Boolean(selectedRoomId) && reservedNightSet.has(formatLocalYmd(date)),
                       }}
                       modifiersClassNames={{
                         stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
@@ -2326,10 +2358,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
                     />
                   </div>
                   {!form.checkin ? (
-                    <span className="booking-cal-hint">
-                      Check-out stays <strong>inactive</strong> until you pick check-in on the left — the numbers are not
-                      broken; the right calendar is locked by design.
-                    </span>
+                    <span className="booking-cal-hint">Select check-in first, then choose check-out.</span>
                   ) : null}
                   {errors.checkout ? <span className="field-error">{errors.checkout}</span> : null}
                 </div>
@@ -2352,13 +2381,35 @@ function WalkinModal({ open, onClose, onSubmit }) {
                   </span>
                 </div>
                 <p className="booking-cal-legend-help">
-                  Each night shows this room&apos;s status. <strong>Gold</strong> covers pending and approved stays.{" "}
-                  <strong>Red</strong> means a guest is in-house.
+                  Each night shows this room&apos;s status. <strong>Gold</strong> covers pending and approved stays not yet checked in.{" "}
+                  <strong>Red</strong> means a guest is currently in-house. Open dates are available for your stay.
                 </p>
               </div>
               <p className="booking-schedule-note" role="note">
                 <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk calendar: <strong>Occupied</strong> (red) and <strong>Reserved</strong> (gold) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
               </p>
+
+              {walkinStayNightsCount >= 1 && form.checkin && form.checkout ? (
+                <div className="booking-stay-estimate" aria-live="polite">
+                  <p className="booking-stay-estimate__label">Your stay</p>
+                  <p className="booking-stay-estimate__dates">
+                    <strong>{formatStayDateLabel(form.checkin)}</strong>
+                    {" → "}
+                    <strong>{formatStayDateLabel(form.checkout)}</strong>
+                    <span className="booking-stay-estimate__nights">
+                      ({walkinStayNightsCount} night{walkinStayNightsCount !== 1 ? "s" : ""})
+                    </span>
+                  </p>
+                  {walkinNightlyRate > 0 ? (
+                    <p className="booking-stay-estimate__rate">
+                      Room rate: {formatPeso(walkinNightlyRate)} / night
+                    </p>
+                  ) : null}
+                  <p className="booking-stay-estimate__preview-note">
+                    Amounts below are calculated on this device only. Nothing is saved until you submit and confirm this walk-in reservation.
+                  </p>
+                </div>
+              ) : null}
 
               {walkinStayBill ? (
                 <div className="booking-form-billing-block">
@@ -2372,31 +2423,27 @@ function WalkinModal({ open, onClose, onSubmit }) {
                     />
                   ) : null}
                 </div>
+              ) : walkinStayNightsCount >= 1 ? (
+                <p className="booking-bill-hint" role="status">
+                  {walkinNightlyRate <= 0
+                    ? "We could not read this room's nightly rate. The front desk will confirm your total when the guest arrives."
+                    : "Choose a room and valid dates to see your billing summary."}
+                </p>
               ) : null}
 
               <div className="form-row">
                 <div className="form-group">
-                  <label htmlFor="wi-nationality">Nationality</label>
-                  <select id="wi-nationality" value={form.nationality} onChange={set("nationality")}>
-                    <option>Philippines</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-                <div className="form-group">
                   <label htmlFor="wi-addguest">Additional guests</label>
                   <input
                     id="wi-addguest"
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={form.addguest}
                     onChange={set("addguest")}
                     placeholder="0"
-                    min={0}
                   />
                 </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group full-width">
+                <div className="form-group">
                   <span className="form-label-static">
                     Guest ID <span className="required">*</span>
                   </span>
@@ -2437,7 +2484,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
                   <h3 className="form-section__title">Payment options</h3>
                 </div>
                 <p className="form-section__desc">
-                  Pay with cash on arrival, or choose GCash to scan and save payment details here. Saving GCash details does not finalize the walk-in until you confirm on the next screen.
+                  Pay with cash on arrival, or choose GCash to scan and save your payment details here. Saving GCash details does not send your booking until you click Submit Reservation and confirm.
                 </p>
                 <div className="payment-options">
                   <label
@@ -2478,18 +2525,14 @@ function WalkinModal({ open, onClose, onSubmit }) {
                 <h3 className="terms-title">Terms and Conditions</h3>
                 <div className="terms-body">
                   <ol>
-                    <li>
-                      <strong>Valid ID requirement</strong>
+                    <li><strong>Valid ID Requirement</strong>
                       <ul>
-                        <li>A clear photo of a valid government-issued ID must be uploaded with this walk-in request.</li>
-                        <li>The reservation name should match the name on the ID.</li>
+                        <li>A clear photo or scanned copy of a valid government-issued ID must be uploaded with your reservation request.</li>
+                        <li>The reservation name must match the name on the ID.</li>
                       </ul>
                     </li>
-                    <li>
-                      <strong>Verification</strong>
-                      <ul>
-                        <li>The front desk may verify submitted identification before approval.</li>
-                      </ul>
+                    <li><strong>Verification &amp; Confirmation</strong>
+                      <ul><li>All reservation requests are subject to approval after ID verification.</li></ul>
                     </li>
                   </ol>
                 </div>
@@ -2501,7 +2544,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
               </div>
 
               <div className="agreements-block">
-                <h3 className="agreements-title">Required agreements</h3>
+                <h3 className="agreements-title">Required Agreements</h3>
                 <label className={`checkbox-label${errors.privacyCheck ? " check-error" : ""}`}>
                   <input type="checkbox" checked={!!form.privacyCheck} onChange={setBool("privacyCheck")} />
                   I have read and agree to the <a href="#">Data Privacy &amp; Policy</a>
@@ -2526,11 +2569,15 @@ function WalkinModal({ open, onClose, onSubmit }) {
                     </li>
                     <li>
                       <span className="booking-review-summary__k">Check-in</span>
-                      <span className="booking-review-summary__v">{form.checkin || "—"}</span>
+                      <span className="booking-review-summary__v">
+                        {form.checkin ? formatStayDateLabel(form.checkin) : "—"}
+                      </span>
                     </li>
                     <li>
                       <span className="booking-review-summary__k">Check-out</span>
-                      <span className="booking-review-summary__v">{form.checkout || "—"}</span>
+                      <span className="booking-review-summary__v">
+                        {form.checkout ? formatStayDateLabel(form.checkout) : "—"}
+                      </span>
                     </li>
                     <li>
                       <span className="booking-review-summary__k">Additional guests</span>
@@ -2551,30 +2598,34 @@ function WalkinModal({ open, onClose, onSubmit }) {
                           <span className="booking-review-summary__v">{formatPeso(walkinStayBill.total)}</span>
                         </li>
                         <li>
-                          <span className="booking-review-summary__k">Remaining balance</span>
-                          <span className="booking-review-summary__v">
-                            {formatPeso(walkinLivePayment?.balanceDue ?? walkinStayBill.total)}
-                          </span>
+                          <span className="booking-review-summary__k">Down payment (min.)</span>
+                          <span className="booking-review-summary__v">{formatPeso(walkinStayBill.minimumDownPayment)}</span>
                         </li>
+                        {walkinLivePayment ? (
+                          <li>
+                            <span className="booking-review-summary__k">Remaining balance</span>
+                            <span className="booking-review-summary__v">{formatPeso(walkinLivePayment.balanceDue)}</span>
+                          </li>
+                        ) : null}
                       </>
                     ) : null}
                     <li>
-                      <span className="booking-review-summary__k">Payment</span>
+                      <span className="booking-review-summary__k">Payment method</span>
                       <span className="booking-review-summary__v">{form.payment === "gcash" ? "GCash" : "Cash on arrival"}</span>
                     </li>
                     {form.payment === "gcash" && payForm.amountpaid.trim() && payForm.paydate ? (
                       <li>
                         <span className="booking-review-summary__k">GCash</span>
                         <span className="booking-review-summary__v">
-                          {payForm.amountpaid} on {payForm.paydate}, ref. {payForm.transid || "—"}
-                          {payForm.proof ? " · Proof attached" : ""}
+                          Amount paid {payForm.amountpaid}, paid on {payForm.paydate}, ref. {payForm.transid || "—"}
+                          {proofPreview ? " · Proof attached" : ""}
                         </span>
                       </li>
                     ) : form.payment === "gcash" ? (
                       <li>
                         <span className="booking-review-summary__k">GCash</span>
                         <span className="booking-review-summary__v booking-review-summary__v--muted">
-                          Complete the payment form when it opens, then submit here.
+                          Not saved yet — click Submit Reservation to open the payment form.
                         </span>
                       </li>
                     ) : null}
@@ -2584,7 +2635,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
 
               {form.payment === "gcash" && payForm.amountpaid.trim() && payForm.paydate ? (
                 <p className="booking-gcash-draft-note" role="status">
-                  GCash details are saved in this form only. Review the summary above, then click Submit Reservation to continue.
+                  GCash details are saved in this form only. Review the summary above, then click Submit Reservation to send this walk-in to the hotel.
                 </p>
               ) : null}
 
@@ -2593,7 +2644,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
                   Clear
                 </button>
                 <button type="button" className="btn-submit-reservation" onClick={handleSubmit}>
-                  Submit reservation
+                  Submit Reservation
                 </button>
               </div>
             </div>

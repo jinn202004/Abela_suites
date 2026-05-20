@@ -144,7 +144,6 @@ export function useAccountSettingsCore(variant, opts = {}) {
   const [displayEmail, setDisplayEmail] = useState(guestInit.email);
   const [displayPhone, setDisplayPhone] = useState(guestInit.phone);
   const [displayAddress, setDisplayAddress] = useState(guestInit.address);
-  const [displayDepartment, setDisplayDepartment] = useState("");
   const [displayStaffStatus, setDisplayStaffStatus] = useState("");
 
   const [activeTab, setActiveTab] = useState("info");
@@ -237,7 +236,6 @@ export function useAccountSettingsCore(variant, opts = {}) {
         setDisplayName([form.firstName, form.lastName].filter(Boolean).join(" ").trim() || trimStr(u.name));
         setDisplayEmail(form.email);
         setDisplayPhone(form.phone);
-        setDisplayDepartment(trimStr(u.department));
         setDisplayStaffStatus(trimStr(u.staffStatus));
       } catch {
         /* keep placeholder from initialStaffDisplay */
@@ -341,7 +339,6 @@ export function useAccountSettingsCore(variant, opts = {}) {
         setDisplayName([form.firstName, form.lastName].filter(Boolean).join(" ").trim() || trimStr(u.name));
         setDisplayEmail(form.email);
         setDisplayPhone(form.phone);
-        setDisplayDepartment(trimStr(u.department));
         setDisplayStaffStatus(trimStr(u.staffStatus));
         setInfoForm(form);
         setBaselineInfo(form);
@@ -406,7 +403,6 @@ export function useAccountSettingsCore(variant, opts = {}) {
     displayEmail,
     displayPhone,
     displayAddress,
-    displayDepartment,
     displayStaffStatus,
     avatarSrc,
     avatarInputRef,

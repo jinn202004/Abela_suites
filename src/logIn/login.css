@@ -1,6 +1,7 @@
 /* Abela Suites — full-page login (guest reference: cream card, serif brand, soft shadow) */
 
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&display=swap');
+@import './authShared.css';
 
 .login-page {
   --gold: #b89635;
@@ -30,106 +31,6 @@
   overflow-x: hidden;
   overflow-y: visible;
   box-sizing: border-box;
-}
-
-.login-page .navbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 36px;
-  background: var(--cream);
-  border-bottom: 1px solid rgba(216, 205, 184, 0.65);
-  z-index: 100;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
-}
-
-.login-page .nav-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.login-page .nav-logo-img {
-  height: 46px;
-  width: 46px;
-  object-fit: contain;
-  border-radius: 50%;
-}
-
-.login-page .brand-name {
-  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif;
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--gold);
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-
-.login-page .nav-links {
-  display: flex;
-  list-style: none;
-  gap: 44px;
-  margin-left: auto;
-  margin-right: 48px;
-}
-
-.login-page .nav-links a {
-  text-decoration: none;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--gold);
-  letter-spacing: 0.03em;
-  transition: color 0.2s;
-}
-
-.login-page .nav-links a:hover {
-  color: var(--gold-light);
-}
-
-.login-page .btn-login-nav {
-  background: var(--gold);
-  color: var(--white);
-  text-decoration: none;
-  padding: 9px 26px;
-  border-radius: 8px;
-  font-family: 'Montserrat', sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-  flex-shrink: 0;
-  transition: background 0.2s, transform 0.15s;
-}
-
-.login-page .btn-login-nav:hover {
-  background: var(--gold-light);
-  transform: translateY(-1px);
-}
-
-.login-page .main-content {
-  position: relative;
-  z-index: 10;
-  box-sizing: border-box;
-  width: 100%;
-  max-width: 100%;
-  /* At least viewport below fixed navbar; grows when card/taller — scroll on document */
-  min-height: calc(100vh - 64px);
-  min-height: calc(100dvh - 64px);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  justify-items: center;
-  align-content: start;
-  padding-top: calc(64px + max(12px, env(safe-area-inset-top, 0px)));
-  padding-bottom: max(48px, env(safe-area-inset-bottom, 0px));
-  padding-left: max(24px, env(safe-area-inset-left, 0px));
-  padding-right: max(24px, env(safe-area-inset-right, 0px));
 }
 
 .login-page .login-card {
@@ -422,14 +323,5 @@
   .login-page .login-card {
     margin: 0;
     padding: 28px 20px 26px;
-  }
-  .login-page .navbar {
-    padding: 0 16px;
-  }
-  .login-page .nav-links {
-    display: none;
-  }
-  .login-page .brand-name {
-    font-size: 17px;
   }
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import MarketingNavbar from "../components/MarketingNavbar";
 import { useSearchParams, Link } from "react-router-dom";
 import { useAuthRouteScroll } from "./useAuthRouteScroll";
 import { sendVerificationEmail, verifyEmailAccount } from "../api/authApi";
@@ -54,20 +55,9 @@ export default function VerifyEmailPage() {
 
   return (
     <div className="abela-auth-page-shell" style={{ position: "relative", width: "100%", maxWidth: "100%" }}>
-      <nav className="navbar">
-        <div className="nav-brand">
-          <img src="/public/logo.png" alt="Abela Suites Logo" className="nav-logo-img" />
-          <span className="brand-name">Abela Suites</span>
-        </div>
-        <ul className="nav-links">
-          <li><a href="#">Home</a></li>
-          <li><a href="#">Testimonials</a></li>
-          <li><a href="/contact">Contact Us</a></li>
-        </ul>
-        <a href="/login" className="btn-login-nav">Login</a>
-      </nav>
+      <MarketingNavbar />
 
-      <div
+<div
         style={{
           position: "fixed",
           inset: 0,

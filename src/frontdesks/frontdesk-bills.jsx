@@ -25,9 +25,80 @@ import { getSessionRole, getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "..
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { pdfSafeText, openPdfPrintOrDownload } from "../utils/pdfClientExport";
+import {
+  bookingTypeLabel,
+  displayLedgerDate,
+  formatPrintMonthLabel,
+  frontdeskBillRowToLedgerRow,
+  paymentMethodLabel,
+  paymentStatusLabel,
+  rowInSelectedMonthFrontdesk,
+} from "../utils/billingLedgerReport";
+import BillsPrintModal from "../components/BillsPrintModal";
+import "../admin_1/bills.css";
 import "./frontdesk-bills.css";
 
-const filterOptions = ["All Time", "Today", "Last 7 Days", "Last 30 Days"];
+const BillIcons = {
+  Room: () => (
+    <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden>
+      <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
+    </svg>
+  ),
+  Eye: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ),
+  Print: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
+      <polyline points="6 9 6 2 18 2 18 9" />
+      <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+      <rect x="6" y="14" width="12" height="8" />
+    </svg>
+  ),
+  Search: () => (
+    <svg viewBox="0 0 24 24" fill="none" stroke="#aaa" strokeWidth="2" width="14" height="14">
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  ),
+};
+
+function BillsStatCards({ totalItems, pageCount }) {
+  return (
+    <div className="bills-stats-row">
+      <div className="bills-stat-card">
+        <div className="bills-stat-label">
+          <BillIcons.Room />
+          Billing records
+        </div>
+        <div className="bills-stat-value">{totalItems}</div>
+      </div>
+      <div className="bills-stat-card">
+        <div className="bills-stat-label">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          On this page
+        </div>
+        <div className="bills-stat-value">{pageCount}</div>
+      </div>
+    </div>
+  );
+}
+
+function billContextLabel(b) {
+  const pkg = String(b?.package || "").trim();
+  const room = String(b?.room || "").trim();
+  if (pkg && room && room !== "—") return `${pkg} (${room})`;
+  if (pkg) return pkg;
+  if (room && room !== "—") return room;
+  return "—";
+}
 
 function fmtPeso(n) {
   const v = Number(n);
@@ -194,73 +265,6 @@ function rowMatchesReportMonth(row, monthYm) {
   return ym === monthYm;
 }
 
-function roomBillRowsForReport(allRows, monthYm) {
-  return (Array.isArray(allRows) ? allRows : []).filter(
-    (r) => String(r?.bookingType || "").toLowerCase() !== "event" && rowMatchesReportMonth(r, monthYm),
-  );
-}
-
-/**
- * @param {Array<object>} rows
- * @param {string} monthYm
- */
-function downloadRoomTransactionsPdf(rows, monthYm) {
-  const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  const margin = 12;
-  let y = 14;
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(15);
-  doc.text("ABELA SUITES", margin, y);
-  y += 6;
-  doc.setFontSize(10);
-  doc.text("All room transactions", margin, y);
-  y += 4;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
-  doc.setTextColor(100, 80, 60);
-  const period = monthYm
-    ? `Month: ${monthYm} (check-in / event date on file)`
-    : "All dates — room bills currently loaded";
-  doc.text(pdfSafeText(period, 140), margin, y);
-  y += 4;
-  doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString("en-PH")}`, 120), margin, y);
-  y += 7;
-  doc.setTextColor(0, 0, 0);
-
-  const body = rows.map((r) => [
-    String(r.id ?? "—"),
-    pdfSafeText(r.customer, 28),
-    pdfSafeText(String(r.room), 10),
-    pdfSafeText(String(r.package), 24),
-    pdfSafeText(String(r.checkin), 12),
-    pdfSafeText(String(r.checkout), 12),
-    fmtPdfMoney(r.amount),
-    fmtPdfMoney(r.totalPaid),
-    fmtPdfMoney(r.balance),
-    pdfSafeText(String(r.paymentStatus || "—"), 10),
-  ]);
-
-  autoTable(doc, {
-    startY: y,
-    head: [["#", "Customer", "Room", "Package", "Check-in", "Check-out", "Amount", "Paid", "Balance", "Pay status"]],
-    body,
-    styles: { fontSize: 7.5, cellPadding: 1.2 },
-    headStyles: { fillColor: [150, 116, 35], textColor: 255 },
-    columnStyles: {
-      0: { cellWidth: 10, halign: "center" },
-      6: { halign: "right" },
-      7: { halign: "right" },
-      8: { halign: "right" },
-    },
-    margin: { left: margin, right: margin },
-    theme: "grid",
-  });
-
-  const stamp = `${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, "0")}${String(new Date().getDate()).padStart(2, "0")}_${String(new Date().getHours()).padStart(2, "0")}${String(new Date().getMinutes()).padStart(2, "0")}`;
-  const mtag = monthYm ? `_${monthYm}` : "_all";
-  openPdfPrintOrDownload(doc, `Abela_Room_Transactions${mtag}_${stamp}.pdf`);
-}
-
 /**
  * @param {object} row - mapped bill row from `loadBillingRows`
  * @param {object|null} details - optional payload from `fetchFrontdeskBookingDetailsBackend`
@@ -283,7 +287,10 @@ function downloadFrontdeskBillPdf(row, details) {
     bill.paymentStatus || row.paymentStatus || "—",
   );
 
-  const customer = pdfSafeText(guest?.name || bk.customerName || row.customer || "Guest", 120);
+  const customer = pdfSafeText(
+    bk.customerName || guest?.name || row.customer || "Guest",
+    120,
+  );
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const margin = 14;
   let y = 16;
@@ -301,19 +308,36 @@ function downloadFrontdeskBillPdf(row, details) {
   doc.text(pdfSafeText(`Generated: ${new Date().toLocaleString("en-PH")}`, 80), margin, y);
   y += 6;
 
+  const payMethod = paymentMethodLabel(
+    bill.paymentMethod || bk.paymentMethod || row.paymentMethod || "—",
+  );
+  const txRef = String(bill.transactionId || bk.transactionId || "—").trim() || "—";
+
+  const isEventBill =
+    String(row?.bookingType || bk?.bookingType || bk?.type || "").toLowerCase() === "event";
+  const startLabel = isEventBill ? "Event date" : "Check-in";
+  const endLabel = isEventBill ? "End date" : "Check-out";
+  const startDate = displayLedgerDate(
+    row.eventDate || row.checkin || bk.eventDate || bk.checkIn || "",
+  );
+  const endDate = displayLedgerDate(
+    row.eventEndDate || row.checkout || bk.eventEndDate || bk.checkOut || "",
+  );
+
   const infoBody = [
     ["Display bill #", pdfSafeText(row.id ?? "—", 40)],
-    ["Billing record ID", pdfSafeText(row.billId || bill.id || "—", 48)],
+    ["Transaction / billing ref", pdfSafeText(row.billId || bill.id || row.bookingId || "—", 48)],
     ["Booking ID", pdfSafeText(row.bookingId || bk.id || "—", 48)],
     ["Customer", customer],
     ["Room / venue", pdfSafeText(row.room || "—", 80)],
-    ["Package", pdfSafeText(row.package || "—", 80)],
-    ["Room type / label", pdfSafeText(row.roomType || "—", 80)],
-    ["Check-in / event date", pdfSafeText(row.checkin || "—", 40)],
-    ["Check-out", pdfSafeText(row.checkout || "—", 40)],
+    ["Package / event", pdfSafeText(row.package || "—", 80)],
+    [startLabel, pdfSafeText(startDate, 40)],
+    [endLabel, pdfSafeText(endDate, 40)],
     ["Bill activity date", pdfSafeText(row.date || "—", 40)],
+    ["Payment method", pdfSafeText(payMethod, 32)],
+    ["Payment status", pdfSafeText(paymentStatusLabel(paymentStatus), 32)],
+    ["Transaction ID", pdfSafeText(txRef, 48)],
     ["Booking status", pdfSafeText(bk.status || "—", 32)],
-    ["Payment status", pdfSafeText(paymentStatus, 32)],
   ];
 
   autoTable(doc, {
@@ -334,7 +358,7 @@ function downloadFrontdeskBillPdf(row, details) {
     head: [["Summary", "Amount"]],
     body: [
       ["Total amount", fmtPdfMoney(totalAmount)],
-      ["Total paid", fmtPdfMoney(amountPaid)],
+      ["Down payment / amount paid", fmtPdfMoney(amountPaid)],
       ["Remaining balance", fmtPdfMoney(balance)],
     ],
     styles: { fontSize: 10, cellPadding: 2 },
@@ -383,10 +407,12 @@ export default function BillsPage() {
   const staffTopbarRef = useRef(null);
 
   const [search, setSearch]             = useState("");
-  /** `YYYY-MM` or "" = all loaded bills (month filter applies to room reports only). */
+  /** "" = all, "room" | "event" — matches admin billing tabs. */
+  const [billingTab, setBillingTab]   = useState("");
+  /** `YYYY-MM` or "" = all time for print report. */
   const [reportMonth, setReportMonth]   = useState("");
-  const [filter, setFilter]             = useState("All Time");
-  const [filterOpen, setFilterOpen]     = useState(false);
+  const [printOpen, setPrintOpen]       = useState(false);
+  const [printVariant, setPrintVariant] = useState("all");
   const [billRows, setBillRows]         = useState([]);
   /** Start true so we never flash sample rows; cleared in `loadBillingRows` `finally`. */
   const [rowsLoading, setRowsLoading]   = useState(true);
@@ -430,8 +456,16 @@ export default function BillsPage() {
           customer: String(r?.guest?.name || "Guest"),
           room: roomCell,
           package: packageCell || (bookingType === "event" ? "Event Booking" : "Room Booking"),
-          checkin: r?.booking?.checkIn || r?.booking?.eventDate || "—",
-          checkout: r?.booking?.checkOut || "—",
+          checkin:
+            r?.booking?.checkIn ||
+            r?.booking?.eventDate ||
+            "",
+          checkout:
+            r?.booking?.checkOut ||
+            r?.booking?.eventEndDate ||
+            "",
+          eventDate: r?.booking?.eventDate || "",
+          eventEndDate: r?.booking?.eventEndDate || "",
           amount: Number(r?.billing?.totalAmount || 0),
           roomType: roomOrEvent || packageCell || "—",
           date: isoToDisplayDate(r?.billing?.updatedAt || r?.billing?.createdAt),
@@ -440,6 +474,7 @@ export default function BillsPage() {
           totalPaid: Number(r?.billing?.amountPaid || 0),
           balance: Number(r?.billing?.balance || 0),
           paymentStatus: String(r?.billing?.paymentStatus || "unpaid"),
+          paymentMethod: String(bk?.paymentMethod || r?.billing?.paymentMethod || ""),
         };
       });
 
@@ -476,8 +511,10 @@ export default function BillsPage() {
             customer: String(b?.customerName || b?.guest?.displayName || "Guest"),
             room: roomCell,
             package: packageCell,
-            checkin: b?.checkIn || b?.eventDate || "—",
-            checkout: b?.checkOut || "—",
+            checkin: b?.checkIn || b?.eventDate || "",
+            checkout: b?.checkOut || b?.eventEndDate || "",
+            eventDate: b?.eventDate || "",
+            eventEndDate: b?.eventEndDate || "",
             amount: total,
             roomType: roomOrEvent,
             date: isoToDisplayDate(b?.createdAt || b?.updatedAt),
@@ -486,6 +523,7 @@ export default function BillsPage() {
             totalPaid: paid,
             balance,
             paymentStatus: balance <= 0 && total > 0 ? "paid" : paid > 0 ? "partial" : "unpaid",
+            paymentMethod: String(b?.paymentMethod || "—"),
           };
         });
       setBillRows(bookingRows);
@@ -530,34 +568,19 @@ export default function BillsPage() {
     await loadBillingRows();
   }
 
-  function printBillRowToPdf(row) {
+  async function printBillRowToPdf(row) {
     try {
-      downloadFrontdeskBillPdf(row, null);
+      let details = null;
+      if (row?.bookingId) {
+        try {
+          details = await fetchFrontdeskBookingDetailsBackend(row.bookingId);
+        } catch {
+          details = null;
+        }
+      }
+      downloadFrontdeskBillPdf(row, details);
     } catch (e) {
       console.error("[frontdesk-bills] PDF error", e);
-      window.alert(
-        String(
-          e?.message ||
-            "Could not open or save the PDF. Allow pop-ups for this site, or check download permissions.",
-        ),
-      );
-    }
-  }
-
-  function printAllRoomTransactionsPdf() {
-    const subset = roomBillRowsForReport(billRows, reportMonth);
-    if (!subset.length) {
-      window.alert(
-        reportMonth
-          ? "No room bills have a check-in date in that month (or dates could not be read)."
-          : "No room bills are loaded yet.",
-      );
-      return;
-    }
-    try {
-      downloadRoomTransactionsPdf(subset, reportMonth);
-    } catch (e) {
-      console.error("[frontdesk-bills] room transactions PDF", e);
       window.alert(
         String(
           e?.message ||
@@ -589,31 +612,35 @@ export default function BillsPage() {
     [billRows, navigate],
   );
 
-  const timeFilteredRows = useMemo(
-    () => billRows.filter((b) => billPassesTimeFilter(filter, billRowFilterTimeMs(b))),
-    [billRows, filter],
-  );
-
-  const countRoom = useMemo(
-    () => timeFilteredRows.filter((b) => b.bookingType !== "event").length,
-    [timeFilteredRows],
-  );
-  const countEvent = useMemo(
-    () => timeFilteredRows.filter((b) => b.bookingType === "event").length,
-    [timeFilteredRows],
-  );
-  const countTotal = countRoom + countEvent;
+  const tabFilteredRows = useMemo(() => {
+    if (billingTab === "room") return billRows.filter((b) => String(b.bookingType).toLowerCase() !== "event");
+    if (billingTab === "event") return billRows.filter((b) => String(b.bookingType).toLowerCase() === "event");
+    return billRows;
+  }, [billRows, billingTab]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return timeFilteredRows.filter(
+    return tabFilteredRows.filter(
       (b) =>
         b.customer.toLowerCase().includes(q) ||
         b.package.toLowerCase().includes(q) ||
         b.room.toString().includes(q) ||
         b.id.toString().includes(q),
     );
-  }, [timeFilteredRows, search]);
+  }, [tabFilteredRows, search]);
+
+  const printMonthLabel = useMemo(() => formatPrintMonthLabel(reportMonth), [reportMonth]);
+
+  const printRowsFiltered = useMemo(() => {
+    const ledger = filtered.map(frontdeskBillRowToLedgerRow);
+    return ledger.filter((r) => rowInSelectedMonthFrontdesk(r, reportMonth));
+  }, [filtered, reportMonth]);
+
+  const openBillsPrint = useCallback(() => {
+    const variant = billingTab === "event" ? "event" : billingTab === "room" ? "room" : "all";
+    setPrintVariant(variant);
+    setPrintOpen(true);
+  }, [billingTab]);
 
   const billsPageSizeSafe = Math.min(100, Math.max(5, Number(billsPageSize) || 10));
   const billsTotalPages = Math.max(1, Math.ceil(filtered.length / billsPageSizeSafe));
@@ -626,18 +653,24 @@ export default function BillsPage() {
 
   useEffect(() => {
     setBillsPage(1);
-  }, [search, filter, billRows.length]);
+  }, [search, billingTab, billRows.length]);
 
   useEffect(() => {
     setBillsPage((p) => Math.min(Math.max(1, p), billsTotalPages));
   }, [billsTotalPages]);
 
   function closeAll() {
-    setFilterOpen(false);
     staffTopbarRef.current?.hideMenusOnly?.();
   }
 
   const { mainStyle } = useFrontdeskShell();
+  const staffRole = getSessionRole();
+  const canRecordPayment =
+    staffRole === "cashier" || staffRole === "admin" || staffRole === "superadmin";
+  const totalItems = filtered.length;
+  const billsSliceFrom = pagedBills.length > 0 ? (billsPageSafe - 1) * billsPageSizeSafe + 1 : 0;
+  const billsSliceTo =
+    pagedBills.length > 0 ? (billsPageSafe - 1) * billsPageSizeSafe + pagedBills.length : 0;
 
   const navItems = [
     { label: "Dashboard",           path: "/frontdesk-dashboard",              icon: "grid"               },
@@ -652,7 +685,7 @@ export default function BillsPage() {
   return (
     <>
       <RailPortalShell
-        rootClassName="frontdesk-app"
+        rootClassName="frontdesk-app fd-bills-page bills-page"
         mainStyle={mainStyle}
         rootProps={{ onClick: closeAll }}
         sidebar={
@@ -670,7 +703,7 @@ export default function BillsPage() {
         <header className="topbar">
           <div className="topbar-breadcrumb">
             <FrontdeskSidebarToggle />
-            <span className="breadcrumb-title">Bills</span>
+            <span className="breadcrumb-title">Bills and Invoices</span>
           </div>
           <StaffTopbarActions
             ref={staffTopbarRef}
@@ -690,114 +723,63 @@ export default function BillsPage() {
         {/* ── PAGE CONTENT ── */}
         <main className="content">
 
-          {/* Heading */}
-          <div className="page-heading">
-            <h1 className="page-title">Bills &amp; Invoices</h1>
-            <p className="page-sub">View and manage all rooms</p>
-          </div>
-
-          {/* Stat Cards */}
-          <div className="stat-cards">
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <div className="stat-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                </div>
-                <span className="stat-label">Room Bills</span>
-              </div>
-              <p className="stat-value">{countRoom}</p>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <div className="stat-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-                </div>
-                <span className="stat-label">Event Bills</span>
-              </div>
-              <p className="stat-value">{countEvent}</p>
-            </div>
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <div className="stat-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-                </div>
-                <span className="stat-label">Total Bills</span>
-              </div>
-              <p className="stat-value">{countTotal}</p>
+          <div>
+            <div className="bills-title">Billings management</div>
+            <div className="bills-sub">
+              Paginated ledger from MongoDB — cashiers and admins can record payments; front desk can view balances.
             </div>
           </div>
 
-          {rowsError ? (
-            <div
-              className="fd-bills-api-banner"
-              style={{
-                margin: "0 0 16px",
-                padding: "12px 14px",
-                borderRadius: 10,
-                background: "#fff8f0",
-                border: "1px solid #e8d4bc",
-                color: "#5c4a36",
-                fontSize: 14,
-                lineHeight: 1.45,
-              }}
+          <BillsStatCards totalItems={totalItems} pageCount={pagedBills.length} />
+
+          <div className="bills-tabs">
+            <button
+              type="button"
+              className={`bills-tab${billingTab === "" ? " active" : ""}`}
+              onClick={() => setBillingTab("")}
             >
-              <strong style={{ display: "block", marginBottom: 6 }}>Could not load bills</strong>
-              {rowsError}{" "}
-              <button
-                type="button"
-                className="action-btn view-btn"
-                style={{ marginTop: 8, marginLeft: 0 }}
-                disabled={rowsLoading}
-                onClick={() => void loadBillingRows()}
-              >
-                {rowsLoading ? "Retrying…" : "Retry"}
-              </button>
-              {/not signed in/i.test(rowsError) ? (
-                <>
-                  {" "}
-                  <Link to="/login" style={{ marginLeft: 8, fontWeight: 600 }}>
-                    Go to login
-                  </Link>
-                </>
-              ) : null}
-            </div>
-          ) : null}
+              All billing
+            </button>
+            <button
+              type="button"
+              className={`bills-tab${billingTab === "room" ? " active" : ""}`}
+              onClick={() => setBillingTab("room")}
+            >
+              Room bills
+            </button>
+            <button
+              type="button"
+              className={`bills-tab${billingTab === "event" ? " active" : ""}`}
+              onClick={() => setBillingTab("event")}
+            >
+              Event bills
+            </button>
+          </div>
 
-          {/* Toolbar: search | month | print (same row layout as staff attendance toolbars) */}
-          <div className="fd-bills-main-toolbar">
-            <div className="fd-bills-toolbar-search-col">
-              <div className="fd-bills-toolbar-search-wrap">
-                <svg
-                  className="fd-bills-toolbar-search-icon"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  width="17"
-                  height="17"
-                  aria-hidden
-                >
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
+          <div className="bm-main-toolbar">
+            <div className="bm-toolbar-search-col">
+              <div className="bm-toolbar-search-wrap">
+                <span className="bm-toolbar-search-icon" aria-hidden>
+                  <BillIcons.Search />
+                </span>
                 <input
                   type="search"
-                  className="fd-bills-toolbar-search-input"
-                  placeholder="Search by guest, room, package, bill number…"
+                  className="bm-toolbar-search-input"
+                  placeholder="Search guest name or email (server-side)…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  aria-label="Search bills"
+                  aria-label="Search billing records"
                 />
               </div>
             </div>
-            <div className="fd-bills-toolbar-month-col">
-              <div className="fd-bills-toolbar-month-head">
-                <span className="fd-bills-toolbar-month-label">Select month</span>
+            <div className="bm-toolbar-month-col">
+              <div className="bm-toolbar-month-head">
+                <span className="bm-toolbar-month-label">Select month</span>
                 {reportMonth ? (
                   <button
                     type="button"
-                    className="fd-bills-toolbar-month-clear"
+                    className="bm-toolbar-month-clear"
                     onClick={(e) => {
                       e.stopPropagation();
                       setReportMonth("");
@@ -807,26 +789,26 @@ export default function BillsPage() {
                   </button>
                 ) : null}
               </div>
-              <div className="fd-bills-toolbar-month-input-wrap">
+              <div className="bm-toolbar-month-input-wrap">
                 <input
                   type="month"
-                  className="fd-bills-toolbar-month-input"
+                  className="bm-toolbar-month-input"
                   value={reportMonth}
                   onChange={(e) => setReportMonth(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
-                  aria-label="Select month for printed room transaction report"
+                  aria-label="Select month for billing report"
                 />
               </div>
             </div>
-            <div className="fd-bills-toolbar-print-col">
+            <div className="bm-toolbar-print-col">
               <button
                 type="button"
-                className="fd-bills-toolbar-print-btn"
-                onClick={printAllRoomTransactionsPdf}
-                title="Print PDF of all loaded room bills for the selected month (or all months if empty). Uses check-in or event date on each row; event-only bills are excluded."
+                className="bm-toolbar-print-btn"
+                onClick={openBillsPrint}
+                title="Open printable billing summary for the current tab and selected month (or all time if empty)."
               >
                 <svg
-                  className="fd-bills-toolbar-print-icon"
+                  className="bm-toolbar-print-icon"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -844,147 +826,155 @@ export default function BillsPage() {
             </div>
           </div>
 
-          <div className="fd-bills-toolbar-subrow">
-            <div className="fd-bills-toolbar-subrow-filters">
-              <span className="fd-bills-toolbar-range-label">Time range</span>
-              <div
-                className="filter-wrap fd-bills-filter-wrap"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setFilterOpen((v) => !v);
-                  staffTopbarRef.current?.hideMenusOnly?.();
-                }}
-              >
-                <span>{filter}</span>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  width="14"
-                  height="14"
-                  style={{ transform: filterOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-                >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-                {filterOpen && (
-                  <div className="filter-dropdown open">
-                    {filterOptions.map((opt) => (
-                      <div
-                        key={opt}
-                        className={`filter-option${filter === opt ? " active" : ""}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFilter(opt);
-                          setFilterOpen(false);
-                        }}
-                      >
-                        {opt}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <p className="fd-bills-toolbar-hint">
-              Month applies to the <strong>Print</strong> PDF only. The table uses <strong>Time range</strong> plus search.
-              Room check-in (or event date on the row); event-only bills are not in the printed room report.
+          <div className="bm-toolbar-subrow bills-toolbar-subrow">
+            {!canRecordPayment && staffRole === "frontdesk" ? (
+              <span className="bills-role-hint">Front desk: view-only · Payments require cashier or admin</span>
+            ) : null}
+            <p className="bm-toolbar-hint">
+              Leave empty to include all billing rows. Month filter uses the billing record created date.
             </p>
           </div>
+
+          {rowsError ? (
+            <div className="bills-load-notice">
+              <strong>Could not load bills.</strong> {rowsError}{" "}
+              <button
+                type="button"
+                className="icon-action view-btn"
+                style={{ marginTop: 8, marginLeft: 0 }}
+                disabled={rowsLoading}
+                onClick={() => void loadBillingRows()}
+              >
+                {rowsLoading ? "Retrying…" : "Retry"}
+              </button>
+              {/not signed in/i.test(rowsError) ? (
+                <>
+                  {" "}
+                  <Link to="/login" style={{ marginLeft: 8, fontWeight: 600 }}>
+                    Go to login
+                  </Link>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="bills-section-label">Billing records</div>
 
           {/* Table */}
           <div className="bills-table-wrap">
             <table className="bills-table">
               <thead>
                 <tr>
-                  {["Bill", "Customer", "Room", "Package", "Check-In", "Check-Out", "Amount", "Action"].map((h) => (
-                    <th key={h}>{h}</th>
-                  ))}
+                  <th>Guest</th>
+                  <th>Type</th>
+                  <th>Booking</th>
+                  <th>Total</th>
+                  <th>Paid</th>
+                  <th>Balance</th>
+                  <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {!rowsLoading &&
+                {rowsLoading ? (
+                  <tr>
+                    <td colSpan={8} className="bills-empty">
+                      Loading billing…
+                    </td>
+                  </tr>
+                ) : pagedBills.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="bills-empty">
+                      No billing records match this view.
+                    </td>
+                  </tr>
+                ) : (
                   pagedBills.map((b) => (
-                  <tr key={String(b.bookingId || b.billId || b.id)}>
-                    <td>{b.id}</td>
-                    <td>{b.customer}</td>
-                    <td>{b.room}</td>
-                    <td>{b.package}</td>
-                    <td>{b.checkin}</td>
-                    <td>{b.checkout}</td>
-                    <td>{fmtPeso(b.amount)}</td>
-                    <td>
-                      <div className="action-cell">
-                        <button type="button" className="action-btn view-btn" title="View details" onClick={() => void openBillDetails(b)}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <tr key={String(b.bookingId || b.billId || b.id)}>
+                      <td>{String(b.customer || "").trim() || "—"}</td>
+                      <td>{bookingTypeLabel(b.bookingType)}</td>
+                      <td>{billContextLabel(b)}</td>
+                      <td>{fmtPeso(b.amount)}</td>
+                      <td>{fmtPeso(b.totalPaid)}</td>
+                      <td>{fmtPeso(b.balance)}</td>
+                      <td>
+                        <span
+                          className={`bills-pay-badge bills-pay-badge--${String(b.paymentStatus || "unpaid").toLowerCase()}`}
+                        >
+                          {paymentStatusLabel(b.paymentStatus)}
+                        </span>
+                      </td>
+                      <td className="action-cell">
+                        <button
+                          type="button"
+                          className="icon-action view-btn"
+                          title="View details"
+                          onClick={() => void openBillDetails(b)}
+                        >
+                          <BillIcons.Eye />
                         </button>
                         <button
                           type="button"
-                          className="action-btn print-btn"
-                          title="Open bill PDF for printing (allow pop-ups if nothing happens)"
-                          onClick={() => printBillRowToPdf(b)}
+                          className="icon-action print-btn"
+                          title="Open bill PDF (read-only)"
+                          onClick={() => void printBillRowToPdf(b)}
                         >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+                          <BillIcons.Print />
                         </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {!rowsLoading && filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={8} style={{ padding: 32, textAlign: "center", color: "#bbb" }}>No bills found.</td>
-                  </tr>
-                )}
-                {rowsLoading && (
-                  <tr>
-                    <td colSpan={8} style={{ padding: 32, textAlign: "center", color: "#9a8060" }}>Loading bills...</td>
-                  </tr>
+                        {canRecordPayment ? (
+                          <button
+                            type="button"
+                            className="icon-action bills-pay-btn"
+                            title="Record payment"
+                            onClick={() => void openBillDetails(b)}
+                          >
+                            Pay
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
           </div>
 
-          {!rowsLoading && filtered.length > 0 ? (
-            <div className="fd-bills-pagination" role="navigation" aria-label="Bills table pages">
-              <div className="fd-bills-pagination-meta">
-                <span>
-                  Showing{" "}
-                  <strong>
-                    {filtered.length === 0 ? 0 : (billsPageSafe - 1) * billsPageSizeSafe + 1}
-                  </strong>
-                  –
-                  <strong>{Math.min(billsPageSafe * billsPageSizeSafe, filtered.length)}</strong> of{" "}
-                  <strong>{filtered.length}</strong>
+          {!rowsLoading && (
+            <div className="rm-pagination-row">
+              <div className="rm-pagination-meta">
+                <span className="rm-pagination-count">
+                  {pagedBills.length > 0 ? (
+                    <>
+                      Showing {billsSliceFrom}–{billsSliceTo} of {totalItems} · Page {billsPageSafe} of {billsTotalPages}
+                    </>
+                  ) : (
+                    <>
+                      {totalItems} record{totalItems === 1 ? "" : "s"} · Page {billsPageSafe} of {billsTotalPages}
+                    </>
+                  )}
                 </span>
-                <label className="fd-bills-pagination-per">
-                  <span>Rows per page</span>
+                <label className="rm-pagination-limit">
+                  <span>Per page</span>
                   <select
-                    className="fd-bills-pagination-select"
+                    className="rm-pagination-select"
                     value={billsPageSizeSafe}
                     onChange={(e) => {
                       setBillsPageSize(Number(e.target.value));
                       setBillsPage(1);
                     }}
                   >
-                    {[5, 10, 15, 25, 50, 100].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
                   </select>
                 </label>
               </div>
-              <div className="fd-bills-pagination-btns">
+              <div className="rm-pagination-btns">
                 <button
                   type="button"
-                  className="fd-bills-page-btn"
+                  className="rm-page-btn"
                   disabled={billsPageSafe <= 1}
-                  onClick={() =>
-                    setBillsPage((p) => {
-                      const cur = Math.min(Math.max(1, p), billsTotalPages);
-                      return Math.max(1, cur - 1);
-                    })
-                  }
+                  onClick={() => setBillsPage((p) => Math.max(1, p - 1))}
                 >
                   Previous
                 </button>
@@ -992,17 +982,11 @@ export default function BillsPage() {
                   const prev = arr[idx - 1];
                   const showEllipsis = prev != null && pNum - prev > 1;
                   return (
-                    <span key={pNum} className="fd-bills-page-num-wrap">
-                      {showEllipsis ? (
-                        <span className="fd-bills-page-ellipsis" aria-hidden>
-                          …
-                        </span>
-                      ) : null}
+                    <span key={pNum} className="rm-page-btn-wrap">
+                      {showEllipsis ? <span className="rm-page-ellipsis">…</span> : null}
                       <button
                         type="button"
-                        className={`fd-bills-page-num${pNum === billsPageSafe ? " fd-bills-page-num--active" : ""}`}
-                        aria-label={`Page ${pNum}`}
-                        {...(pNum === billsPageSafe ? { "aria-current": "page" } : {})}
+                        className={`rm-page-btn${pNum === billsPageSafe ? " rm-page-btn--active" : ""}`}
                         onClick={() => setBillsPage(pNum)}
                       >
                         {pNum}
@@ -1012,20 +996,15 @@ export default function BillsPage() {
                 })}
                 <button
                   type="button"
-                  className="fd-bills-page-btn"
+                  className="rm-page-btn"
                   disabled={billsPageSafe >= billsTotalPages}
-                  onClick={() =>
-                    setBillsPage((p) => {
-                      const cur = Math.min(Math.max(1, p), billsTotalPages);
-                      return Math.min(billsTotalPages, cur + 1);
-                    })
-                  }
+                  onClick={() => setBillsPage((p) => Math.min(billsTotalPages, p + 1))}
                 >
                   Next
                 </button>
               </div>
             </div>
-          ) : null}
+          )}
 
         </main>
       </RailPortalShell>
@@ -1178,6 +1157,17 @@ export default function BillsPage() {
         open={logoutModalOpen}
         onClose={closeLogoutModal}
         onConfirm={confirmLogout}
+      />
+
+      <BillsPrintModal
+        open={printOpen}
+        onClose={() => setPrintOpen(false)}
+        monthLabel={printMonthLabel}
+        variant={printVariant}
+        rows={printRowsFiltered}
+        printMonthKey={reportMonth}
+        rootClass="bills-page"
+        note="Leave month empty to include all billing rows in the print preview. Use the row print icon for a single guest bill."
       />
     </>
   );

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
@@ -26,6 +26,9 @@ import {
   eventNumberColumn,
   eventVenueNameFromBooking,
   formatRoomTableNumber,
+  bookingCustomerDisplayName,
+  bookingEmailDisplay,
+  bookingPhoneDisplay,
 } from "./bookingRoomDisplay";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { resolveGuestIdImageSrc } from "./guestBookingIdPhoto";
@@ -75,6 +78,40 @@ const SuccessIcon = () => (
     <polyline points="9 12 11 14 15 10" />
   </svg>
 );
+
+const BH_TABLE_PAGE_SIZE = 10;
+
+function BookingHistoryPagination({ rangeFrom, rangeTo, total, currentPage, totalPages, onPrev, onNext, label }) {
+  if (total <= 0) return null;
+  return (
+    <div className="bh-pagination-bar" aria-label={label}>
+      <span className="bh-pagination-info">
+        Showing {rangeFrom}–{rangeTo} of {total}
+      </span>
+      <div className="bh-pagination-btns">
+        <button
+          type="button"
+          className="bh-page-btn"
+          disabled={currentPage <= 1}
+          onClick={onPrev}
+        >
+          Previous
+        </button>
+        <span className="bh-pagination-pages">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button
+          type="button"
+          className="bh-page-btn"
+          disabled={currentPage >= totalPages}
+          onClick={onNext}
+        >
+          Next
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const navItems = [
   { label: "Homepage",     icon: <HomeIcon />,     href: "/home"           },
@@ -128,6 +165,143 @@ function GuestBookingStatus({ status }) {
   return <span className={cls}>{label}</span>;
 }
 
+function formatPaymentLine(row) {
+  const method = String(row?.paymentMethod || "").trim() || "—";
+  const amt = formatPesoAmount(row?.paymentAmount ?? row?.totalAmount);
+  if (method === "—" && amt === "—") return "—";
+  if (amt === "—") return method;
+  return `${method} · ₱${amt}`;
+}
+
+function BookingDetailsModal({
+  booking,
+  detailIdPhotoSrc,
+  roomIdToNumber,
+  eventVenueNameMap,
+  onClose,
+}) {
+  const isEvent = booking.type === "event";
+  const declineReason = String(booking.declineReason || "").trim();
+
+  return (
+    <div
+      className="bh-modal-backdrop active"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="bh-booking-detail-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bh-modal bh-modal--details">
+        <header className="bh-modal-header bh-modal-header--details">
+          <h2 id="bh-booking-detail-title" className="bh-modal-title">
+            Booking Details
+          </h2>
+          <button type="button" className="bh-modal-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+          <div className="bh-modal-header-ornament" aria-hidden>
+            <span className="bh-modal-header-ornament-line" />
+            <span className="bh-modal-header-ornament-diamond" />
+            <span className="bh-modal-header-ornament-line" />
+          </div>
+        </header>
+
+        <div className="bh-modal-body bh-modal-body--details">
+          <dl className="bh-detail-grid">
+            <dt className="bh-detail-label">Status</dt>
+            <dd className="bh-detail-value">
+              <GuestBookingStatus status={booking.status} />
+            </dd>
+
+            {declineReason ? (
+              <>
+                <dt className="bh-detail-label">Rejection reason</dt>
+                <dd className="bh-detail-value">{declineReason}</dd>
+              </>
+            ) : null}
+
+            <dt className="bh-detail-label">Guest</dt>
+            <dd className="bh-detail-value">{bookingCustomerDisplayName(booking)}</dd>
+
+            <dt className="bh-detail-label">Email</dt>
+            <dd className="bh-detail-value bh-detail-value--break">{bookingEmailDisplay(booking)}</dd>
+
+            <dt className="bh-detail-label">Contact</dt>
+            <dd className="bh-detail-value">{bookingPhoneDisplay(booking)}</dd>
+
+            <dt className="bh-detail-label">Type</dt>
+            <dd className="bh-detail-value">{isEvent ? "Event booking" : "Room reservation"}</dd>
+
+            {isEvent ? (
+              <>
+                <dt className="bh-detail-label">Event venue</dt>
+                <dd className="bh-detail-value">
+                  {eventVenueNameFromBooking(booking, eventVenueNameMap)}
+                </dd>
+                <dt className="bh-detail-label">Event date</dt>
+                <dd className="bh-detail-value">{formatDateLabel(booking.eventDate)}</dd>
+                <dt className="bh-detail-label">Event end</dt>
+                <dd className="bh-detail-value">{formatDateLabel(booking.eventEndDate)}</dd>
+                <dt className="bh-detail-label">Expected pax</dt>
+                <dd className="bh-detail-value">{booking.expectedPax || "—"}</dd>
+              </>
+            ) : (
+              <>
+                <dt className="bh-detail-label">Room</dt>
+                <dd className="bh-detail-value">
+                  {formatRoomTableNumber(booking, roomIdToNumber)}
+                  {booking.roomTitle ? ` — ${booking.roomTitle}` : ""}
+                </dd>
+                <dt className="bh-detail-label">Check-in</dt>
+                <dd className="bh-detail-value">{formatDateLabel(booking.checkIn)}</dd>
+                <dt className="bh-detail-label">Check-out</dt>
+                <dd className="bh-detail-value">{formatDateLabel(booking.checkOut)}</dd>
+              </>
+            )}
+
+            <dt className="bh-detail-label">Total</dt>
+            <dd className="bh-detail-value bh-detail-value--amount">
+              ₱{formatPesoAmount(booking.totalAmount)}
+            </dd>
+
+            <dt className="bh-detail-label">Payment</dt>
+            <dd className="bh-detail-value">{formatPaymentLine(booking)}</dd>
+
+            <dt className="bh-detail-label">Transaction</dt>
+            <dd className="bh-detail-value bh-detail-value--mono">
+              {booking.transactionId || "—"}
+            </dd>
+          </dl>
+
+          <div className="id-uploaded-card id-uploaded-card--standalone bh-detail-id-card">
+            <h3 className="id-uploaded-card-title">Government ID on file</h3>
+            <div className="id-uploaded-frame">
+              {detailIdPhotoSrc ? (
+                <img
+                  src={detailIdPhotoSrc}
+                  alt="Government ID"
+                  className="id-img"
+                  decoding="async"
+                />
+              ) : (
+                <p className="id-placeholder">No government ID image on file</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <footer className="bh-modal-footer">
+          <button type="button" className="bh-btn-submit bh-modal-footer-btn" onClick={onClose}>
+            Close
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
 export default function BookingHistory() {
   const navigate = useNavigate();
   const { bookingId: routeBookingId } = useParams();
@@ -143,6 +317,8 @@ export default function BookingHistory() {
 
   // Tabs
   const [activeTab, setActiveTab] = useState("room");
+  const [roomPage, setRoomPage] = useState(1);
+  const [eventPage, setEventPage] = useState(1);
 
   const [roomBookings, setRoomBookings] = useState([]);
   const [eventBookings, setEventBookings] = useState([]);
@@ -279,6 +455,51 @@ export default function BookingHistory() {
   }, [loadBookings]);
 
   const detailIdPhotoSrc = bookingDetailRow ? resolveGuestIdImageSrc(bookingDetailRow) : null;
+
+  const roomPagination = useMemo(() => {
+    const total = roomBookings.length;
+    const totalPages = Math.max(1, Math.ceil(total / BH_TABLE_PAGE_SIZE));
+    const currentPage = Math.min(Math.max(1, roomPage), totalPages);
+    const pageStart = (currentPage - 1) * BH_TABLE_PAGE_SIZE;
+    const items = roomBookings.slice(pageStart, pageStart + BH_TABLE_PAGE_SIZE);
+    return {
+      items,
+      total,
+      totalPages,
+      currentPage,
+      rangeFrom: total === 0 ? 0 : pageStart + 1,
+      rangeTo: total === 0 ? 0 : pageStart + items.length,
+    };
+  }, [roomBookings, roomPage]);
+
+  const eventPagination = useMemo(() => {
+    const total = eventBookings.length;
+    const totalPages = Math.max(1, Math.ceil(total / BH_TABLE_PAGE_SIZE));
+    const currentPage = Math.min(Math.max(1, eventPage), totalPages);
+    const pageStart = (currentPage - 1) * BH_TABLE_PAGE_SIZE;
+    const items = eventBookings.slice(pageStart, pageStart + BH_TABLE_PAGE_SIZE);
+    return {
+      items,
+      total,
+      totalPages,
+      currentPage,
+      rangeFrom: total === 0 ? 0 : pageStart + 1,
+      rangeTo: total === 0 ? 0 : pageStart + items.length,
+    };
+  }, [eventBookings, eventPage]);
+
+  useEffect(() => {
+    setRoomPage(1);
+    setEventPage(1);
+  }, [activeTab]);
+
+  useEffect(() => {
+    setRoomPage((p) => Math.min(Math.max(1, p), roomPagination.totalPages));
+  }, [roomPagination.totalPages]);
+
+  useEffect(() => {
+    setEventPage((p) => Math.min(Math.max(1, p), eventPagination.totalPages));
+  }, [eventPagination.totalPages]);
 
   const openReviewModal = (bookingId) => {
     setReviewBookingId(bookingId);
@@ -440,11 +661,13 @@ export default function BookingHistory() {
               {/* Tabs */}
               <div className="bh-tabs">
                 <button
+                  type="button"
                   className={`bh-tab${activeTab === "room" ? " active" : ""}`}
                   onClick={() => setActiveTab("room")}>
                   Room
                 </button>
                 <button
+                  type="button"
                   className={`bh-tab${activeTab === "event" ? " active" : ""}`}
                   onClick={() => setActiveTab("event")}>
                   Event
@@ -481,7 +704,7 @@ export default function BookingHistory() {
                           </td>
                         </tr>
                       ) : (
-                        roomBookings.map((b, idx) => {
+                        roomPagination.items.map((b, idx) => {
                           const bid = b.id != null ? String(b.id) : "";
                           const done = reviewedIds.has(bid);
                           return (
@@ -495,21 +718,20 @@ export default function BookingHistory() {
                                 <GuestBookingStatus status={b.status} />
                               </td>
                               <td>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                <div className="bh-table-actions">
                                   <button
                                     type="button"
-                                    className="btn-leave-review"
-                                    style={{ background: "#8d7a5c", color: "#fff" }}
+                                    className="btn-view-details"
                                     onClick={() => setBookingDetailRow(b)}
                                   >
                                     View details
                                   </button>
                                   <button
-                                    className="btn-leave-review"
+                                    type="button"
+                                    className={`btn-leave-review${done ? " btn-leave-review--done" : ""}`}
                                     onClick={() => openReviewModal(bid)}
                                     disabled={done}
                                     title={done ? "Already submitted" : "Leave a review"}
-                                    style={done ? { background: "#aaa", cursor: "default" } : {}}
                                   >
                                     {done ? "Reviewed" : "Leave review"}
                                   </button>
@@ -521,6 +743,16 @@ export default function BookingHistory() {
                       )}
                     </tbody>
                   </table>
+                  <BookingHistoryPagination
+                    label="Room booking history pages"
+                    rangeFrom={roomPagination.rangeFrom}
+                    rangeTo={roomPagination.rangeTo}
+                    total={roomPagination.total}
+                    currentPage={roomPagination.currentPage}
+                    totalPages={roomPagination.totalPages}
+                    onPrev={() => setRoomPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setRoomPage((p) => Math.min(roomPagination.totalPages, p + 1))}
+                  />
                 </div>
               )}
 
@@ -547,7 +779,7 @@ export default function BookingHistory() {
                           </td>
                         </tr>
                       ) : (
-                        eventBookings.map((b, idx) => {
+                        eventPagination.items.map((b, idx) => {
                           const bid = b.id != null ? String(b.id) : "";
                           const done = reviewedIds.has(bid);
                           return (
@@ -561,22 +793,20 @@ export default function BookingHistory() {
                                 <GuestBookingStatus status={b.status} />
                               </td>
                               <td>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                <div className="bh-table-actions">
                                   <button
                                     type="button"
-                                    className="btn-leave-review"
-                                    style={{ background: "#8d7a5c", color: "#fff" }}
+                                    className="btn-view-details"
                                     onClick={() => setBookingDetailRow(b)}
                                   >
                                     View details
                                   </button>
                                   <button
                                     type="button"
-                                    className="btn-leave-review"
+                                    className={`btn-leave-review${done ? " btn-leave-review--done" : ""}`}
                                     onClick={() => openReviewModal(bid)}
                                     disabled={done}
                                     title={done ? "Already submitted" : "Leave a review"}
-                                    style={done ? { background: "#aaa", cursor: "default" } : {}}
                                   >
                                     {done ? "Reviewed" : "Leave review"}
                                   </button>
@@ -588,6 +818,16 @@ export default function BookingHistory() {
                       )}
                     </tbody>
                   </table>
+                  <BookingHistoryPagination
+                    label="Event booking history pages"
+                    rangeFrom={eventPagination.rangeFrom}
+                    rangeTo={eventPagination.rangeTo}
+                    total={eventPagination.total}
+                    currentPage={eventPagination.currentPage}
+                    totalPages={eventPagination.totalPages}
+                    onPrev={() => setEventPage((p) => Math.max(1, p - 1))}
+                    onNext={() => setEventPage((p) => Math.min(eventPagination.totalPages, p + 1))}
+                  />
                 </div>
               )}
 
@@ -597,81 +837,33 @@ export default function BookingHistory() {
       </RailPortalShell>
 
       {bookingDetailRow && (
-        <div
-          className="bh-modal-backdrop active"
-          onClick={(e) => {
-            if (e.target !== e.currentTarget) return;
+        <BookingDetailsModal
+          booking={bookingDetailRow}
+          detailIdPhotoSrc={detailIdPhotoSrc}
+          roomIdToNumber={roomIdToNumber}
+          eventVenueNameMap={eventVenueNameMap}
+          onClose={() => {
             setBookingDetailRow(null);
             if (routeBookingId) navigate("/booking-history", { replace: true });
           }}
-        >
-          <div className="bh-modal">
-            <div className="bh-modal-header">
-              <h2 className="bh-modal-title">Booking Details</h2>
-              <button
-                type="button"
-                className="bh-modal-close"
-                onClick={() => {
-                  setBookingDetailRow(null);
-                  if (routeBookingId) navigate("/booking-history", { replace: true });
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            <div className="bh-modal-body">
-              <div style={{ display: "grid", gap: 8 }}>
-                <div><strong>Status:</strong> <GuestBookingStatus status={bookingDetailRow.status} /></div>
-                {String(bookingDetailRow.declineReason || "").trim() !== "" ? (
-                  <div>
-                    <strong>Rejection reason:</strong> {String(bookingDetailRow.declineReason).trim()}
-                  </div>
-                ) : null}
-                <div><strong>Guest:</strong> {bookingDetailRow.customerName || "—"}</div>
-                <div><strong>Email:</strong> {bookingDetailRow.email || "—"}</div>
-                <div><strong>Contact:</strong> {bookingDetailRow.contactNumber || "—"}</div>
-                <div><strong>Type:</strong> {bookingDetailRow.type === "event" ? "Event booking" : "Room reservation"}</div>
-                {bookingDetailRow.type === "event" ? (
-                  <>
-                    <div><strong>Event venue:</strong> {eventVenueNameFromBooking(bookingDetailRow, eventVenueNameMap)}</div>
-                    <div><strong>Event date:</strong> {formatDateLabel(bookingDetailRow.eventDate)}</div>
-                    <div><strong>Event end:</strong> {formatDateLabel(bookingDetailRow.eventEndDate)}</div>
-                    <div><strong>Expected pax:</strong> {bookingDetailRow.expectedPax || "—"}</div>
-                  </>
-                ) : (
-                  <>
-                    <div><strong>Room:</strong> {formatRoomTableNumber(bookingDetailRow, roomIdToNumber)} — {bookingDetailRow.roomTitle || "—"}</div>
-                    <div><strong>Check-in:</strong> {formatDateLabel(bookingDetailRow.checkIn)}</div>
-                    <div><strong>Check-out:</strong> {formatDateLabel(bookingDetailRow.checkOut)}</div>
-                  </>
-                )}
-                <div><strong>Total:</strong> PHP {formatPesoAmount(bookingDetailRow.totalAmount)}</div>
-                <div><strong>Payment:</strong> {bookingDetailRow.paymentMethod || "—"} ({bookingDetailRow.paymentAmount || "0"})</div>
-                <div><strong>Transaction:</strong> {bookingDetailRow.transactionId || "—"}</div>
-              </div>
-              <div className="bh-detail-id-section">
-                <h3 className="bh-detail-id-section__title">Government ID on file</h3>
-                <div className="bh-detail-id-frame">
-                  {detailIdPhotoSrc ? (
-                    <img src={detailIdPhotoSrc} alt="Government ID" className="bh-detail-id-img" decoding="async" />
-                  ) : (
-                    <div className="bh-detail-id-placeholder">No government ID image on file</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        />
       )}
 
       {/* ── REVIEW MODAL ── */}
       {showModal && (
         <div className="bh-modal-backdrop active" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-          <div className="bh-modal">
-            <div className="bh-modal-header">
+          <div className="bh-modal bh-modal--review">
+            <header className="bh-modal-header">
               <h2 className="bh-modal-title">Leave Review</h2>
-              <button className="bh-modal-close" onClick={closeModal}>✕</button>
-            </div>
+              <button type="button" className="bh-modal-close" onClick={closeModal} aria-label="Close">
+                ×
+              </button>
+              <div className="bh-modal-header-ornament" aria-hidden>
+                <span className="bh-modal-header-ornament-line" />
+                <span className="bh-modal-header-ornament-diamond" />
+                <span className="bh-modal-header-ornament-line" />
+              </div>
+            </header>
             <div className="bh-modal-body">
 
               {/* Stars */}

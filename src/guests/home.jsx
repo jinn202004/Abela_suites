@@ -24,6 +24,9 @@ import {
   formatRoomTableNumber,
   getBookingRoomNumber,
   looksLikeMongoObjectId,
+  bookingCustomerDisplayName,
+  bookingEmailDisplay,
+  bookingPhoneDisplay,
 } from "./bookingRoomDisplay";
 import { getBackendBaseURL, backendUrl } from "../api/config";
 import { getStoredAuthToken, clearStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
@@ -1021,15 +1024,15 @@ export default function Home() {
                     <dl className="rdm-dl">
                       <div className="rdm-dl__full">
                         <dt className="rdm-dt">Guest</dt>
-                        <dd className="rdm-dd">{roomRaw.customerName || "—"}</dd>
+                        <dd className="rdm-dd">{bookingCustomerDisplayName(roomRaw)}</dd>
                       </div>
                       <div>
                         <dt className="rdm-dt">Email</dt>
-                        <dd className="rdm-dd rdm-dd--muted">{roomRaw.email || "—"}</dd>
+                        <dd className="rdm-dd rdm-dd--muted">{bookingEmailDisplay(roomRaw)}</dd>
                       </div>
                       <div>
                         <dt className="rdm-dt">Contact</dt>
-                        <dd className="rdm-dd">{roomRaw.contactNumber || "—"}</dd>
+                        <dd className="rdm-dd">{bookingPhoneDisplay(roomRaw)}</dd>
                       </div>
                       <div>
                         <dt className="rdm-dt">Additional guests</dt>
@@ -1210,15 +1213,15 @@ export default function Home() {
                     <dl className="rdm-dl">
                       <div className="rdm-dl__full">
                         <dt className="rdm-dt">Guest</dt>
-                        <dd className="rdm-dd">{eventRaw.customerName || "—"}</dd>
+                        <dd className="rdm-dd">{bookingCustomerDisplayName(eventRaw)}</dd>
                       </div>
                       <div>
                         <dt className="rdm-dt">Email</dt>
-                        <dd className="rdm-dd rdm-dd--muted">{eventRaw.email || "—"}</dd>
+                        <dd className="rdm-dd rdm-dd--muted">{bookingEmailDisplay(eventRaw)}</dd>
                       </div>
                       <div>
                         <dt className="rdm-dt">Phone</dt>
-                        <dd className="rdm-dd">{eventRaw.contactNumber || "—"}</dd>
+                        <dd className="rdm-dd">{bookingPhoneDisplay(eventRaw)}</dd>
                       </div>
                     </dl>
                   </section>

@@ -14,7 +14,6 @@ import {
 } from "./guestAvailability";
 import { DayPicker, DayButton, labelDayButton as defaultLabelDayButton } from "react-day-picker";
 import "react-day-picker/style.css";
-import "../frontdesks/dashboard.css";
 import { parseLocalYmd, formatLocalYmd, addLocalDays } from "./roomStayDates";
 import {
   EVENT_BASE_INCLUDED_HOURS,
@@ -34,6 +33,16 @@ import {
   fetchGuestEventCalendarBookings,
   fetchEventVenuesBackend,
 } from "../api/guestApi";
+import {
+  uploadBookingGuestValidIdDirectBackend,
+  uploadPaymentProofDirectBackend,
+} from "../api/imageUploadApi";
+import {
+  handleImageFileInputChange,
+  isBookingSubmitImageRef,
+  isHttpImageUrl,
+  resolveImageUrlForSubmit,
+} from "../utils/s3ImageUpload";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import GuestSidebar from "./GuestSidebar";
 import { GuestArchiveIcon } from "./guestArchiveIcon";
@@ -277,8 +286,8 @@ function buildEventBookingPayload(
   const additionalRequests = req ? `${req}\n\n${foot}` : foot;
   const email = form.email.trim().toLowerCase();
   const pax = Math.max(1, parseInt(form.attendees, 10) || 1);
-  const hasId = typeof idDataUrl === "string" && idDataUrl.startsWith("data:image");
-  const hasProof = typeof paymentProofData === "string" && paymentProofData.startsWith("data:image");
+  const hasId = isHttpImageUrl(idDataUrl);
+  const hasProof = isHttpImageUrl(paymentProofData);
   const slotLabel = buildEventTimeSlotLabel(form.startTime, form.endTime);
   return {
     eventVenueId: String(venuePick.id),
@@ -691,13 +700,23 @@ export default function EventVenues() {
     setShowBanner(false);
   }
 
-  function handleIdUpload(e) {
-    const file = e.target.files[0]; if (!file) return;
+  async function handleIdUpload(e) {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
+    if (!file) return;
     setIdFile(file);
-    setFormErrors(fe => ({ ...fe, id: false }));
-    const reader = new FileReader();
-    reader.onload = ev => setIdPreview(ev.target.result);
-    reader.readAsDataURL(file);
+    setFormErrors((fe) => ({ ...fe, id: false }));
+    await handleImageFileInputChange(file, {
+      uploadFn: uploadBookingGuestValidIdDirectBackend,
+      setPreview: setIdPreview,
+      requireS3: true,
+      setError: (msg) => {
+        setIdPreview(null);
+        setIdFile(null);
+        setFormErrors((fe) => ({ ...fe, id: true }));
+        if (msg) window.alert(msg);
+      },
+    });
   }
 
   function validateRes() {
@@ -725,7 +744,7 @@ export default function EventVenues() {
         errs.endTime = true;
       }
     }
-    if (!idFile)               errs.id = true;
+    if (!isBookingSubmitImageRef(idPreview)) errs.id = true;
     if (!form.attendees || parseInt(form.attendees) < 1) errs.attendees = true;
     if (!form.chkTerms)   errs.chkTerms = true;
     if (!form.chkPrivacy) errs.chkPrivacy = true;
@@ -781,11 +800,23 @@ export default function EventVenues() {
       }
       setResSubmitting(true);
       try {
+        const idUrl = await resolveImageUrlForSubmit(
+          idPreview,
+          idFile,
+          uploadBookingGuestValidIdDirectBackend,
+          "Government ID photo",
+        );
+        const proofUrl = await resolveImageUrlForSubmit(
+          pendingGcash.proofPreview,
+          pendingGcash.proofFile,
+          uploadPaymentProofDirectBackend,
+          "Payment proof",
+        );
         const payload = buildEventBookingPayload(form, resPick, {
           paymentAmountNum: pendingGcash.paidNum,
           transactionId: pendingGcash.txId,
-          idDataUrl: idPreview,
-          paymentProofData: pendingGcash.proofPreview || "",
+          idDataUrl: idUrl,
+          paymentProofData: proofUrl,
           paymentDate: pendingGcash.date,
         });
         await saveEventBooking(payload);
@@ -817,7 +848,13 @@ export default function EventVenues() {
     }
     setResSubmitting(true);
     try {
-      const payload = buildEventBookingPayload(form, resPick, { paymentAmountNum: 0, idDataUrl: idPreview });
+      const idUrl = await resolveImageUrlForSubmit(
+        idPreview,
+        idFile,
+        uploadBookingGuestValidIdDirectBackend,
+        "Government ID photo",
+      );
+      const payload = buildEventBookingPayload(form, resPick, { paymentAmountNum: 0, idDataUrl: idUrl });
       await saveEventBooking(payload);
       dispatchFrontdeskNotificationsRefresh();
       dispatchGuestBookingsRefreshPing();
@@ -897,15 +934,23 @@ export default function EventVenues() {
     setPayErrors(pe => ({ ...pe, [name]: false }));
   }
 
-  function handleProofUpload(e) {
-    const file = e.target.files[0];
+  async function handleProofUpload(e) {
+    const file = e.target.files?.[0];
+    if (e.target) e.target.value = "";
     if (!file) return;
-    if (file.type && !file.type.startsWith("image/")) return;
     setProofFile(file);
-    setPayErrors(pe => ({ ...pe, proof: false }));
-    const reader = new FileReader();
-    reader.onload = ev => setProofPreview(ev.target.result);
-    reader.readAsDataURL(file);
+    setPayErrors((pe) => ({ ...pe, proof: false }));
+    await handleImageFileInputChange(file, {
+      uploadFn: uploadPaymentProofDirectBackend,
+      setPreview: setProofPreview,
+      requireS3: true,
+      setError: (msg) => {
+        setProofPreview(null);
+        setProofFile(null);
+        setPayErrors((pe) => ({ ...pe, proof: true }));
+        if (msg) window.alert(msg);
+      },
+    });
   }
 
   function submitPayment() {
@@ -913,10 +958,7 @@ export default function EventVenues() {
     if (!payForm.amount.trim()) errs.amount = true;
     if (!payForm.date.trim())   errs.date = true;
     if (!payForm.txId.trim())   errs.txId = true;
-    const hasProof =
-      Boolean(proofFile) ||
-      (typeof proofPreview === "string" && proofPreview.startsWith("data:image"));
-    if (!hasProof) errs.proof = true;
+    if (!isBookingSubmitImageRef(proofPreview)) errs.proof = true;
     setPayErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -949,6 +991,7 @@ export default function EventVenues() {
       date: payForm.date.trim(),
       txId: payForm.txId.trim(),
       proofPreview: proofPreview || "",
+      proofFile: proofFile || null,
       paidNum: paid,
     });
     setPayOpen(false);
@@ -1265,27 +1308,33 @@ export default function EventVenues() {
                   </span>
                 </div>
                 <div className="ev-form-group ev-form-group--event-times">
-                  <div className="event-time-fields">
-                    <label>
-                      Event start time <span className="required">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      name="startTime"
-                      value={form.startTime}
-                      className={formErrors.startTime ? "ev-error" : ""}
-                      onChange={handleFormChange}
-                    />
-                    <label>
-                      Event end time <span className="required">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      name="endTime"
-                      value={form.endTime}
-                      className={formErrors.endTime ? "ev-error" : ""}
-                      onChange={handleFormChange}
-                    />
+                  <div className="ev-time-stack">
+                    <div className="ev-time-field">
+                      <label className="form-label-static" htmlFor="ev-guest-start-time">
+                        Event start time <span className="required">*</span>
+                      </label>
+                      <input
+                        id="ev-guest-start-time"
+                        type="time"
+                        name="startTime"
+                        value={form.startTime}
+                        className={formErrors.startTime ? "ev-error" : ""}
+                        onChange={handleFormChange}
+                      />
+                    </div>
+                    <div className="ev-time-field">
+                      <label className="form-label-static" htmlFor="ev-guest-end-time">
+                        Event end time <span className="required">*</span>
+                      </label>
+                      <input
+                        id="ev-guest-end-time"
+                        type="time"
+                        name="endTime"
+                        value={form.endTime}
+                        className={formErrors.endTime ? "ev-error" : ""}
+                        onChange={handleFormChange}
+                      />
+                    </div>
                   </div>
                   <span className={`ev-field-err${formErrors.startTime || formErrors.endTime ? " visible" : ""}`}>
                     Choose end after start (0.5–72 hours). Times must not overlap another booking or the 2-hour cleaning

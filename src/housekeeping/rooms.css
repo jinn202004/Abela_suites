@@ -341,14 +341,14 @@
     font-size: 13.5px;
   }
   .rm-table thead tr { border-bottom: 1px solid #e8dcc8; }
-  .rm-table th {
+  .housekeeping-portal-layout .rm-table th {
     padding: 18px 24px; text-align: left;
     font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 700;
     color: var(--text-dark); background: #fff; white-space: nowrap;
   }
   .rm-table td { padding: 18px 24px; color: var(--text-dark); border-bottom: 1px solid #f0e8d8; white-space: nowrap; }
   .rm-table tbody tr:last-child td { border-bottom: none; }
-  .rm-table tbody tr:hover td { background: #fdf8f0; }
+  .housekeeping-portal-layout .rm-table tbody tr:hover td { background: #fdf8f0; }
   .rm-table tbody { background: #fff; }
   /* Left-align: in wide min-width tables, centering puts copy in the off-screen band on mobile. */
   .rm-empty {
@@ -369,7 +369,7 @@
   .badge-occupied   { background: #e74c3c; }
   .badge-needclean  { background: #2980b9; }
   .badge-inprogress { background: #e67e22; }
-  .badge-completed  { background: #16a085; }
+  .badge-completed  { background: #8e44ad; }
   
   /* ── STATUS MODAL ── */
   .rm-modal-backdrop {
@@ -500,10 +500,17 @@
   .rm-success-title { font-family: 'Montserrat', sans-serif; font-size: 16px; font-weight: 700; color: var(--gold); }
   .rm-success-sub   { font-family: 'Roboto', sans-serif; font-size: 12.5px; color: var(--text-mid); margin-top: 2px; }
   
-  /* Housekeeping dashboard: center status badges like reference */
+  /* Status column: left-align with Number / Housekeeping / Package / Type */
   .hk-dash-status-th,
-  .hk-dash-status-td { text-align: center; }
-  .hk-dash-status-td .rm-badge { vertical-align: middle; }
+  .hk-dash-status-td {
+    text-align: left;
+    width: 11rem;
+    min-width: 11rem;
+    white-space: nowrap;
+  }
+  .hk-dash-status-td .rm-badge {
+    vertical-align: middle;
+  }
 
   /* Housekeeping dashboard (mobile): card list so every field is visible without horizontal pan */
   .hk-dash-mobile {

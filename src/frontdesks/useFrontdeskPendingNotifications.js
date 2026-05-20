@@ -160,7 +160,8 @@ export function useFrontdeskPendingNotifications({ bookingType = "all" } = {}) {
     for (const b of pendingBookings) {
       const bid = normalizeMongoId(b.id ?? b._id);
       if (!bid || bookingIdsWithStaffRow.has(bid)) continue;
-      const name = (b.guest && b.guest.displayName) || b.customerName || "Guest";
+      const snap = String(b.customerName ?? "").trim();
+      const name = snap || (b.guest && b.guest.displayName) || "Guest";
       const when = b.createdAt != null ? new Date(b.createdAt).toLocaleString("en-PH") : "";
       let msg = `${name} submitted a booking — needs your confirmation.`;
       if (b.type === "room") {

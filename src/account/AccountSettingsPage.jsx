@@ -82,7 +82,6 @@ function SettingsPageBody({ core, backHref, showBackArrow, avatarSize = "52", av
     displayEmail,
     displayPhone,
     displayAddress,
-    displayDepartment,
     displayStaffStatus,
     avatarSrc,
     avatarInputRef,
@@ -203,14 +202,9 @@ function SettingsPageBody({ core, backHref, showBackArrow, avatarSize = "52", av
                     <span className="st-info-label">Address:</span> {displayAddress || "—"}
                   </p>
                 ) : (
-                  <>
-                    <p>
-                      <span className="st-info-label">Department:</span> {displayDepartment || "—"}
-                    </p>
-                    <p>
-                      <span className="st-info-label">Staff status:</span> {displayStaffStatus || "—"}
-                    </p>
-                  </>
+                  <p>
+                    <span className="st-info-label">Staff status:</span> {displayStaffStatus || "—"}
+                  </p>
                 )}
               </div>
             </div>

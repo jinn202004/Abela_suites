@@ -551,6 +551,64 @@
   .bh-table tbody tr:hover td {
     background: #fdf8f0;
   }
+
+  .bh-pagination-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 18px;
+    border-top: 1px solid #e8dcc8;
+    background: #faf8f4;
+    font-family: "Roboto", sans-serif;
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+
+  .bh-pagination-info {
+    flex-shrink: 0;
+  }
+
+  .bh-pagination-btns {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .bh-pagination-pages {
+    font-family: "Montserrat", sans-serif;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-dark);
+    min-width: 7.5rem;
+    text-align: center;
+  }
+
+  .bh-page-btn {
+    padding: 7px 14px;
+    font-family: "Montserrat", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dark);
+    background: #fff;
+    border: 1px solid #d4c4a8;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+  }
+
+  .bh-page-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    color: var(--gold-dark);
+    background: #fdf8f0;
+  }
+
+  .bh-page-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
   
   /* ============================================
      LEAVE REVIEW BUTTON
@@ -618,6 +676,20 @@
   @media (max-width: 480px) {
     .breadcrumb-title { font-size: 14px; }
     .bh-table-wrap { -webkit-overflow-scrolling: touch; }
+    .bh-detail-grid {
+      grid-template-columns: 1fr;
+      gap: 4px 0;
+    }
+    .bh-detail-label {
+      padding-top: 8px;
+    }
+    .bh-detail-label:first-of-type {
+      padding-top: 0;
+    }
+    .bh-modal--details,
+    .bh-modal--review {
+      max-width: 100%;
+    }
   }
   
   /* ============================================
@@ -630,11 +702,16 @@
     background: rgba(0,0,0,0.45);
     /* Above sidebar/topbar/dropdowns; below confirm + toast */
     z-index: 10040;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
-    padding-top: 60px;
+    padding: 24px 16px;
   }
-  .bh-modal-backdrop.active { display: flex; }
+  .bh-modal-backdrop.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+  }
   
   /* ============================================
      MODAL BOX
@@ -735,6 +812,200 @@
     color: var(--text-mid);
     font-size: 13px;
     line-height: 1.45;
+  }
+
+  /* Booking details modal (aligned grid, gold accent) */
+  .bh-modal--details {
+    background: #fff;
+    max-width: 520px;
+    border: 1px solid #e8dcc8;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .bh-modal--details::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--gold-dark), var(--gold), var(--gold-dark));
+  }
+
+  .bh-modal-header--details {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 22px 24px 12px;
+    border-bottom: none;
+    position: relative;
+  }
+
+  .bh-modal-header--details .bh-modal-title {
+    font-size: 20px;
+    letter-spacing: 0.03em;
+  }
+
+  .bh-modal-header--details .bh-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  .bh-modal-header-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .bh-modal-header-ornament-line {
+    width: 48px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  .bh-modal-header-ornament-diamond {
+    width: 8px;
+    height: 8px;
+    background: var(--gold);
+    transform: rotate(45deg);
+    flex-shrink: 0;
+  }
+
+  .bh-modal-body--details {
+    padding: 8px 24px 20px;
+    gap: 18px;
+  }
+
+  .bh-detail-grid {
+    display: grid;
+    grid-template-columns: minmax(108px, 34%) 1fr;
+    gap: 10px 16px;
+    margin: 0;
+  }
+
+  .bh-detail-label {
+    font-family: "Montserrat", sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-mid);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin: 0;
+    align-self: start;
+    padding-top: 2px;
+  }
+
+  .bh-detail-value {
+    font-family: "Roboto", sans-serif;
+    font-size: 14px;
+    color: var(--text-dark);
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  .bh-detail-value--break {
+    word-break: break-word;
+  }
+
+  .bh-detail-value--amount {
+    font-family: "Montserrat", sans-serif;
+    font-weight: 700;
+    color: var(--gold-dark);
+  }
+
+  .bh-detail-value--mono {
+    font-size: 13px;
+    color: var(--text-mid);
+  }
+
+  .bh-detail-id-card {
+    margin-top: 4px;
+  }
+
+  .bh-modal-footer {
+    flex-shrink: 0;
+    padding: 14px 24px 20px;
+    border-top: 1px solid #e8dcc8;
+    background: #fdf8f0;
+    display: flex;
+    justify-content: center;
+  }
+
+  .bh-modal-footer-btn {
+    min-width: 140px;
+  }
+
+  .bh-table-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .btn-view-details {
+    background: #8d7a5c;
+    color: #fff;
+    border: none;
+    border-radius: 5px;
+    padding: 7px 14px;
+    font-family: "Montserrat", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+  }
+
+  .btn-view-details:hover {
+    background: #7a6a52;
+  }
+
+  .btn-leave-review--done {
+    background: #aaa !important;
+    cursor: default;
+  }
+
+  .btn-leave-review--done:hover {
+    background: #aaa !important;
+  }
+
+  .bh-modal--review .bh-modal-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding-bottom: 12px;
+    border-bottom: none;
+    position: relative;
+  }
+
+  .bh-modal--review .bh-modal-header .bh-modal-close {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+  }
+
+  .bh-modal--review .bh-modal-header-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .bh-modal--review .bh-modal-header-ornament-line {
+    width: 48px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  }
+
+  .bh-modal--review .bh-modal-header-ornament-diamond {
+    width: 8px;
+    height: 8px;
+    background: var(--gold);
+    transform: rotate(45deg);
+    flex-shrink: 0;
   }
   
   /* ============================================

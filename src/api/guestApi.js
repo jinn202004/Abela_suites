@@ -153,6 +153,36 @@ export async function fetchRoomsCatalog() {
 }
 
 /**
+ * GET /api/event-venues/catalog — public; bookable event venues (same source as guest/cashier catalogs).
+ * @returns {Promise<Array<Record<string, unknown>>>}
+ */
+export async function fetchPublicEventVenuesCatalog() {
+  const res = await fetch(backendUrl('/api/event-venues/catalog'), { headers: { Accept: 'application/json' } })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return Array.isArray(data.eventVenues) ? data.eventVenues : []
+}
+
+/**
+ * GET /api/menu/catalog — public; available dishes (same filter as cashier POS).
+ * @returns {Promise<Array<Record<string, unknown>>>}
+ */
+export async function fetchPublicMenuCatalog() {
+  const res = await fetch(backendUrl('/api/menu/catalog'), { headers: { Accept: 'application/json' } })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return Array.isArray(data.menu) ? data.menu : []
+}
+
+/**
  * GET /api/rooms/availability?checkIn=&checkOut= — public; overlapping room bookings + ops-occupied ids.
  * @returns {Promise<{ checkIn: string, checkOut: string, bookedRanges: { roomId: string, checkIn: string, checkOut: string }[], operationallyUnavailableRoomIds: string[] }>}
  */
@@ -730,6 +760,18 @@ export async function fetchHousekeepingTasksBackend(includeCompleted = false) {
     throw err
   }
   return Array.isArray(data.tasks) ? data.tasks : []
+}
+
+/** GET /api/housekeeping/team — active housekeeping staff names (Bearer; HK / FD / admin). */
+export async function fetchHousekeepingTeamBackend() {
+  const res = await fetch(backendUrl('/api/housekeeping/team'), { headers: authJsonHeaders() })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return Array.isArray(data.members) ? data.members : []
 }
 
 /**

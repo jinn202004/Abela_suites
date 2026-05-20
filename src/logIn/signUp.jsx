@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import MarketingNavbar from "../components/MarketingNavbar";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuthRole } from "../context/AuthRoleContext";
 import { registerUser, loginUser } from "../api/authApi";
@@ -199,21 +200,9 @@ export default function SignUp() {
 
   return (
     <div className={`${styles.signupPage} abela-auth-page-shell`}>
-      {/* NAVBAR */}
-      <nav className={styles.navbar}>
-        <div className={styles.navBrand}>
-          <img src="/public/logo.png" alt="Abela Suites Logo" className={styles.navLogoImg} />
-          <span className={styles.brandName}>Abela Suites</span>
-        </div>
-        <ul className={styles.navLinks}>
-          <li><a href="#">Home</a></li>
-          <li><a href="#">Testimonials</a></li>
-          <li><a href="/contact">Contact Us</a></li>
-        </ul>
-        <Link to="/login" className={styles.btnLoginNav}>Login</Link>
-      </nav>
+      <MarketingNavbar />
 
-      {/* BACKGROUND */}
+{/* BACKGROUND */}
       <div className={styles.bgImage} />
       <div className={styles.bgOverlay} />
 
@@ -250,7 +239,7 @@ export default function SignUp() {
       </div>
 
       {/* SIGN UP CARD */}
-      <main className={styles.mainContent}>
+      <main className="main-content">
         <div className={styles.signupCard}>
 
           {/* Card Logo */}

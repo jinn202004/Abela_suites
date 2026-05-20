@@ -9,6 +9,7 @@ import { getStoredAuthToken } from "../api/authApi";
 import {
   fetchRoomsCatalog,
   fetchEventVenuesBackend,
+  fetchBookingsBackend,
   fetchFrontdeskBookingDetailsBackend,
   fetchFrontdeskDashboardBundleBackend,
   fetchFrontdeskDashboardSummaryBackend,
@@ -221,7 +222,7 @@ const pack = (p) =>
     (e) => ({ ok: false, e: packErrorMessage(e) })
   );
 
-/** Map server `bookingsLite` to the shape the integrated dashboard calendar/tables expect. */
+/** Map server `bookingsLite` or full `/api/bookings` rows to dashboard calendar/tables. */
 function mapBookingsLiteToDashboardBookings(liteList) {
   return (Array.isArray(liteList) ? liteList : []).map((b) => ({
     id: b.id,
@@ -244,8 +245,61 @@ function mapBookingsLiteToDashboardBookings(liteList) {
     eventVenueId: b.eventVenueId,
     venueName: b.venueName,
     eventTitle: b.eventTitle,
-    guest: { displayName: String(b.guestDisplayName ?? "").trim() },
+    guest: {
+      displayName:
+        String(b.customerName ?? "").trim() ||
+        String(b.guestDisplayName ?? "").trim() ||
+        (b.guest && typeof b.guest === "object" ? String(b.guest.displayName ?? "").trim() : ""),
+    },
   }));
+}
+
+function countAvailableRoomsFromCatalog(rooms) {
+  return (Array.isArray(rooms) ? rooms : []).filter((r) => {
+    const k = normStatus(r?.status);
+    return k === "available" || k === "ready";
+  }).length;
+}
+
+/**
+ * Admin + authenticated staff metrics in one call; falls back to summary + bookings + room catalog if bundle fails.
+ */
+export async function loadStaffDashboardBundle() {
+  assertToken();
+
+  const bundleR = await pack(fetchFrontdeskDashboardBundleBackend());
+  if (bundleR.ok) {
+    return {
+      ok: true,
+      summary: bundleR.v.summary,
+      availableRoomsCount: bundleR.v.availableRoomsCount,
+      bookings: mapBookingsLiteToDashboardBookings(bundleR.v.bookingsLite),
+      loadError: null,
+    };
+  }
+
+  const [summaryR, bookingsR, roomsR] = await Promise.all([
+    pack(getDashboardSummary()),
+    pack(fetchBookingsBackend()),
+    pack(fetchRoomsCatalog()),
+  ]);
+
+  const bookings = bookingsR.ok ? mapBookingsLiteToDashboardBookings(bookingsR.v) : [];
+  const summary = summaryR.ok ? summaryR.v : null;
+  const availableRoomsCount = roomsR.ok ? countAvailableRoomsFromCatalog(roomsR.v) : 0;
+
+  const parts = [];
+  if (!summaryR.ok) parts.push(`Summary: ${summaryR.e}`);
+  if (!bookingsR.ok) parts.push(`Bookings: ${bookingsR.e}`);
+  if (!roomsR.ok) parts.push(`Rooms: ${roomsR.e}`);
+
+  return {
+    ok: Boolean(summary || bookings.length > 0 || availableRoomsCount > 0),
+    summary,
+    availableRoomsCount,
+    bookings,
+    loadError: parts.length ? parts.join(" ") : bundleR.e || "Could not load dashboard data.",
+  };
 }
 
 /**
@@ -269,8 +323,8 @@ export async function loadDashboardBundle() {
     };
   }
 
-  const [bundleR, roomsR, eventsR] = await Promise.all([
-    pack(fetchFrontdeskDashboardBundleBackend()),
+  const [staffR, roomsR, eventsR] = await Promise.all([
+    pack(loadStaffDashboardBundle()),
     roomsP,
     pack(getEventStatusRows()),
   ]);
@@ -279,11 +333,12 @@ export async function loadDashboardBundle() {
   let eventRows = eventsR.ok ? eventsR.v : [];
   const roomCatalogError = roomsR.ok ? null : roomsR.e;
   const eventCatalogError = eventsR.ok ? null : eventsR.e;
-  const bookings = bundleR.ok ? mapBookingsLiteToDashboardBookings(bundleR.v.bookingsLite) : [];
-  const bundleErr = bundleR.ok ? null : bundleR.e;
-  const summary = bundleR.ok ? bundleR.v.summary : null;
-  const summaryError = bundleErr;
-  const bookingsError = bundleErr;
+
+  const staff = staffR.ok ? staffR.v : null;
+  const bookings = staff?.bookings ?? [];
+  const summary = staff?.summary ?? null;
+  const summaryError = staffR.ok ? null : staff?.loadError || staffR.e;
+  const bookingsError = staffR.ok && bookings.length > 0 ? null : summaryError;
 
   const needBookingFallback = roomRows.length === 0 || eventRows.length === 0;
   if (needBookingFallback && bookings.length > 0) {

@@ -496,6 +496,7 @@ export default function POS() {
   const navigate = useNavigate();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { topbarProfile } = useTopbarUserProfile("cashier");
+  const cashierDisplayName = topbarProfile?.name?.trim() || TOPBAR.cashier.profile.name;
   const [menuDishes, setMenuDishes] = useState([]);
   const [menuCategories, setMenuCategories] = useState([]);
   const categoryTabNames = useMemo(() => orderCategoryNamesFromApi(menuCategories), [menuCategories]);
@@ -872,7 +873,7 @@ export default function POS() {
     }
     downloadPosReceiptPdf({
       ...printable,
-      cashierName: TOPBAR.cashier.profile.name,
+      cashierName: cashierDisplayName,
     });
   }
   const isSelected = (dish) => orderedItems.some((i) => String(i.dish.id) === String(dish.id));
@@ -1129,7 +1130,7 @@ export default function POS() {
               {/* Cashier Name */}
               <div className="order-field">
                 <label className="order-label">Cashier Name</label>
-                <input type="text" className="order-input" value={TOPBAR.cashier.profile.name} readOnly/>
+                <input type="text" className="order-input" value={cashierDisplayName} readOnly />
               </div>
 
               {/* Ordered Dishes */}
@@ -1254,7 +1255,7 @@ export default function POS() {
           discountRate={billSource.discountRate}
           discountLabel={billSource.discountLabel}
           paymentMethod={billSource.paymentMethod}
-          cashierName={TOPBAR.cashier.profile.name}
+          cashierName={cashierDisplayName}
           onClose={() => {
             setShowBill(false);
             if (receiptSnapshot) setLastReceiptSnapshot(receiptSnapshot);

@@ -7,7 +7,7 @@ import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import AdminSidebarNav from "../admin_1/AdminSidebarNav";
 import AdminSidebarToggle from "../admin_1/AdminSidebarToggle";
 import { useAdminShell } from "../admin_1/AdminShellContext";
@@ -84,6 +84,7 @@ function SettingsPageBody({ core, backHref, showBackArrow, avatarSize = "52", av
     displayAddress,
     displayStaffStatus,
     avatarSrc,
+    avatarUploading,
     avatarInputRef,
     handleAvatarChange,
     activeTab,
@@ -154,37 +155,40 @@ function SettingsPageBody({ core, backHref, showBackArrow, avatarSize = "52", av
           <div className="st-layout">
             <div className="st-profile-card">
               <div className="st-avatar-wrap">
-                <label htmlFor="acctAvatarInput" style={{ cursor: "pointer" }}>
+                <label
+                  htmlFor="acctAvatarInput"
+                  style={{ cursor: avatarUploading ? "wait" : "pointer" }}
+                  aria-busy={avatarUploading}
+                >
                   <div className="st-avatar" style={{ position: "relative" }}>
                     {avatarSrc ? (
-                      <img
-                        src={avatarSrc}
-                        alt="Avatar"
-                        style={{
-                          position: "absolute",
-                          inset: 0,
-                          width: "100%",
-                          height: "100%",
-                          objectFit: "cover",
-                          borderRadius: "50%",
-                        }}
-                      />
+                      <img src={avatarSrc} alt="Profile" className="profile-circle-img" />
                     ) : (
                       <svg viewBox="0 0 24 24" width={avatarSize} height={avatarSize} fill={avatarFill}>
                         <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
                       </svg>
                     )}
+                    {avatarUploading ? (
+                      <span className="st-avatar-loading" aria-live="polite">
+                        Uploading…
+                      </span>
+                    ) : null}
                   </div>
                 </label>
                 <input
                   ref={avatarInputRef}
                   type="file"
                   id="acctAvatarInput"
-                  accept="image/*"
+                  accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   style={{ display: "none" }}
+                  disabled={avatarUploading}
                   onChange={handleAvatarChange}
                 />
-                <div className="st-avatar-edit" onClick={() => avatarInputRef.current?.click()} role="presentation">
+                <div
+                  className="st-avatar-edit"
+                  onClick={() => !avatarUploading && avatarInputRef.current?.click()}
+                  role="presentation"
+                >
                   <EditPencilIcon />
                 </div>
               </div>
@@ -474,7 +478,7 @@ function GuestAccountSettings() {
               }}
             />
             <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={core.avatarSrc || topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
                 ▾
               </span>
@@ -488,7 +492,6 @@ function GuestAccountSettings() {
                   contact: core.displayPhone,
                   avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
                 }}
-                profilePath={TOPBAR.guest.profilePath}
                 onCloseMenus={() => {
                   setNotifOpen(false);
                   setUserOpen(false);
@@ -511,7 +514,7 @@ function GuestAccountSettings() {
 
 function AdminAccountSettings() {
   const { mainStyle } = useAdminShell();
-  const { refreshTopbarProfile } = useTopbarUserProfile("admin");
+  const { topbarProfile, refreshTopbarProfile } = useTopbarUserProfile("admin");
   const core = useAccountSettingsCore("admin", { refreshTopbarProfile });
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const [notifOpen, setNotifOpen] = useState(false);
@@ -528,9 +531,11 @@ function AdminAccountSettings() {
 
   const mergedProfile = {
     ...TOPBAR.admin.profile,
+    ...topbarProfile,
     name: core.profileHeading,
     email: core.displayEmail,
     contact: core.displayPhone,
+    avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
   };
 
   return (
@@ -565,12 +570,11 @@ function AdminAccountSettings() {
                 setNotifOpen(false);
               }}
             >
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={mergedProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
               <RoleUserDropdown
                 isOpen={userOpen}
                 profile={mergedProfile}
-                profilePath={TOPBAR.admin.profilePath}
                 onCloseMenus={() => {
                   setNotifOpen(false);
                   setUserOpen(false);
@@ -661,7 +665,7 @@ function FrontdeskAccountSettings() {
               }}
             />
             <div className="icon-btn" ref={userRef} onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarUserIcon />
+              <TopbarAvatar src={core.avatarSrc || topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
                 ▾
               </span>
@@ -673,8 +677,8 @@ function FrontdeskAccountSettings() {
                   name: core.profileHeading,
                   email: core.displayEmail,
                   contact: core.displayPhone,
+                  avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
                 }}
-                profilePath={TOPBAR.frontdesk.profilePath}
                 onCloseMenus={() => {
                   setNotifOpen(false);
                   setUserOpen(false);
@@ -787,6 +791,7 @@ function CashierAccountSettings() {
               name: core.profileHeading || topbarProfile.name,
               email: core.displayEmail || topbarProfile.email,
               contact: core.displayPhone || topbarProfile.contact,
+              avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
             }}
           />
         </header>
@@ -798,7 +803,7 @@ function CashierAccountSettings() {
 }
 
 function HousekeepingAccountSettings() {
-  const { refreshTopbarProfile } = useTopbarUserProfile("housekeeping");
+  const { topbarProfile, refreshTopbarProfile } = useTopbarUserProfile("housekeeping");
   const core = useAccountSettingsCore("housekeeping", { refreshTopbarProfile });
   const { needsCleaningCount, displayNotifications, markHousekeepingInboxSeen } =
     useHousekeepingCleaningNotifications();
@@ -878,7 +883,7 @@ function HousekeepingAccountSettings() {
               dot={needsCleaningCount > 0 ? "plain" : null}
             />
             <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={core.avatarSrc || topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
                 ▾
               </span>
@@ -886,11 +891,12 @@ function HousekeepingAccountSettings() {
                 isOpen={userOpen}
                 profile={{
                   ...TOPBAR.housekeeping.profile,
+                  ...topbarProfile,
                   name: core.profileHeading,
                   email: core.displayEmail,
                   contact: core.displayPhone,
+                  avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
                 }}
-                profilePath={TOPBAR.housekeeping.profilePath}
                 onCloseMenus={() => {
                   setNotifOpen(false);
                   setUserOpen(false);

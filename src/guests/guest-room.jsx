@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getStoredAuthToken } from "../api/authApi";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
@@ -985,7 +985,7 @@ export default function Rooms() {
                 setNotifOpen(false);
               }}
             >
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
               <RoleUserDropdown
                 isOpen={userOpen}

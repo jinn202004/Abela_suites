@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
@@ -844,7 +844,7 @@ export default function Home() {
                 setNotifOpen(false);
               }}
             >
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={guestTopbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span
                 className="user-arrow"
                 style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}

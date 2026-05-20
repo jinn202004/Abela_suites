@@ -13,6 +13,15 @@
   background: #fdf8f0;
 }
 
+.user-dropdown--logout-only {
+  min-width: 160px;
+  padding: 6px 0;
+}
+
+.user-dropdown--logout-only .user-dropdown-item--logout {
+  border-radius: 0;
+}
+
 /* Shared notification dropdown (imported with RoleTopbarDropdowns.jsx) */
 .notif-dropdown {
   min-width: 280px;
@@ -68,15 +77,6 @@
   display: flex;
   justify-content: center;
   margin-bottom: 10px;
-}
-
-.user-dropdown-avatar {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid rgba(184, 150, 53, 0.35);
-  background: #f0ebe3;
 }
 
 .user-dropdown-profile-line--muted {

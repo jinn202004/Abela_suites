@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { TOPBAR } from "../topbar/roleTopbarData";
@@ -616,7 +616,7 @@ export default function BookingHistory() {
                 setNotifOpen(false);
               }}
             >
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span
                 className="user-arrow"
                 style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}

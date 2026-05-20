@@ -10,3 +10,35 @@
   --settings-input-border: #d4c4a8;
   --settings-card-shadow: 0 2px 14px rgba(58, 46, 30, 0.08);
 }
+
+/* My Profile card only — gold ring (top bar keeps its own black border) */
+.st-profile-card .st-avatar {
+  border: 3px solid var(--settings-gold, #9e7e2a);
+}
+
+/* Circular profile photo — same fill as My Profile card (cover, centered) */
+.st-avatar .profile-circle-img,
+.st-avatar > img:not(.profile-circle-img) {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center center;
+  border-radius: 50%;
+  display: block;
+}
+
+.st-avatar-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(253, 248, 240, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--settings-gold-dark, #8a6d24);
+  z-index: 2;
+}

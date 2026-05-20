@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
+import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
@@ -34,6 +35,7 @@ const IconExport = () => (
 export default function AdminSettings() {
   const navigate = useNavigate();
   const { mainStyle } = useAdminShell();
+  const { topbarProfile } = useTopbarUserProfile("admin");
 
   const [notifOpen,  setNotifOpen]  = useState(false);
   const [userOpen,   setUserOpen]   = useState(false);
@@ -69,12 +71,11 @@ export default function AdminSettings() {
 
             {/* User Dropdown */}
             <div className="icon-btn" onClick={e => { e.stopPropagation(); setUserOpen(o => !o); setNotifOpen(false); }}>
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>&#9662;</span>
               <RoleUserDropdown
                 isOpen={userOpen}
-                profile={TOPBAR.admin.profile}
-                profilePath={TOPBAR.admin.profilePath}
+                profile={{ ...TOPBAR.admin.profile, ...topbarProfile }}
                 onCloseMenus={() => { setNotifOpen(false); setUserOpen(false); }}
                 onLogout={() => { setNotifOpen(false); setUserOpen(false); requestLogout(); }}
               />

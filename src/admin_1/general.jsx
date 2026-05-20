@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
+import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
@@ -209,6 +210,7 @@ function DiscountModal({ open, editData, onClose, onSave }) {
 // ── Main Component ──────────────────────────────────────
 export default function GeneralSettings() {
   const { mainStyle } = useAdminShell();
+  const { topbarProfile } = useTopbarUserProfile("admin");
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const [discounts, setDiscounts]       = useState(initialDiscounts);
   const [defaultDiscount, setDefaultDiscount] = useState("");
@@ -321,12 +323,11 @@ export default function GeneralSettings() {
 
             {/* User */}
             <div className="icon-btn" ref={userRef} onClick={() => { setUserOpen((v) => !v); setNotifOpen(false); }}>
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>&#9662;</span>
               <RoleUserDropdown
                 isOpen={userOpen}
-                profile={TOPBAR.admin.profile}
-                profilePath={TOPBAR.admin.profilePath}
+                profile={{ ...TOPBAR.admin.profile, ...topbarProfile }}
                 onCloseMenus={() => { setNotifOpen(false); setUserOpen(false); }}
                 onLogout={() => { setNotifOpen(false); setUserOpen(false); requestLogout(); }}
               />

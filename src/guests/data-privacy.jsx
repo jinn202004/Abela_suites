@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
@@ -201,7 +201,7 @@ export default function DataPrivacy() {
                 setNotifOpen(false);
               }}
             >
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
               <RoleUserDropdown
                 isOpen={userOpen}

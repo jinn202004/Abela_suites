@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { getStoredGuestTopbarProfile, patchMyPassword, patchMyProfile } from "../api/authApi";
-import { uploadProfilePhotoDirectBackend } from "../api/imageUploadApi";
-import { handleImageFileInputChange } from "../utils/s3ImageUpload";
+import {
+  getStoredGuestTopbarProfile,
+  patchMyPassword,
+  patchMyProfile,
+  writeTopbarMeSnapshot,
+} from "../api/authApi";
+import {
+  uploadProfilePhotoDirectBackend,
+  uploadUserProfilePhotoDirectBackend,
+} from "../api/imageUploadApi";
+import { uploadImageWithOptionalFallback, validateProfileImageFile } from "../utils/s3ImageUpload";
 import {
   dispatchGuestProfileUpdated,
   fetchCurrentUserMeBackend,
@@ -79,7 +87,7 @@ function buildGuestPatch(infoForm, baselineInfo, avatarSrc, baselineAvatar) {
   return patch;
 }
 
-function buildStaffPatch(infoForm, baselineInfo) {
+function buildStaffPatch(infoForm, baselineInfo, avatarSrc, baselineAvatar) {
   const patch = {};
   if (trimStr(infoForm.firstName) !== trimStr(baselineInfo.firstName)) patch.firstName = trimStr(infoForm.firstName);
   if (trimStr(infoForm.lastName) !== trimStr(baselineInfo.lastName)) patch.lastName = trimStr(infoForm.lastName);
@@ -87,7 +95,15 @@ function buildStaffPatch(infoForm, baselineInfo) {
   const bem = trimStr(baselineInfo.email).toLowerCase();
   if (em !== bem) patch.email = em;
   if (trimStr(infoForm.phone) !== trimStr(baselineInfo.phone)) patch.phone = trimStr(infoForm.phone);
+  const av = avatarSrc || "";
+  const bav = baselineAvatar || "";
+  if (av !== bav) patch.profilePhotoData = av;
   return patch;
+}
+
+function isStoredPhotoUrl(value) {
+  const s = trimStr(value);
+  return s && (/^data:image\//.test(s) || /^https?:\/\//i.test(s));
 }
 
 function validateGuestPatch(patch) {
@@ -163,6 +179,7 @@ export function useAccountSettingsCore(variant, opts = {}) {
   const avatarInputRef = useRef(null);
   const [avatarSrc, setAvatarSrc] = useState("");
   const [baselineAvatar, setBaselineAvatar] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
 
   const profileHeading =
     variant === "guest"
@@ -237,6 +254,14 @@ export function useAccountSettingsCore(variant, opts = {}) {
         setDisplayEmail(form.email);
         setDisplayPhone(form.phone);
         setDisplayStaffStatus(trimStr(u.staffStatus));
+        const photo = trimStr(u.profilePhotoData);
+        if (isStoredPhotoUrl(photo)) {
+          setAvatarSrc(photo);
+          setBaselineAvatar(photo);
+        } else {
+          setAvatarSrc("");
+          setBaselineAvatar("");
+        }
       } catch {
         /* keep placeholder from initialStaffDisplay */
       }
@@ -255,7 +280,7 @@ export function useAccountSettingsCore(variant, opts = {}) {
     const patch =
       variant === "guest"
         ? buildGuestPatch(infoForm, baselineInfo, avatarSrc, baselineAvatar)
-        : buildStaffPatch(infoForm, baselineInfo);
+        : buildStaffPatch(infoForm, baselineInfo, avatarSrc, baselineAvatar);
 
     if (Object.keys(patch).length === 0) {
       showToast("No changes to save.", true);
@@ -275,7 +300,7 @@ export function useAccountSettingsCore(variant, opts = {}) {
     const patch =
       variant === "guest"
         ? buildGuestPatch(infoForm, baselineInfo, avatarSrc, baselineAvatar)
-        : buildStaffPatch(infoForm, baselineInfo);
+        : buildStaffPatch(infoForm, baselineInfo, avatarSrc, baselineAvatar);
 
     if (Object.keys(patch).length === 0) {
       setConfirmOpen(false);
@@ -342,6 +367,12 @@ export function useAccountSettingsCore(variant, opts = {}) {
         setDisplayStaffStatus(trimStr(u.staffStatus));
         setInfoForm(form);
         setBaselineInfo(form);
+        const photo = trimStr(u.profilePhotoData);
+        if (isStoredPhotoUrl(photo)) {
+          setAvatarSrc(photo);
+          setBaselineAvatar(photo);
+        }
+        writeTopbarMeSnapshot(u);
       }
       showToast("Information updated successfully!");
       void refreshTopbarProfile?.();
@@ -351,18 +382,76 @@ export function useAccountSettingsCore(variant, opts = {}) {
     }
   }, [variant, infoForm, baselineInfo, avatarSrc, baselineAvatar, showToast, refreshTopbarProfile]);
 
+  const persistAvatarUrl = useCallback(
+    async (publicUrl) => {
+      const url = trimStr(publicUrl);
+      if (!url) throw new Error("Invalid image URL.");
+      if (variant === "guest") {
+        const data = await patchGuestMeBackend({ profilePhotoData: url });
+        const g = data?.guest;
+        const photo = trimStr(g?.profilePhotoData) || url;
+        setAvatarSrc(photo);
+        setBaselineAvatar(photo);
+        dispatchGuestProfileUpdated();
+        return photo;
+      }
+      const data = await patchMyProfile({ profilePhotoData: url });
+      const u = data?.user;
+      const photo = trimStr(u?.profilePhotoData) || url;
+      setAvatarSrc(photo);
+      setBaselineAvatar(photo);
+      if (u) writeTopbarMeSnapshot(u);
+      return photo;
+    },
+    [variant],
+  );
+
   const handleAvatarChange = useCallback(
     async (e) => {
       const file = e.target.files?.[0];
       if (e.target) e.target.value = "";
       if (!file) return;
-      await handleImageFileInputChange(file, {
-        uploadFn: uploadProfilePhotoDirectBackend,
-        setPreview: setAvatarSrc,
-        setError: (msg) => showToast(msg || "Could not upload profile photo.", true),
-      });
+
+      const typeErr = validateProfileImageFile(file);
+      if (typeErr) {
+        showToast(typeErr, true);
+        return;
+      }
+
+      const uploadFn =
+        variant === "guest" ? uploadProfilePhotoDirectBackend : uploadUserProfilePhotoDirectBackend;
+
+      setAvatarUploading(true);
+      try {
+        let publicUrl = "";
+        let uploadErr = null;
+        await uploadImageWithOptionalFallback(file, uploadFn, {
+          requireS3: true,
+          onSuccess: (url) => {
+            publicUrl = url;
+            setAvatarSrc(url);
+          },
+          onError: (msg) => {
+            uploadErr = new Error(msg || "Could not upload profile photo.");
+          },
+        });
+        if (uploadErr) throw uploadErr;
+        if (!publicUrl || !/^https?:\/\//i.test(publicUrl)) {
+          throw new Error(
+            "Profile photo must be stored on the server (S3). Check AWS credentials and S3_MENU_BUCKET.",
+          );
+        }
+        await persistAvatarUrl(publicUrl);
+        showToast("Profile photo updated.");
+        void refreshTopbarProfile?.();
+      } catch (err) {
+        setAvatarSrc(baselineAvatar);
+        showToast(err?.message || "Could not update profile photo.", true);
+      } finally {
+        setAvatarUploading(false);
+      }
     },
-    [showToast],
+    [variant, baselineAvatar, persistAvatarUrl, refreshTopbarProfile, showToast],
   );
 
   const handleSavePassword = useCallback(async () => {
@@ -405,6 +494,7 @@ export function useAccountSettingsCore(variant, opts = {}) {
     displayAddress,
     displayStaffStatus,
     avatarSrc,
+    avatarUploading,
     avatarInputRef,
     handleAvatarChange,
     activeTab,

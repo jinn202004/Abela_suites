@@ -15,11 +15,6 @@ import {
   fetchBookingsBackend,
   fetchFrontdeskBookingDetailsBackend,
   updateBillingPaymentBackend,
-  approveBookingBackend,
-  rejectBookingBackend,
-  dispatchGuestBookingsRefreshPing,
-  dispatchHousekeepingInboxRefresh,
-  dispatchHousekeepingTasksRefresh,
 } from "../api/guestApi";
 import { getSessionRole, getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { jsPDF } from "jspdf";
@@ -1087,52 +1082,6 @@ export default function BillsPage() {
                         </p>
                       );
                     })()
-                  ) : null}
-
-                  {String(selectedDetails.booking?.status || "").toLowerCase() === "pending" ? (
-                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                      <button
-                        type="button"
-                        className="action-btn view-btn"
-                        disabled={detailsBusy}
-                        onClick={async () => {
-                          setDetailsBusy(true);
-                          try {
-                            await approveBookingBackend(selectedDetails.booking.id);
-                            dispatchHousekeepingTasksRefresh();
-                            dispatchHousekeepingInboxRefresh();
-                            dispatchGuestBookingsRefreshPing();
-                            await refreshSelectedDetails();
-                          } catch (e) {
-                            window.alert(e?.message || "Approve failed.");
-                          } finally {
-                            setDetailsBusy(false);
-                          }
-                        }}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        className="bill-modal-reject-btn"
-                        disabled={detailsBusy}
-                        onClick={async () => {
-                          const reason = window.prompt("Reject reason (optional):", "") ?? "";
-                          setDetailsBusy(true);
-                          try {
-                            await rejectBookingBackend(selectedDetails.booking.id, reason);
-                            dispatchGuestBookingsRefreshPing();
-                            await refreshSelectedDetails();
-                          } catch (e) {
-                            window.alert(e?.message || "Reject failed.");
-                          } finally {
-                            setDetailsBusy(false);
-                          }
-                        }}
-                      >
-                        Reject
-                      </button>
-                    </div>
                   ) : null}
                 </div>
               ) : (

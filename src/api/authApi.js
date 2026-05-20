@@ -27,6 +27,7 @@ export function writeTopbarMeSnapshot(user) {
     const ln = String(user.lastName ?? "").trim();
     const combined = [fn, ln].filter(Boolean).join(" ").trim();
     const name = String(user.name ?? "").trim() || combined;
+    const profilePhotoData = String(user.profilePhotoData ?? user.profilePhotoUrl ?? "").trim();
     sessionStorage.setItem(
       TOPBAR_ME_SNAPSHOT_KEY,
       JSON.stringify({
@@ -38,6 +39,7 @@ export function writeTopbarMeSnapshot(user) {
         lastName: ln,
         phone: String(user.phone ?? "").trim(),
         role: String(user.role ?? "guest").trim(),
+        profilePhotoData,
       }),
     );
   } catch {

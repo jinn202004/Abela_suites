@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
+import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
@@ -132,6 +133,7 @@ function Toast({ message, visible }) {
 // ── Main Component ─────────────────────────────────────────
 export default function ExportSettings() {
   const { mainStyle } = useAdminShell();
+  const { topbarProfile } = useTopbarUserProfile("admin");
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const [exportMonth, setExportMonth] = useState("");
   const [printReport, setPrintReport] = useState(null);
@@ -205,7 +207,7 @@ export default function ExportSettings() {
               style={{ position: "relative" }}
               onClick={() => { setUserOpen((v) => !v); setNotifOpen(false); }}
             >
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span
                 className="user-arrow"
                 style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}
@@ -214,8 +216,7 @@ export default function ExportSettings() {
               </span>
               <RoleUserDropdown
                 isOpen={userOpen}
-                profile={TOPBAR.admin.profile}
-                profilePath={TOPBAR.admin.profilePath}
+                profile={{ ...TOPBAR.admin.profile, ...topbarProfile }}
                 onCloseMenus={() => { setNotifOpen(false); setUserOpen(false); }}
                 onLogout={() => { setNotifOpen(false); setUserOpen(false); requestLogout(); }}
               />

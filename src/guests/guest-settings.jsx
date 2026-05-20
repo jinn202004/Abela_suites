@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
@@ -224,7 +224,7 @@ export default function Settings() {
 
             {/* User dropdown */}
             <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarUserIcon className="topbar-icon" />
+              <TopbarAvatar src={guestTopbarProfile.avatarUrl} className="topbar-nav-avatar" />
               <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▾</span>
               <RoleUserDropdown
                 isOpen={userOpen}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef } from "react";
-import { TopbarUserIcon } from "../frontdesks/frontdeskTopbarIcons";
+import TopbarAvatar from "./TopbarAvatar";
 import { RoleUserDropdown } from "./RoleTopbarDropdowns";
 import { RoleTopbarBell } from "./RoleTopbarBell";
 import { TOPBAR } from "./roleTopbarData";
@@ -110,7 +110,7 @@ const StaffTopbarActions = forwardRef(function StaffTopbarActions(
       />
 
       <div
-        className="icon-btn"
+        className="icon-btn icon-btn--profile"
         ref={userRef}
         onClick={(e) => {
           e.stopPropagation();
@@ -118,7 +118,7 @@ const StaffTopbarActions = forwardRef(function StaffTopbarActions(
           setNotifOpen(false);
         }}
       >
-        <TopbarUserIcon className="topbar-icon" />
+        <TopbarAvatar src={profileForDropdown?.avatarUrl} className="topbar-nav-avatar" />
         <span
           className="user-arrow"
           style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
@@ -128,7 +128,6 @@ const StaffTopbarActions = forwardRef(function StaffTopbarActions(
         <RoleUserDropdown
           isOpen={userOpen}
           profile={profileForDropdown}
-          profilePath={profilePath}
           onCloseMenus={closeMenus}
           onLogout={() => {
             closeMenus();

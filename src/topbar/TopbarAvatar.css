@@ -1,0 +1,62 @@
+.topbar-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #f0ebe3;
+  border: 2px solid #1a1a1a;
+  color: #9e7e2a;
+  box-shadow: 0 1px 4px rgba(58, 46, 30, 0.12);
+}
+
+/* Top bar: slightly larger than bell; photo fills circle like My Profile */
+.topbar-actions .topbar-nav-avatar {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  min-height: 40px;
+  border: 2px solid #1a1a1a;
+  box-shadow: none;
+}
+
+.guest-portal-layout .topbar-actions .topbar-nav-avatar {
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+}
+
+.topbar-nav-avatar .topbar-avatar-img,
+.topbar-dropdown-avatar .topbar-avatar-img {
+  object-fit: cover;
+  object-position: center center;
+  padding: 0;
+  background: #f0ebe3;
+}
+
+.topbar-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.topbar-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.topbar-avatar-fallback-icon {
+  opacity: 0.85;
+}
+
+/* Profile control uses the same `.icon-btn` sizing as the bell — only gap for the arrow */
+.topbar-actions .icon-btn:has(.topbar-nav-avatar),
+.topbar-actions .icon-btn--profile {
+  gap: 4px;
+}

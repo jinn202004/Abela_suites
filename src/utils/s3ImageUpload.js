@@ -6,6 +6,51 @@ export const IMAGE_LOCAL_FALLBACK_ENABLED = !(
 
 const MENU_IMAGE_DATA_URL_MAX_CHARS = 400_000;
 
+/** Profile avatars: JPG, PNG, JPEG, WEBP only. */
+const PROFILE_ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
+
+const PROFILE_MAX_BYTES = (() => {
+  const raw = parseInt(String(import.meta.env.VITE_PROFILE_MAX_BYTES || ""), 10);
+  if (Number.isFinite(raw) && raw > 0) return Math.min(raw, 10 * 1024 * 1024);
+  return 5 * 1024 * 1024;
+})();
+
+function profileMimeFromFile(file) {
+  const mime = String(file?.type || "")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (PROFILE_ALLOWED_MIME.has(mime)) return mime;
+  const name = String(file?.name || "").toLowerCase();
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  return "";
+}
+
+/**
+ * Validate profile photo before upload (format + size).
+ * @param {File | undefined} file
+ * @returns {string | null} error message or null if ok
+ */
+export function validateProfileImageFile(file) {
+  if (!file) return "No file selected.";
+  const mime = profileMimeFromFile(file);
+  if (!mime) {
+    return "Please choose a JPG, PNG, JPEG, or WEBP image.";
+  }
+  if (file.size > PROFILE_MAX_BYTES) {
+    const mb = Math.round(PROFILE_MAX_BYTES / (1024 * 1024));
+    return `Image is too large. Maximum size is ${mb} MB.`;
+  }
+  return null;
+}
+
 export function isLikelyNetworkFailure(err) {
   if (!err) return false;
   const msg = String(err.message || "").toLowerCase();

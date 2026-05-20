@@ -11,7 +11,7 @@ import { useFadeCarousel } from "../hooks/useFadeCarousel";
 import "./homedashboard.css";
 
 const LANDING_SYNC_MS = 12000;
-const CAROUSEL_AUTO_MS = 5500;
+const CAROUSEL_AUTO_MS = 2000;
 
 const FALLBACK_ROOM_SLIDES = [
   { image: "/room-single-suite.png", name: "Single Suite", price: 824, meta: "Room" },
@@ -297,9 +297,11 @@ function CatalogCarouselSection({
               {liveCount} {liveCount === 1 ? "option" : "options"} available now
             </p>
           ) : null}
-          <Link to={linkTo} className="catalog-cta">
-            {linkLabel}
-          </Link>
+          {linkTo && linkLabel ? (
+            <Link to={linkTo} className="catalog-cta">
+              {linkLabel}
+            </Link>
+          ) : null}
         </div>
       </div>
     </section>
@@ -320,11 +322,11 @@ export default function HomeDashboard() {
     paused: roomsPaused,
   });
   const eventsCarousel = useFadeCarousel(eventSlides, {
-    intervalMs: CAROUSEL_AUTO_MS + 400,
+    intervalMs: CAROUSEL_AUTO_MS,
     paused: eventsPaused,
   });
   const foodCarousel = useFadeCarousel(foodSlides, {
-    intervalMs: CAROUSEL_AUTO_MS + 800,
+    intervalMs: CAROUSEL_AUTO_MS,
     paused: foodPaused,
   });
 
@@ -480,8 +482,6 @@ export default function HomeDashboard() {
           slides={roomSlides}
           carousel={roomsCarousel}
           onHoverChange={setRoomsPaused}
-          linkTo="/rooms"
-          linkLabel="View & book rooms"
           liveCount={roomSlides.length}
         />
 
@@ -494,22 +494,17 @@ export default function HomeDashboard() {
           slides={eventSlides}
           carousel={eventsCarousel}
           onHoverChange={setEventsPaused}
-          linkTo="/event-venues"
-          linkLabel="Explore event venues"
           liveCount={eventSlides.length}
         />
 
         <CatalogCarouselSection
           id="restaurant"
-          reverse
           label="Culinary experience"
           title="Available food"
           description="Today's available dishes from our restaurant menu — the same catalog our cashier POS uses. Items marked available appear here in real time."
           slides={foodSlides}
           carousel={foodCarousel}
           onHoverChange={setFoodPaused}
-          linkTo="/login"
-          linkLabel="Sign in to order"
           liveCount={foodSlides.length}
         />
       </div>

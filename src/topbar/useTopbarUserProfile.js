@@ -4,11 +4,18 @@ import {
   getStoredAuthToken,
   readTopbarMeSnapshot,
 } from "../api/authApi";
-import { fetchCurrentUserMeBackend } from "../api/guestApi";
+import { fetchCurrentUserMeBackend, fetchGuestMeBackend, GUEST_PROFILE_UPDATED_EVENT } from "../api/guestApi";
 import { TOPBAR } from "./roleTopbarData";
+
+function photoToAvatarUrl(raw) {
+  const s = String(raw ?? "").trim();
+  if (s && (/^data:image\//.test(s) || /^https?:\/\//i.test(s))) return s;
+  return "";
+}
 
 function mergeSnapshot(defaults, snap) {
   if (!snap || typeof snap !== "object") return { ...defaults };
+  const snapAvatar = photoToAvatarUrl(snap.profilePhotoData);
   return {
     ...defaults,
     name: snap.name != null && String(snap.name).trim() ? String(snap.name).trim() : defaults.name,
@@ -17,6 +24,7 @@ function mergeSnapshot(defaults, snap) {
       snap.phone != null && String(snap.phone).trim()
         ? String(snap.phone).trim()
         : defaults.contact,
+    avatarUrl: snapAvatar || defaults.avatarUrl || "",
     /**
      * Never take `snap.role` into the menu badge. Snapshot is last login’s user.role; it can stay
      * “admin” after switching to the front desk / cashier / HK shell in the same tab, which mislabels
@@ -38,12 +46,7 @@ function mapUserToProfile(defaults, user) {
     (email ? email.split("@")[0] : "") ||
     defaults.name;
   const phone = String(user.phone ?? user.contactNumber ?? "").trim();
-  let avatarUrl = "";
-  const rawPhoto = user.profilePhotoData ?? user.profilePhotoUrl ?? "";
-  const s = String(rawPhoto).trim();
-  if (s && (/^data:image\//.test(s) || /^https?:\/\//i.test(s))) {
-    avatarUrl = s;
-  }
+  const avatarUrl = photoToAvatarUrl(user.profilePhotoData ?? user.profilePhotoUrl);
   return {
     ...defaults,
     name,
@@ -73,17 +76,29 @@ export function useTopbarUserProfile(roleKey) {
       setTopbarProfile(mergeSnapshot(base, snap));
       return;
     }
+    let profile = mergeSnapshot(base, snap);
     try {
       const data = await fetchCurrentUserMeBackend();
       const user = data?.user;
       if (user) {
-        setTopbarProfile(mapUserToProfile(mergeSnapshot(base, snap), user));
-        return;
+        profile = mapUserToProfile(mergeSnapshot(base, snap), user);
       }
     } catch {
-      /* fall through */
+      /* keep snapshot merge */
     }
-    setTopbarProfile(mergeSnapshot(base, snap));
+    if (roleKey === "guest") {
+      try {
+        const guestData = await fetchGuestMeBackend();
+        const g = guestData?.guest;
+        const guestPhoto = photoToAvatarUrl(g?.profilePhotoData);
+        if (guestPhoto) {
+          profile = { ...profile, avatarUrl: guestPhoto };
+        }
+      } catch {
+        /* guest profile optional */
+      }
+    }
+    setTopbarProfile(profile);
   }, [roleKey]);
 
   useEffect(() => {
@@ -95,8 +110,16 @@ export function useTopbarUserProfile(roleKey) {
   useEffect(() => {
     const onTok = () => void refreshTopbarProfile();
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+    if (roleKey === "guest") {
+      const onGuest = () => void refreshTopbarProfile();
+      window.addEventListener(GUEST_PROFILE_UPDATED_EVENT, onGuest);
+      return () => {
+        window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
+        window.removeEventListener(GUEST_PROFILE_UPDATED_EVENT, onGuest);
+      };
+    }
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
-  }, [refreshTopbarProfile]);
+  }, [refreshTopbarProfile, roleKey]);
 
   return { topbarProfile, refreshTopbarProfile };
 }

@@ -42,6 +42,8 @@ export const uploadVenueImageDirectBackend = (file) =>
   uploadImageDirectBackend(file, "/api/eventvenues/upload");
 export const uploadProfilePhotoDirectBackend = (file) =>
   uploadImageDirectBackend(file, "/api/guests/me/upload/profile-photo");
+export const uploadUserProfilePhotoDirectBackend = (file) =>
+  uploadImageDirectBackend(file, "/api/users/me/upload/profile-photo");
 export const uploadGuestValidIdDirectBackend = (file) =>
   uploadImageDirectBackend(file, "/api/guests/me/upload/valid-id");
 export const uploadBookingGuestValidIdDirectBackend = (file) =>

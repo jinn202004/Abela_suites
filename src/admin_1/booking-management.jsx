@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import AdminSidebarNav from "./AdminSidebarNav";
@@ -1008,6 +1009,24 @@ export default function BookingManagement() {
   useEffect(() => {
     loadBookings();
   }, [loadBookings]);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    const bookingId = String(searchParams.get("bookingId") || "").trim();
+    if (!bookingId || bookingsLoading) return;
+
+    const tabParam = String(searchParams.get("tab") || "").toLowerCase();
+    const eventRow = eventData.find((r) => String(r.bookingId) === bookingId);
+    const roomRow = roomData.find((r) => String(r.bookingId) === bookingId);
+    const row = tabParam === "event" ? eventRow : tabParam === "room" ? roomRow : eventRow || roomRow;
+    if (!row) return;
+
+    const type = eventRow && row === eventRow ? "event" : "room";
+    setActiveTab(type);
+    setViewModal({ data: row, type });
+    setSearchParams({}, { replace: true });
+  }, [searchParams, roomData, eventData, bookingsLoading, setSearchParams]);
 
   useEffect(() => {
     if (!viewModal?.data?.bookingId) {

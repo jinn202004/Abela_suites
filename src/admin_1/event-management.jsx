@@ -24,6 +24,14 @@ import {
 import { uploadVenueImageDirectBackend } from "../api/imageUploadApi";
 import { handleImageFileInputChange } from "../utils/s3ImageUpload";
 import "./event-management.css";
+import "./adminClickable.css";
+import { ImagePreviewModal } from "../components/ImagePreviewModal";
+import {
+  AdminViewDetailModal,
+  AdminDetailRow,
+  AdminDetailHeroImage,
+} from "../components/AdminViewDetailModal";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 /** Event admin tables: rows per page (client-side only; APIs unchanged). */
 const EM_TABLE_PAGE_SIZE = 10;
@@ -514,6 +522,8 @@ export default function EventManage() {
   const [savingVenue, setSavingVenue] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [toast, setToast] = useState({ visible: false, msg: "" });
+  const [imagePreview, setImagePreview] = useState(null);
+  const [viewVenue, setViewVenue] = useState(null);
 
   const initialPageLoadDoneRef = useRef(false);
 
@@ -683,6 +693,10 @@ export default function EventManage() {
     setEditingVenueId(null);
     setForm({ ...EMPTY_FORM });
     setModalVisible(true);
+  };
+
+  const openViewVenue = (v) => {
+    if (v) setViewVenue(v);
   };
 
   const openEdit = (v) => {
@@ -1008,10 +1022,26 @@ export default function EventManage() {
                         const img = v.imageUrl || v.image;
                         const label = v.venueName || v.name || v.package || "—";
                         return (
-                          <tr key={String(v.id)}>
+                          <tr
+                            key={String(v.id)}
+                            className="admin-clickable-row"
+                            tabIndex={0}
+                            onClick={(e) => handleAdminRowActivate(e, () => openViewVenue(v))}
+                            onKeyDown={(e) => handleAdminRowKeyDown(e, () => openViewVenue(v))}
+                          >
                             <td>
                               {img ? (
-                                <img src={img} className="rm-thumb" alt="" />
+                                <button
+                                  type="button"
+                                  className="rm-thumb-btn"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setImagePreview({ src: img, alt: label, caption: label });
+                                  }}
+                                  aria-label={`View full-size photo of ${label}`}
+                                >
+                                  <img src={img} className="rm-thumb" alt="" aria-hidden="true" />
+                                </button>
                               ) : (
                                 <div className="rm-thumb-empty">
                                   <Icon.Image />
@@ -1029,14 +1059,25 @@ export default function EventManage() {
                             <td>{v.reserved != null ? v.reserved : 0}</td>
                             <td className="action-cell rm-td-action">
                               <span className="rm-action-btns">
-                                <button type="button" className="icon-action edit-btn" title="Edit" onClick={() => openEdit(v)}>
+                                <button
+                                  type="button"
+                                  className="icon-action edit-btn"
+                                  title="Edit"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openEdit(v);
+                                  }}
+                                >
                                   <Icon.Edit />
                                 </button>
                                 <button
                                   type="button"
                                   className="icon-action delete-btn"
                                   title="Delete"
-                                  onClick={() => setDeleteTarget(v)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteTarget(v);
+                                  }}
                                 >
                                   <Icon.Delete />
                                 </button>
@@ -1138,6 +1179,64 @@ export default function EventManage() {
         </div>
       )}
 
+      <AdminViewDetailModal
+        open={Boolean(viewVenue)}
+        onClose={() => setViewVenue(null)}
+        title="Venue Details"
+      >
+        {viewVenue ? (() => {
+          const label =
+            viewVenue.venueName || viewVenue.name || viewVenue.package || "—";
+          const img = viewVenue.imageUrl || viewVenue.image;
+          const feats = Array.isArray(viewVenue.features)
+            ? viewVenue.features.map((x) => String(x).trim()).filter(Boolean)
+            : [];
+          return (
+            <div className="view-item-info">
+              <AdminDetailHeroImage src={img} alt={label} />
+              <AdminDetailRow label="Venue" value={label} />
+              <AdminDetailRow label="Package" value={viewVenue.package || "—"} />
+              <AdminDetailRow
+                label="Capacity"
+                value={
+                  viewVenue.capacity != null
+                    ? `${viewVenue.capacity} guests`
+                    : viewVenue.limit || "—"
+                }
+              />
+              <AdminDetailRow label="Price" value={fmtPeso(viewVenue.price)} />
+              <AdminDetailRow
+                label="Status"
+                value={formatCatalogVenueStatus(viewVenue.status)}
+              />
+              <AdminDetailRow
+                label="Reserved"
+                value={viewVenue.reserved != null ? String(viewVenue.reserved) : "0"}
+              />
+              <AdminDetailRow label="Event number" value={viewVenue.eventNum || "—"} />
+              <AdminDetailRow
+                label="Features"
+                value={feats.length ? feats.join(", ") : "—"}
+              />
+              <AdminDetailRow label="Description">
+                {viewVenue.description ? (
+                  <p className="admin-view-detail-desc">{viewVenue.description}</p>
+                ) : (
+                  "—"
+                )}
+              </AdminDetailRow>
+            </div>
+          );
+        })() : null}
+      </AdminViewDetailModal>
+
+      <ImagePreviewModal
+        open={Boolean(imagePreview)}
+        onClose={() => setImagePreview(null)}
+        src={imagePreview?.src}
+        alt={imagePreview?.alt}
+        caption={imagePreview?.caption}
+      />
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>
   );

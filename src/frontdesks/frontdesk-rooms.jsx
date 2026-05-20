@@ -10,8 +10,7 @@ import { useFrontdeskShell } from "./FrontdeskShellContext";
 import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "./FrontdeskSidebarToggle";
 import FrontdeskSidebar from "./FrontdeskSidebar";
-import { StaffNotificationDetailModal, useStaffNotificationDetail } from "./StaffNotificationDetailModal";
-import { getFrontdeskNotificationBookingPath } from "./staffNotificationUtils";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import {
   fetchBookingsBackend,
   fetchBookingByIdBackend,
@@ -2869,8 +2868,6 @@ export default function RoomReservation() {
   const [pendingWalkin, setPendingWalkin] = useState(null);
   const [rejectReason, setRejectReason] = useState("");
   const [bookingOutcomeSuccess, setBookingOutcomeSuccess] = useState(null);
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
-
   const reservationMonitorRows = useMemo(
     () =>
       reservations.filter((r) => {
@@ -2971,26 +2968,36 @@ export default function RoomReservation() {
 
   const staffTopbarRef = useRef(null);
 
-  const openNotificationBooking = useCallback((notif) => {
-    const bookingId = String(notif?.bookingId || "").trim();
-    if (!bookingId) return;
-    const path = getFrontdeskNotificationBookingPath(notif);
-    staffTopbarRef.current?.hideMenusOnly?.();
-    if (!path) return;
-    if (path.includes("/frontdesk-events")) {
-      navigate(path);
-      return;
-    }
-    const row = reservations.find((r) => mongoIdFromRow(r) === bookingId);
-    if (row) {
-      setTab("reservation");
-      setDetailsRow(row);
-      setRejectOpen(false);
-      setApproveConfirm(false);
-      return;
-    }
-    navigate(path);
-  }, [navigate, reservations]);
+  const openNotificationBooking = useCallback(
+    (notif) => {
+      const bookingId = String(notif?.bookingId || "").trim();
+      if (!bookingId) return false;
+      staffTopbarRef.current?.hideMenusOnly?.();
+      const row = reservations.find((r) => mongoIdFromRow(r) === bookingId);
+      if (row) {
+        setTab("reservation");
+        setDetailsRow(row);
+        setRejectOpen(false);
+        setApproveConfirm(false);
+        return true;
+      }
+      const bookingType = String(notif?.bookingType || "").toLowerCase();
+      const hay = `${String(notif?.msg || "")} ${String(notif?.detail || "")}`.toLowerCase();
+      const isEvent =
+        bookingType === "event" || hay.includes("event") || hay.includes("venue");
+      navigate(
+        isEvent
+          ? `/frontdesk-events?bookingId=${encodeURIComponent(bookingId)}`
+          : `/frontdesk-rooms?bookingId=${encodeURIComponent(bookingId)}`,
+      );
+      return true;
+    },
+    [navigate, reservations],
+  );
+
+  const onNotificationItemClick = useNotificationRedirect("frontdesk", {
+    customHandler: openNotificationBooking,
+  });
 
   useEffect(() => {
     const bookingId = new URLSearchParams(location.search).get("bookingId");
@@ -3389,9 +3396,7 @@ export default function RoomReservation() {
             dot={pendingCount > 0 ? "active" : null}
             dotTitle="Pending or unread alerts"
             onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
-            onNotificationItemClick={(n) => {
-              openStaffNotification(n);
-            }}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>
@@ -3913,15 +3918,6 @@ export default function RoomReservation() {
             : "success"
         }
         onCancel={() => setBookingOutcomeSuccess(null)}
-      />
-
-      <StaffNotificationDetailModal
-        notification={staffNotification}
-        onClose={closeStaffNotification}
-        onOpenReservation={(n) => {
-          openNotificationBooking(n);
-          closeStaffNotification();
-        }}
       />
 
       <LogoutConfirmModal

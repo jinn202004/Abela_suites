@@ -8,7 +8,7 @@ import { useFrontdeskShell } from "./FrontdeskShellContext";
 import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "./FrontdeskSidebarToggle";
 import FrontdeskSidebar from "./FrontdeskSidebar";
-import { StaffNotificationDetailModal, useStaffNotificationDetail } from "./StaffNotificationDetailModal";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import { fetchBookingsBackend, fetchRoomsCatalog, GUEST_BOOKINGS_STORAGE_PING_KEY } from "../api/guestApi";
 import {
   bookingAddressDisplay,
@@ -185,7 +185,7 @@ export default function ReservationHistory() {
   const [currentTab, setCurrentTab] = useState("room");
   const [search, setSearch] = useState("");
   const [modal, setModal] = useState(null);
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
+  const onNotificationItemClick = useNotificationRedirect("frontdesk");
   const [roomRows, setRoomRows] = useState([]);
   const [eventRows, setEventRows] = useState([]);
   const [listLoading, setListLoading] = useState(true);
@@ -363,9 +363,7 @@ export default function ReservationHistory() {
             dot={pendingCount > 0 ? "active" : null}
             dotTitle="Pending or unread alerts"
             onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
-            onNotificationItemClick={(n) => {
-              openStaffNotification(n);
-            }}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>
@@ -727,7 +725,6 @@ export default function ReservationHistory() {
         ) : null}
       </Modal>
 
-      <StaffNotificationDetailModal notification={staffNotification} onClose={closeStaffNotification} />
 
       <LogoutConfirmModal
         open={logoutModalOpen}

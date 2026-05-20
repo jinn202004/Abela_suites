@@ -90,9 +90,18 @@ export function useTopbarUserProfile(roleKey) {
       try {
         const guestData = await fetchGuestMeBackend();
         const g = guestData?.guest;
-        const guestPhoto = photoToAvatarUrl(g?.profilePhotoData);
-        if (guestPhoto) {
-          profile = { ...profile, avatarUrl: guestPhoto };
+        if (g) {
+          const guestName = String(g.displayName || g.name || "").trim();
+          const guestEmail = String(g.email || "").trim();
+          const guestPhone = String(g.phone || g.contactNumber || "").trim();
+          const guestPhoto = photoToAvatarUrl(g.profilePhotoData);
+          profile = {
+            ...profile,
+            ...(guestName ? { name: guestName } : {}),
+            ...(guestEmail ? { email: guestEmail } : {}),
+            ...(guestPhone ? { contact: guestPhone } : {}),
+            ...(guestPhoto ? { avatarUrl: guestPhoto } : {}),
+          };
         }
       } catch {
         /* guest profile optional */

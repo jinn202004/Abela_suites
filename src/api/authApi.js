@@ -325,6 +325,13 @@ export async function tryBackendLogin(emailTrimmedLower, password) {
           message: msg || "Invalid email or password.",
         };
       }
+      if (res.status === 403) {
+        return {
+          ok: false,
+          reason: "auth",
+          message: msg || "This account cannot access the system. Contact an administrator.",
+        };
+      }
       return {
         ok: false,
         reason: "auth",

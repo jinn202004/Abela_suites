@@ -8,7 +8,7 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { useFrontdeskPendingNotifications } from "../frontdesks/useFrontdeskPendingNotifications";
-import { StaffNotificationDetailModal, useStaffNotificationDetail } from "../frontdesks/StaffNotificationDetailModal";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { formatPeso, loadStaffDashboardBundle } from "../frontdesks/dashboard.service";
 import "./admin-dashboard.css";
@@ -204,7 +204,7 @@ const SALES_LEGENDS = [
 export default function AdminDashboard() {
   const { mainStyle } = useAdminShell();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
+  const onNotificationItemClick = useNotificationRedirect("admin");
   const {
     displayNotifications,
     markStaffNotificationsSeen,
@@ -469,7 +469,7 @@ export default function AdminDashboard() {
             notifications={displayNotifications}
             bellAttention={hasNotifAttention}
             onNotificationsPanelOpen={markStaffNotificationsSeen}
-            onNotificationItemClick={openStaffNotification}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>
@@ -608,7 +608,6 @@ export default function AdminDashboard() {
         </main>
       </RailPortalShell>
 
-      <StaffNotificationDetailModal notification={staffNotification} onClose={closeStaffNotification} />
 
       <LogoutConfirmModal
         open={logoutModalOpen}

@@ -56,6 +56,7 @@ import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle
 import { DayPicker, labelDayButton as defaultLabelDayButton } from "react-day-picker";
 import "react-day-picker/style.css";
 import "./guest-room.css";
+import { RoomDetailModal } from "../components/RoomDetailModal";
 
 /** GCash mark for payment card: `public/Gcash.png`. Scan-to-pay QR: `public/gcash-payment-qr.png`. */
 const GCASH_CARD_ICON = "/Gcash.png";
@@ -157,6 +158,16 @@ function mapApiRoomToView(api) {
     String(api.package ?? "").trim() ||
     String(api.title ?? "").trim() ||
     `Room ${String(api.roomNumber ?? "").trim() || "—"}`;
+  const primaryImg =
+    String(api.image ?? "").trim() || "https://placehold.co/800x500/f5f5f5/666666?text=Room";
+  const extraImgs = [];
+  if (Array.isArray(api.images)) {
+    for (const item of api.images) extraImgs.push(String(item ?? "").trim());
+  }
+  if (Array.isArray(api.photos)) {
+    for (const item of api.photos) extraImgs.push(String(item ?? "").trim());
+  }
+  const images = [primaryImg, ...extraImgs].filter((u, i, arr) => u && arr.indexOf(u) === i);
   return {
     id: String(api.id ?? ""),
     roomNumber: String(api.roomNumber ?? "").trim(),
@@ -168,7 +179,8 @@ function mapApiRoomToView(api) {
     guestLabel: `Up to ${guests} Guest${guests > 1 ? "s" : ""}`,
     desc: String(api.description ?? "").trim() || "—",
     features: Array.isArray(api.features) && api.features.length ? api.features : [],
-    img: String(api.image ?? "").trim() || "https://placehold.co/800x500/f5f5f5/666666?text=Room",
+    img: primaryImg,
+    images,
     packageLabel: String(api.package ?? api.title ?? "").trim(),
   };
 }
@@ -288,6 +300,7 @@ export default function Rooms() {
 
   // Reservation modal
   const [resOpen, setResOpen]   = useState(false);
+  const [roomDetail, setRoomDetail] = useState(null);
   const [resRoom, setResRoom]   = useState("");
   const [form, setForm] = useState({
     customerName: "", customerEmail: "", contactNumber: "", customerAddress: "",
@@ -1070,9 +1083,23 @@ export default function Rooms() {
                     <span>{st ? st.label : "Available"}</span>
                   </span>
                   <div className="room-img-wrap">
-                    <div className="room-img-aspect">
-                      <img src={r.img} alt={r.name} decoding="async" />
-                    </div>
+                    <button
+                      type="button"
+                      className="room-img-aspect room-img-aspect--previewable"
+                      onClick={() =>
+                        setRoomDetail({
+                          room: r,
+                          availability: st ?? null,
+                          bookDisabled: isUnavailable,
+                        })
+                      }
+                      aria-label={`View details for ${r.name}`}
+                    >
+                      <img src={r.img} alt="" decoding="async" aria-hidden="true" />
+                      <span className="room-img-zoom-hint" aria-hidden="true">
+                        View details
+                      </span>
+                    </button>
                   </div>
                   <div className="room-info">
                     <h2 className="room-name">{r.name}</h2>
@@ -1667,6 +1694,17 @@ export default function Rooms() {
           </div>
         </div>
       )}
+      <RoomDetailModal
+        open={Boolean(roomDetail)}
+        onClose={() => setRoomDetail(null)}
+        room={roomDetail?.room ?? null}
+        availability={roomDetail?.availability ?? null}
+        bookDisabled={Boolean(roomDetail?.bookDisabled)}
+        onBookNow={() => {
+          const name = roomDetail?.room?.name;
+          if (name) openRes(name);
+        }}
+      />
       <LogoutConfirmModal
         open={logoutModalOpen}
         onClose={closeLogoutModal}

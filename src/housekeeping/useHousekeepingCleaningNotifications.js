@@ -121,6 +121,8 @@ export function useHousekeepingCleaningNotifications() {
       if (inboxRow) {
         lines.push({
           id: `inbox-${inboxRow.id}`,
+          taskId: String(t.id),
+          targetType: t.targetType,
           msg: inboxRow.message || formatCleaningTaskMessage(t),
           time: inboxRow.createdAt != null ? new Date(inboxRow.createdAt).toLocaleString("en-PH") : "",
           read: false,
@@ -128,6 +130,8 @@ export function useHousekeepingCleaningNotifications() {
       } else {
         lines.push({
           id: String(t.id),
+          taskId: String(t.id),
+          targetType: t.targetType,
           msg: formatCleaningTaskMessage(t),
           time: t.createdAt != null ? new Date(t.createdAt).toLocaleString("en-PH") : "",
           read: false,
@@ -138,6 +142,8 @@ export function useHousekeepingCleaningNotifications() {
       if (!n.read && n.taskId && !activeForBell.some((t) => String(t.id) === String(n.taskId))) {
         lines.push({
           id: `inbox-${n.id}`,
+          taskId: n.taskId != null ? String(n.taskId) : "",
+          targetType: "",
           msg: n.message || "New cleaning task.",
           time: n.createdAt != null ? new Date(n.createdAt).toLocaleString("en-PH") : "",
           read: false,

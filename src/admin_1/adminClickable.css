@@ -1,0 +1,41 @@
+/* Shared admin list: clickable rows and cards (view details on click). */
+
+.admin-clickable-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.admin-clickable-row:hover {
+  background-color: #fdf8f0 !important;
+  box-shadow: inset 3px 0 0 var(--gold, #b8922a);
+}
+
+.admin-clickable-row:focus-visible {
+  outline: 2px solid var(--gold, #b8922a);
+  outline-offset: -2px;
+}
+
+.admin-clickable-card {
+  cursor: pointer;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.admin-clickable-card:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.13);
+  transform: translateY(-2px);
+  border-color: rgba(184, 146, 42, 0.35);
+}
+
+.admin-clickable-card:focus-visible {
+  outline: 2px solid var(--gold, #b8922a);
+  outline-offset: 2px;
+}
+
+.sm-table tbody tr.admin-clickable-row:hover td {
+  background-color: transparent;
+}
+
+.inv-table tbody tr.admin-clickable-row:hover {
+  background-color: #fdf8f0;
+}

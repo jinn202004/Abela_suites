@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from "react";
 import StaffTopbarActions from "../topbar/StaffTopbarActions";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import {
@@ -148,6 +149,7 @@ export default function Dashboard() {
 
   const { needsCleaningCount, displayNotifications, markHousekeepingInboxSeen } =
     useHousekeepingCleaningNotifications();
+  const onNotificationItemClick = useNotificationRedirect("housekeeping");
   const {
     sidebarCollapsed,
     isMobile,
@@ -360,6 +362,7 @@ export default function Dashboard() {
             dot={needsCleaningCount > 0 ? "active" : null}
             dotTitle="Cleaning tasks or alerts"
             onNotificationsPanelOpen={() => void markHousekeepingInboxSeen()}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>

@@ -9,7 +9,7 @@ import { useFrontdeskShell } from "./FrontdeskShellContext";
 import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "./FrontdeskSidebarToggle";
 import FrontdeskSidebar from "./FrontdeskSidebar";
-import { StaffNotificationDetailModal, useStaffNotificationDetail } from "./StaffNotificationDetailModal";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import {
   fetchAllBillingRecordsBackend,
   fetchBookingsBackend,
@@ -421,7 +421,6 @@ export default function BillsPage() {
   /** Client-side table pagination only (full list still loaded once; PDFs & stats use full filtered set). */
   const [billsPage, setBillsPage] = useState(1);
   const [billsPageSize, setBillsPageSize] = useState(10);
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
 
   const loadBillingRows = useCallback(async () => {
     setRowsLoading(true);
@@ -588,7 +587,7 @@ export default function BillsPage() {
   const openBookingFromBillNotification = useCallback(
     async (notif) => {
       const bookingId = String(notif?.bookingId || "").trim();
-      if (!bookingId) return;
+      if (!bookingId) return false;
       const bookingType = String(notif?.bookingType || "").toLowerCase();
       const notifText = `${String(notif?.msg || "")} ${String(notif?.detail || "")}`.toLowerCase();
       const isEventNotif = bookingType === "event" || notifText.includes("event") || notifText.includes("venue");
@@ -596,16 +595,24 @@ export default function BillsPage() {
       const row = billRows.find((x) => String(x.bookingId || "") === bookingId);
       if (row) {
         await openBillDetails(row);
-        return;
+        return true;
       }
       navigate(
         isEventNotif
           ? `/frontdesk-events?bookingId=${encodeURIComponent(bookingId)}`
           : `/frontdesk-rooms?bookingId=${encodeURIComponent(bookingId)}`
       );
+      return true;
     },
     [billRows, navigate],
   );
+
+  const onNotificationItemClick = useNotificationRedirect("frontdesk", {
+    customHandler: (n) => {
+      void openBookingFromBillNotification(n);
+      return true;
+    },
+  });
 
   const tabFilteredRows = useMemo(() => {
     if (billingTab === "room") return billRows.filter((b) => String(b.bookingType).toLowerCase() !== "event");
@@ -708,9 +715,7 @@ export default function BillsPage() {
             dotTitle="Pending or unread alerts"
             onMenusClosedExtra={closeAll}
             onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
-            onNotificationItemClick={(n) => {
-              openStaffNotification(n);
-            }}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>
@@ -1092,15 +1097,6 @@ export default function BillsPage() {
             </>
           ) : null}
       </Modal>
-
-      <StaffNotificationDetailModal
-        notification={staffNotification}
-        onClose={closeStaffNotification}
-        onOpenReservation={(n) => {
-          void openBookingFromBillNotification(n);
-          closeStaffNotification();
-        }}
-      />
 
       <LogoutConfirmModal
         open={logoutModalOpen}

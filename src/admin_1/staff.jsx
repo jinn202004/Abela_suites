@@ -10,12 +10,44 @@ import {
   fetchStaffList,
   createStaffBackend,
   updateStaffBackend,
-  deleteStaffBackend,
+  updateStaffStatusBackend,
 } from "../api/staffApi";
 import "./staff.css";
+import "./adminClickable.css";
+import {
+  AdminViewDetailModal,
+  AdminDetailRow,
+} from "../components/AdminViewDetailModal";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 /** Rows per page — UI-only; full list still loads from `fetchStaffList` (no API/DB changes). */
 const STAFF_PAGE_SIZE = 10;
+
+const STAFF_STATUS_OPTIONS = ["Active", "On Leave", "Inactive"];
+
+const STATUS_CONFIRM_COPY = {
+  Active: {
+    title: "Reactivate account?",
+    message:
+      "This account will be reactivated. The staff will regain access to the system using the same account.",
+    tone: "active",
+    confirmLabel: "Reactivate",
+  },
+  Inactive: {
+    title: "Set account to Inactive?",
+    message:
+      "This account will be set to Inactive. The staff will no longer be able to access the system, but all records will remain saved.",
+    tone: "inactive",
+    confirmLabel: "Set Inactive",
+  },
+  "On Leave": {
+    title: "Set account to On Leave?",
+    message:
+      "This account will be marked as On Leave. The staff member will be shown as on leave while their account and records remain in the system.",
+    tone: "onleave",
+    confirmLabel: "On Leave",
+  },
+};
 
 const emptyForm = {
   name: "",
@@ -39,10 +71,11 @@ export default function StaffManagement() {
   const [form, setForm] = useState(emptyForm);
   const [formErr, setFormErr] = useState("");
   const [saving, setSaving] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
+  const [statusConfirm, setStatusConfirm] = useState(null);
+  const [statusSaving, setStatusSaving] = useState(false);
   const [toast, setToast] = useState({ visible: false, msg: "" });
   const [page, setPage] = useState(1);
+  const [viewStaff, setViewStaff] = useState(null);
 
   /** Block stray pointer/click activation right after landing on this route (sidebar ghost-click). */
   const suppressModalOpensUntilRef = useRef(0);
@@ -113,6 +146,11 @@ export default function StaffManagement() {
     setForm(emptyForm);
     setFormErr("");
     setModalOpen(true);
+  };
+
+  const openViewStaff = (row) => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
+    if (row) setViewStaff(row);
   };
 
   const openEdit = (row) => {
@@ -200,23 +238,34 @@ export default function StaffManagement() {
     }
   };
 
-  const openDelete = (id) => {
+  const requestStatusChange = (row, nextStatus) => {
     if (performance.now() < suppressModalOpensUntilRef.current) return;
-    setDeletingId(id);
-    setDeleteOpen(true);
+    if (!nextStatus || nextStatus === row.status) return;
+    setStatusConfirm({
+      id: row.id,
+      name: row.name,
+      fromStatus: row.status,
+      toStatus: nextStatus,
+    });
   };
-  const closeDelete = () => setDeleteOpen(false);
 
-  const confirmDelete = async () => {
-    if (!deletingId) return;
+  const closeStatusConfirm = () => {
+    if (!statusSaving) setStatusConfirm(null);
+  };
+
+  const confirmStatusChange = async () => {
+    if (!statusConfirm || statusSaving) return;
+    const { id, toStatus } = statusConfirm;
+    setStatusSaving(true);
     try {
-      await deleteStaffBackend(deletingId);
-      setStaff((prev) => prev.filter((s) => s.id !== deletingId));
-      closeDelete();
-      showToast("Staff deleted.");
+      const updated = await updateStaffStatusBackend(id, toStatus);
+      setStaff((prev) => prev.map((s) => (s.id === id ? updated : s)));
+      setStatusConfirm(null);
+      showToast(`Status updated to ${toStatus}.`);
     } catch (e) {
-      showToast(e.message || "Delete failed.");
-      closeDelete();
+      showToast(e.message || "Status update failed.");
+    } finally {
+      setStatusSaving(false);
     }
   };
 
@@ -299,28 +348,48 @@ export default function StaffManagement() {
                   </tr>
                 ) : (
                   pagedRows.map((s) => (
-                    <tr key={s.id}>
+                    <tr
+                      key={s.id}
+                      className="admin-clickable-row"
+                      tabIndex={0}
+                      onClick={(e) => handleAdminRowActivate(e, () => openViewStaff(s))}
+                      onKeyDown={(e) => handleAdminRowKeyDown(e, () => openViewStaff(s))}
+                    >
                       <td>{s.name}</td>
                       <td>{s.email}</td>
                       <td>{s.role}</td>
                       <td>{s.contact}</td>
-                      <td>
-                        <span className={`sm-badge ${badgeClass(s.status)}`}>{s.status}</span>
+                      <td className="sm-status-cell">
+                        <div className={`sm-status-select-wrap ${badgeClass(s.status)}`}>
+                          <select
+                            className="sm-status-select"
+                            value={s.status ?? "Active"}
+                            title="Change account status"
+                            aria-label={`Status for ${s.name}`}
+                            disabled={statusSaving && statusConfirm?.id === s.id}
+                            onChange={(e) => requestStatusChange(s, e.target.value)}
+                          >
+                            {STAFF_STATUS_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </td>
                       <td className="action-cell">
-                        <button className="icon-action edit-btn" type="button" title="Edit" onClick={() => openEdit(s)}>
+                        <button
+                          className="icon-action edit-btn"
+                          type="button"
+                          title="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(s);
+                          }}
+                        >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button className="icon-action delete-btn" type="button" title="Delete" onClick={() => openDelete(s.id)}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                            <path d="M10 11v6" />
-                            <path d="M14 11v6" />
-                            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
                           </svg>
                         </button>
                       </td>
@@ -456,30 +525,49 @@ export default function StaffManagement() {
       </div>
       ) : null}
 
-      {deleteOpen ? (
+      {statusConfirm ? (
       <div
         className="rm-confirm-backdrop active"
         onClick={(e) => {
-          if (e.target === e.currentTarget) closeDelete();
+          if (e.target === e.currentTarget) closeStatusConfirm();
         }}
       >
-        <div className="rm-confirm-dialog">
-          <div className="rm-confirm-icon">
-            <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#e74c3c" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="10" />
-            </svg>
-            <span className="rm-confirm-exclaim">!</span>
-          </div>
-          <h3 className="rm-confirm-title">Delete Staff?</h3>
-          <p className="rm-confirm-sub">This action cannot be undone.</p>
-          <div className="rm-confirm-btns">
-            <button type="button" className="rm-btn-cancel-confirm" onClick={closeDelete}>
-              Cancel
-            </button>
-            <button type="button" className="rm-btn-delete-confirm" onClick={() => void confirmDelete()}>
-              Delete
-            </button>
-          </div>
+        <div className="rm-confirm-dialog sm-status-confirm-dialog">
+          {(() => {
+            const copy = STATUS_CONFIRM_COPY[statusConfirm.toStatus] ?? {
+              title: "Change account status?",
+              message: `Set ${statusConfirm.name || "this staff member"} to ${statusConfirm.toStatus}?`,
+              tone: "onleave",
+              confirmLabel: "Confirm",
+            };
+            return (
+              <>
+                <div className={`rm-confirm-icon sm-status-confirm-icon sm-status-confirm-icon--${copy.tone}`}>
+                  <svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <circle cx="12" cy="12" r="10" />
+                  </svg>
+                  <span className="rm-confirm-exclaim sm-status-confirm-exclaim">
+                    {copy.tone === "active" ? "✓" : "!"}
+                  </span>
+                </div>
+                <h3 className="rm-confirm-title">{copy.title}</h3>
+                <p className="rm-confirm-sub">{copy.message}</p>
+                <div className="rm-confirm-btns">
+                  <button type="button" className="rm-btn-cancel-confirm" onClick={closeStatusConfirm} disabled={statusSaving}>
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={`sm-btn-status-confirm sm-btn-status-confirm--${copy.tone}`}
+                    onClick={() => void confirmStatusChange()}
+                    disabled={statusSaving}
+                  >
+                    {statusSaving ? "Saving…" : copy.confirmLabel}
+                  </button>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
       ) : null}
@@ -493,6 +581,24 @@ export default function StaffManagement() {
           <span>{toast.msg}</span>
         </div>
       ) : null}
+
+      <AdminViewDetailModal
+        open={Boolean(viewStaff)}
+        onClose={() => setViewStaff(null)}
+        title="Staff Details"
+      >
+        {viewStaff ? (
+          <div className="view-item-info">
+            <AdminDetailRow label="Name" value={viewStaff.name} />
+            <AdminDetailRow label="Email" value={viewStaff.email} />
+            <AdminDetailRow label="Role" value={viewStaff.role} />
+            <AdminDetailRow label="Contact" value={viewStaff.contact || "—"} />
+            <AdminDetailRow label="Status">
+              <span className={`sm-badge ${badgeClass(viewStaff.status)}`}>{viewStaff.status ?? "Active"}</span>
+            </AdminDetailRow>
+          </div>
+        ) : null}
+      </AdminViewDetailModal>
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>

@@ -4,6 +4,7 @@ import {
   getStoredGuestTopbarProfile,
   patchMyPassword,
   patchMyProfile,
+  persistGuestProfile,
   writeTopbarMeSnapshot,
 } from "../api/authApi";
 import {
@@ -39,7 +40,19 @@ function initialGuestDisplay() {
     displayName: getStoredGuestTopbarProfile().name,
     email: getStoredGuestTopbarProfile().email,
     phone: getStoredGuestTopbarProfile().contact === "—" ? "" : getStoredGuestTopbarProfile().contact,
-    address: "Zone 1, Balingasag, Misamis Oriental",
+    address: "",
+  };
+}
+
+function userToGuestInfoForm(user) {
+  const fn = trimStr(user?.firstName);
+  const ln = trimStr(user?.lastName);
+  const combined = [fn, ln].filter(Boolean).join(" ").trim();
+  return {
+    displayName: trimStr(user?.name) || combined,
+    email: trimStr(user?.email),
+    phone: trimStr(user?.phone),
+    address: "",
   };
 }
 
@@ -195,10 +208,37 @@ export function useAccountSettingsCore(variant, opts = {}) {
         const g = data?.guest;
         if (cancelled) return;
         if (!g) {
-          const p = getStoredGuestTopbarProfile();
-          setDisplayName(p.name);
-          setDisplayEmail(p.email);
-          setDisplayPhone(p.contact === "—" ? "" : p.contact);
+          let loaded = null;
+          let uPhoto = "";
+          try {
+            const userData = await fetchCurrentUserMeBackend();
+            const u = userData?.user;
+            if (u) {
+              loaded = userToGuestInfoForm(u);
+              uPhoto = trimStr(u.profilePhotoData);
+            }
+          } catch {
+            /* fall back to session */
+          }
+          if (!loaded) {
+            const p = getStoredGuestTopbarProfile();
+            loaded = {
+              displayName: p.name,
+              email: p.email,
+              phone: p.contact === "—" ? "" : p.contact,
+              address: "",
+            };
+          }
+          setDisplayName(loaded.displayName);
+          setDisplayEmail(loaded.email);
+          setDisplayPhone(loaded.phone);
+          setDisplayAddress(loaded.address);
+          setInfoForm(loaded);
+          setBaselineInfo(loaded);
+          if (isStoredPhotoUrl(uPhoto)) {
+            setAvatarSrc(uPhoto);
+            setBaselineAvatar(uPhoto);
+          }
           return;
         }
         const displayNameVal = String(g.displayName || g.name || "").trim();
@@ -342,15 +382,21 @@ export function useAccountSettingsCore(variant, opts = {}) {
             setBaselineAvatar("");
           }
         }
+        try {
+          const me = await fetchCurrentUserMeBackend();
+          if (me?.user) {
+            writeTopbarMeSnapshot(me.user);
+            persistGuestProfile(me.user);
+          }
+        } catch {
+          /* snapshot optional */
+        }
         showToast("Information updated successfully!");
         void refreshTopbarProfile?.();
         dispatchGuestProfileUpdated();
       } catch (e) {
         setConfirmOpen(false);
-        showToast(
-          e?.message || "Could not save profile. Create a booking first if you have no guest profile.",
-          true,
-        );
+        showToast(e?.message || "Could not save profile.", true);
       }
       return;
     }
@@ -392,6 +438,15 @@ export function useAccountSettingsCore(variant, opts = {}) {
         const photo = trimStr(g?.profilePhotoData) || url;
         setAvatarSrc(photo);
         setBaselineAvatar(photo);
+        try {
+          const me = await fetchCurrentUserMeBackend();
+          if (me?.user) {
+            writeTopbarMeSnapshot(me.user);
+            persistGuestProfile(me.user);
+          }
+        } catch {
+          /* ignore */
+        }
         dispatchGuestProfileUpdated();
         return photo;
       }

@@ -67,6 +67,15 @@ export async function updateStaffBackend(id, body) {
   return data.staff;
 }
 
+/**
+ * PUT /api/staff/:id — status-only update (preserves other fields).
+ * @param {string} id
+ * @param {"Active"|"On Leave"|"Inactive"} status
+ */
+export async function updateStaffStatusBackend(id, status) {
+  return updateStaffBackend(id, { status });
+}
+
 /** DELETE /api/staff/:id */
 export async function deleteStaffBackend(id) {
   const res = await fetch(backendUrl(`/api/staff/${encodeURIComponent(id)}`), {

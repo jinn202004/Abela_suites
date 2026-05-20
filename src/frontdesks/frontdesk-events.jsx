@@ -66,8 +66,7 @@ import { useFrontdeskShell } from "./FrontdeskShellContext";
 import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "./FrontdeskSidebarToggle";
 import FrontdeskSidebar from "./FrontdeskSidebar";
-import { StaffNotificationDetailModal, useStaffNotificationDetail } from "./StaffNotificationDetailModal";
-import { getFrontdeskNotificationBookingPath } from "./staffNotificationUtils";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import "../guests/idUploadedCard.css";
 import "./frontdesk-rooms.css";
 import "./frontdesk-events.css";
@@ -2925,8 +2924,6 @@ function EventReservation() {
   const [guestUpdateConfirm, setGuestUpdateConfirm] = useState(false);
   const [pendingGuestEdit, setPendingGuestEdit] = useState(null);
   const [guestSuccess, setGuestSuccess] = useState(false);
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
-
   const staffTopbarRef = useRef(null);
   /** Latest venue id → eventNum map from API (for mapping patched bookings). */
   const venueMapRef = useRef(new Map());
@@ -2983,27 +2980,35 @@ function EventReservation() {
   const applyNotificationBookingNavigation = useCallback(
     (notif) => {
       const bookingId = String(notif?.bookingId || "").trim();
-      if (!bookingId) return;
-      const path = getFrontdeskNotificationBookingPath(notif);
+      if (!bookingId) return false;
       staffTopbarRef.current?.hideMenusOnly?.();
-      if (!path) return;
-      if (path.includes("/frontdesk-events")) {
-        const row = reservations.find((r) => mongoIdFromRow(r) === bookingId);
-        if (row) {
-          setTab("reservation");
-          setCurrentId(row.id);
-          setDetailsRow(row);
-          setDetailsOpen(true);
-          setRejectOpen(false);
-          setApproveConfirm(false);
-          navigate("/frontdesk-events", { replace: true });
-          return;
-        }
+      const row = reservations.find((r) => mongoIdFromRow(r) === bookingId);
+      if (row) {
+        setTab("reservation");
+        setCurrentId(row.id);
+        setDetailsRow(row);
+        setDetailsOpen(true);
+        setRejectOpen(false);
+        setApproveConfirm(false);
+        navigate("/frontdesk-events", { replace: true });
+        return true;
       }
-      navigate(path);
+      const bookingType = String(notif?.bookingType || "").toLowerCase();
+      const hay = `${String(notif?.msg || "")} ${String(notif?.detail || "")}`.toLowerCase();
+      const isRoom = bookingType === "room" || (hay.includes("room") && !hay.includes("event"));
+      navigate(
+        isRoom
+          ? `/frontdesk-rooms?bookingId=${encodeURIComponent(bookingId)}`
+          : `/frontdesk-events?bookingId=${encodeURIComponent(bookingId)}`,
+      );
+      return true;
     },
     [navigate, reservations],
   );
+
+  const onNotificationItemClick = useNotificationRedirect("frontdesk", {
+    customHandler: applyNotificationBookingNavigation,
+  });
 
   const loadReservationsFromApi = useCallback(async () => {
     setReservationsLoad(true);
@@ -3444,9 +3449,7 @@ function EventReservation() {
             dot={pendingCount > 0 ? "active" : null}
             dotTitle="Pending or unread alerts"
             onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
-            onNotificationItemClick={(n) => {
-              openStaffNotification(n);
-            }}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>
@@ -3933,15 +3936,6 @@ function EventReservation() {
         venuesCatalog={walkinVenueCatalog}
         eventBookingsRaw={walkinBookingsRaw}
         listLoading={reservationsLoad}
-      />
-
-      <StaffNotificationDetailModal
-        notification={staffNotification}
-        onClose={closeStaffNotification}
-        onOpenReservation={(n) => {
-          applyNotificationBookingNavigation(n);
-          closeStaffNotification();
-        }}
       />
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />

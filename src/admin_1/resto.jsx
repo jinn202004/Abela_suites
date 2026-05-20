@@ -11,6 +11,14 @@ import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { fetchRestaurantMenuAdminBootstrap, uploadMenuImageDirectBackend } from "../api/menuApi";
 import { getMenus, createMenu, updateMenu, deleteMenu } from "../api/menu.service";
 import "./resto.css";
+import "./adminClickable.css";
+import { ImagePreviewModal } from "../components/ImagePreviewModal";
+import {
+  AdminViewDetailModal,
+  AdminDetailRow,
+  AdminDetailHeroImage,
+} from "../components/AdminViewDetailModal";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 const PESO = "\u20B1";
 
@@ -240,8 +248,8 @@ function DishCardSkeleton() {
   );
 }
 
-/* â”€â”€â”€ Dish Image with fallback â”€â”€â”€ */
-function DishImage({ src, alt }) {
+/* Dish image with fallback + optional full-size preview */
+function DishImage({ src, alt, onPreview }) {
   const [errored, setErrored] = useState(false);
   useEffect(() => {
     setErrored(false);
@@ -256,14 +264,23 @@ function DishImage({ src, alt }) {
     );
   }
   return (
-    <div className="rm-dish-img-wrap">
+    <button
+      type="button"
+      className="rm-dish-img-wrap rm-dish-img-wrap--previewable"
+      onClick={() => onPreview?.({ src, alt })}
+      aria-label={alt ? `View full-size photo of ${alt}` : "View full-size photo"}
+    >
       <img
         src={src}
-        alt={alt}
+        alt=""
+        aria-hidden="true"
         className="rm-dish-img"
         onError={() => setErrored(true)}
       />
-    </div>
+      <span className="rm-dish-img-zoom-hint" aria-hidden="true">
+        View photo
+      </span>
+    </button>
   );
 }
 
@@ -280,6 +297,8 @@ export default function RestoMenu() {
   /** Full card skeletons only after a short delay when switching lists (fast responses skip heavy skeletons). */
   const [delayedListSkeleton, setDelayedListSkeleton] = useState(false);
   const [loadNotice, setLoadNotice] = useState("");
+  const [imagePreview, setImagePreview] = useState(null);
+  const [viewDish, setViewDish] = useState(null);
 
   const [currentCat, setCurrentCat] = useState("Main Course");
   const [search, setSearch] = useState("");
@@ -933,8 +952,21 @@ export default function RestoMenu() {
               </div>
             ) : (
               dishes.map((dish) => (
-                <div className="rm-dish-card" key={dish.id || `${dish.name}-${dish.price}-${dish.category}`}>
-                  <DishImage src={dish.image} alt={dish.name} />
+                <div
+                  className="rm-dish-card admin-clickable-card"
+                  key={dish.id || `${dish.name}-${dish.price}-${dish.category}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => handleAdminRowActivate(e, () => setViewDish(dish))}
+                  onKeyDown={(e) => handleAdminRowKeyDown(e, () => setViewDish(dish))}
+                >
+                  <DishImage
+                    src={dish.image}
+                    alt={dish.name}
+                    onPreview={(item) =>
+                      setImagePreview({ src: item.src, alt: item.alt, caption: item.alt })
+                    }
+                  />
                   <div className="rm-dish-body">
                     <p className="rm-dish-name">{dish.name}</p>
                     <p className="rm-dish-price">
@@ -944,13 +976,21 @@ export default function RestoMenu() {
                     <p className="rm-dish-desc">{dish.description}</p>
                   </div>
                   <div className="rm-dish-footer">
-                    <button type="button" className="rm-btn-edit" onClick={() => openEditModal(dish.id)}>
+                    <button
+                      type="button"
+                      className="rm-btn-edit"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(dish.id);
+                      }}
+                    >
                       Edit
                     </button>
                     <button
                       type="button"
                       className="rm-btn-delete"
-                      onClick={() => {
+                      onClick={(e) => {
+                        e.stopPropagation();
                         setDeletingId(dish.id);
                         setDeleteOpen(true);
                       }}
@@ -1208,6 +1248,39 @@ export default function RestoMenu() {
           document.body
         )}
 
+      <AdminViewDetailModal
+        open={Boolean(viewDish)}
+        onClose={() => setViewDish(null)}
+        title="Dish Details"
+      >
+        {viewDish ? (
+          <div className="view-item-info">
+            <AdminDetailHeroImage src={viewDish.image} alt={viewDish.name} />
+            <AdminDetailRow label="Name" value={viewDish.name} />
+            <AdminDetailRow label="Category" value={viewDish.category} />
+            <AdminDetailRow
+              label="Price"
+              value={`${PESO}${String(viewDish.price).replace(/[^\d.]/g, "")}`}
+            />
+            <AdminDetailRow label="Availability" value={viewDish.availability || "—"} />
+            <AdminDetailRow label="Description">
+              {viewDish.description ? (
+                <p className="admin-view-detail-desc">{viewDish.description}</p>
+              ) : (
+                "—"
+              )}
+            </AdminDetailRow>
+          </div>
+        ) : null}
+      </AdminViewDetailModal>
+
+      <ImagePreviewModal
+        open={Boolean(imagePreview)}
+        onClose={() => setImagePreview(null)}
+        src={imagePreview?.src}
+        alt={imagePreview?.alt}
+        caption={imagePreview?.caption}
+      />
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>
   );

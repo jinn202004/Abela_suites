@@ -55,6 +55,7 @@ import { computeEventBookingBill, formatPeso, paymentSnapshotFromBill } from "./
 import "./billing-summary.css";
 import "./guest-room.css";
 import "./guest-events.css";
+import { ImagePreviewModal } from "../components/ImagePreviewModal";
 
 /** GCash mark: `public/Gcash.png`. Scan-to-pay QR: `public/QR.png`. */
 const GCASH_CARD_ICON = "/Gcash.png";
@@ -157,7 +158,7 @@ const VENUES = [
     typeLabel: "Rooftop venue",
     price: "?1,148",
     priceNum: 1148,
-    guests: "30–40 Guests",
+    guests: "30?40 Guests",
     maxGuests: 40,
     desc: "Perfect for debuts, seminars, meetings, birthdays, and more.",
     features: ["30 Chairs", "Speaker", "10 Tables", "Microphone"],
@@ -169,7 +170,7 @@ const VENUES = [
     typeLabel: "Banquet hall",
     price: "?2,205",
     priceNum: 2205,
-    guests: "20–30 Guests",
+    guests: "20?30 Guests",
     maxGuests: 30,
     desc: "With free Breakfast, private toilet and bath, aircon, and wifi.",
     features: ["30 Chairs", "Speaker", "10 Tables", "Microphone", "Smart TV", "Air Conditioning"],
@@ -258,7 +259,7 @@ function formatEvPeso(n) {
 
 function buildEventPricingFootnote(bill) {
   return (
-    `[Venue hire ${bill.durationHours} h — base (${EVENT_BASE_INCLUDED_HOURS} h) ${formatEvPeso(bill.basePrice)}; ` +
+    `[Venue hire ${bill.durationHours} h ? base (${EVENT_BASE_INCLUDED_HOURS} h) ${formatEvPeso(bill.basePrice)}; ` +
     `extra ${bill.extraHours} h @ ${formatEvPeso(bill.hourlyRate)}/h = ${formatEvPeso(bill.additionalCharge)}; ` +
     `total ${formatEvPeso(bill.total)}]`
   );
@@ -385,6 +386,7 @@ export default function EventVenues() {
 
   // Reservation modal
   const [resOpen, setResOpen]   = useState(false);
+  const [venueImagePreview, setVenueImagePreview] = useState(null);
   const [form, setForm] = useState({
     eventName: "", customerName: "", contact: "", email: "",
     date: "", startTime: "09:00", endTime: "12:00", attendees: "", requests: "",
@@ -409,7 +411,7 @@ export default function EventVenues() {
   /** GCash details + proof kept in the form until final confirmation (no API until then). */
   const [pendingGcash, setPendingGcash] = useState(null);
 
-  // Confirm & success (toast only — same pattern as guest-room; no full-screen dim overlay)
+  // Confirm & success (toast only ? same pattern as guest-room; no full-screen dim overlay)
   const [confirmOpen, setConfirmOpen] = useState(false);
   /** null | "event" (cash / direct submit) | "gcash" */
   const [bookingSuccessToast, setBookingSuccessToast] = useState(null);
@@ -654,14 +656,14 @@ export default function EventVenues() {
       const dateOk  = isVenueAvailable(v.id, barStart, effectiveEnd, bookedDates);
       const ok = guestOk && dateOk;
       const dateLabel = effectiveEnd !== barStart
-        ? fmtDate(barStart) + " – " + fmtDate(effectiveEnd)
+        ? fmtDate(barStart) + " ? " + fmtDate(effectiveEnd)
         : fmtDate(barStart);
       statuses[v.id] = { ok, label: !guestOk ? "Too many guests" : ok ? "Available" : "Not Available", dateLabel };
       if (ok) availCount++;
     }
     setVenueStatuses(statuses);
     const effectiveLabel = effectiveEnd !== barStart
-      ? fmtDate(barStart) + " – " + fmtDate(effectiveEnd)
+      ? fmtDate(barStart) + " ? " + fmtDate(effectiveEnd)
       : fmtDate(barStart);
     if (n === 0) {
       setAvailResult({ dot: "#9a8060", text: "No event venues are available in the catalog yet." });
@@ -1144,10 +1146,10 @@ export default function EventVenues() {
           )}
 
           {catalogLoading && getStoredAuthToken() && (
-            <p style={{ margin: "0 0 12px", color: "#9a8060", fontSize: 14 }}>Loading venues from the server…</p>
+            <p style={{ margin: "0 0 12px", color: "#9a8060", fontSize: 14 }}>Loading venues from the server?</p>
           )}
 
-          {/* Venue cards — same shell classes as guest Rooms for consistent shape & responsive image band */}
+          {/* Venue cards ? same shell classes as guest Rooms for consistent shape & responsive image band */}
           <div className="rooms-list">
             {venueCatalog.length === 0 && !catalogLoading ? (
               <p style={{ padding: "1.5rem", color: "#9a8060", textAlign: "center" }}>
@@ -1165,9 +1167,17 @@ export default function EventVenues() {
                     <span>{st ? st.label : "Available"}</span>
                   </span>
                   <div className="room-img-wrap">
-                    <div className="room-img-aspect">
-                      <img src={v.img} alt={v.name} decoding="async" />
-                    </div>
+                    <button
+                      type="button"
+                      className="room-img-aspect room-img-aspect--previewable"
+                      onClick={() => setVenueImagePreview({ src: v.img, alt: v.name, caption: v.name })}
+                      aria-label={`View full-size photo of ${v.name}`}
+                    >
+                      <img src={v.img} alt="" decoding="async" aria-hidden="true" />
+                      <span className="room-img-zoom-hint" aria-hidden="true">
+                        View photo
+                      </span>
+                    </button>
                   </div>
                   <div className="room-info">
                     <h2 className="room-name">{v.name}</h2>
@@ -1177,7 +1187,7 @@ export default function EventVenues() {
                     </p>
                     <div className="room-pricing">
                       <span className="room-price-new">{v.price}</span>
-                      <span className="venue-price-note">Base · {EVENT_BASE_INCLUDED_HOURS} h</span>
+                      <span className="venue-price-note">Base ? {EVENT_BASE_INCLUDED_HOURS} h</span>
                       <span className="room-guests"><GuestsIcon /> {v.guests}</span>
                     </div>
                     <p className="room-desc">{v.desc}</p>
@@ -1245,7 +1255,7 @@ export default function EventVenues() {
                     placeholder="e.g. 09XXXXXXXXX" maxLength={11}
                     className={formErrors.contact ? "ev-error" : ""}
                     onChange={e => { e.target.value = e.target.value.replace(/\D/g, ""); handleFormChange(e); }} />
-                  <span className={`ev-field-err${formErrors.contact ? " visible" : ""}`}>Valid 10–11 digit contact number is required.</span>
+                  <span className={`ev-field-err${formErrors.contact ? " visible" : ""}`}>Valid 10?11 digit contact number is required.</span>
                 </div>
                 <div className="ev-form-group">
                   <label>Email <span style={{ color: "#e74c3c" }}>*</span></label>
@@ -1295,11 +1305,11 @@ export default function EventVenues() {
                       aria-labelledby="ev-guest-date-label"
                     />
                   </div>
-                  {eventCalLoading && <span className="booking-cal-hint">Loading availability…</span>}
+                  {eventCalLoading && <span className="booking-cal-hint">Loading availability?</span>}
                   {eventCalErr ? (
                     <p className="booking-occupancy-warn" role="status">
                       Could not load booked dates for event venues ({eventCalErr}). You can still submit; the front desk
-                      will confirm availability. Double booking is possible until dates load — try again or pick dates
+                      will confirm availability. Double booking is possible until dates load ? try again or pick dates
                       you know are open.
                     </p>
                   ) : null}
@@ -1337,7 +1347,7 @@ export default function EventVenues() {
                     </div>
                   </div>
                   <span className={`ev-field-err${formErrors.startTime || formErrors.endTime ? " visible" : ""}`}>
-                    Choose end after start (0.5–72 hours). Times must not overlap another booking or the 2-hour cleaning
+                    Choose end after start (0.5?72 hours). Times must not overlap another booking or the 2-hour cleaning
                     buffer after an existing event.
                   </span>
                   <p className="booking-schedule-note" role="note">
@@ -1397,7 +1407,7 @@ export default function EventVenues() {
                           >
                             <strong>{label}</strong>
                             <span style={{ color: "#6b5a3e", marginLeft: 8 }}>
-                              · {String(r.status || "").trim() || "—"}
+                              ? {String(r.status || "").trim() || "?"}
                             </span>
                             {r.customerName ? (
                               <span style={{ color: "#6b5a3e", marginLeft: 6 }}>({r.customerName})</span>
@@ -1479,7 +1489,7 @@ export default function EventVenues() {
                     <div className="ev-payment-card-inner">
                       <CashPayIcon />
                       <strong>Cash</strong>
-                      <span>Pay at the venue — no online form needed</span>
+                      <span>Pay at the venue ? no online form needed</span>
                     </div>
                   </label>
                   <label className={`ev-payment-card${form.payment === "gcash" ? " ev-selected" : ""}`}
@@ -1549,27 +1559,27 @@ export default function EventVenues() {
                     </li>
                     <li>
                       <span className="ev-booking-review-summary__k">Event</span>
-                      <span className="ev-booking-review-summary__v">{form.eventName.trim() || "—"}</span>
+                      <span className="ev-booking-review-summary__v">{form.eventName.trim() || "?"}</span>
                     </li>
                     <li>
                       <span className="ev-booking-review-summary__k">Date</span>
-                      <span className="ev-booking-review-summary__v">{form.date || "—"}</span>
+                      <span className="ev-booking-review-summary__v">{form.date || "?"}</span>
                     </li>
                     <li>
                       <span className="ev-booking-review-summary__k">Time</span>
                       <span className="ev-booking-review-summary__v">
-                        {buildEventTimeSlotLabel(form.startTime, form.endTime) || "—"}
+                        {buildEventTimeSlotLabel(form.startTime, form.endTime) || "?"}
                       </span>
                     </li>
                     <li>
                       <span className="ev-booking-review-summary__k">Duration</span>
                       <span className="ev-booking-review-summary__v">
-                        {Number(durationHoursForBill) > 0 ? `${durationHoursForBill} h` : "—"}
+                        {Number(durationHoursForBill) > 0 ? `${durationHoursForBill} h` : "?"}
                       </span>
                     </li>
                     <li>
                       <span className="ev-booking-review-summary__k">Contact</span>
-                      <span className="ev-booking-review-summary__v">{form.customerName.trim() || "—"}</span>
+                      <span className="ev-booking-review-summary__v">{form.customerName.trim() || "?"}</span>
                     </li>
                     {eventBookingBill ? (
                       <li>
@@ -1592,14 +1602,14 @@ export default function EventVenues() {
                         <span className="ev-booking-review-summary__k">GCash</span>
                         <span className="ev-booking-review-summary__v">
                           {formatEvPeso(pendingGcash.paidNum)} on {pendingGcash.date}, ref. {pendingGcash.txId}
-                          {pendingGcash.proofPreview ? " · Proof attached" : ""}
+                          {pendingGcash.proofPreview ? " ? Proof attached" : ""}
                         </span>
                       </li>
                     ) : form.payment === "gcash" ? (
                       <li>
                         <span className="ev-booking-review-summary__k">GCash</span>
                         <span className="ev-booking-review-summary__v ev-booking-review-summary__v--muted">
-                          Not saved yet — click Submit Reservation to open the payment form.
+                          Not saved yet ? click Submit Reservation to open the payment form.
                         </span>
                       </li>
                     ) : null}
@@ -1616,7 +1626,7 @@ export default function EventVenues() {
               <div className="modal-actions">
                 <button type="button" className="btn-clear" onClick={clearResForm}>Clear</button>
                 <button type="button" className="btn-submit-reservation" onClick={handleSubmitRes} disabled={resSubmitting}>
-                  {resSubmitting ? "Sending…" : "Submit Reservation"}
+                  {resSubmitting ? "Sending?" : "Submit Reservation"}
                 </button>
               </div>
               </div>
@@ -1659,7 +1669,7 @@ export default function EventVenues() {
               </div>
               <div className="ev-payment-form-side">
                 <p className="ev-payment-modal-lead">
-                  Enter your transfer details and proof here. This only saves them in your booking form — your reservation is not sent until you click Submit Reservation and confirm.
+                  Enter your transfer details and proof here. This only saves them in your booking form ? your reservation is not sent until you click Submit Reservation and confirm.
                 </p>
                 <div className="ev-payment-form-scroll">
                   <h3 className="ev-payment-form-title">Fill this Form</h3>
@@ -1745,10 +1755,10 @@ export default function EventVenues() {
             {resPick ? (
               <div className="ev-confirm-booking-summary">
                 <p><strong>Venue</strong> {resPick.name}</p>
-                <p><strong>Event</strong> {form.eventName.trim() || "—"}</p>
+                <p><strong>Event</strong> {form.eventName.trim() || "?"}</p>
                 <p>
-                  <strong>Date</strong> {form.date || "—"} · <strong>Time</strong>{" "}
-                  {buildEventTimeSlotLabel(form.startTime, form.endTime) || "—"}
+                  <strong>Date</strong> {form.date || "?"} ? <strong>Time</strong>{" "}
+                  {buildEventTimeSlotLabel(form.startTime, form.endTime) || "?"}
                 </p>
                 {eventVenueBill ? (
                   <p><strong>Total due</strong> {formatEvPeso(eventVenueBill.total)}</p>
@@ -1756,8 +1766,8 @@ export default function EventVenues() {
                 <p><strong>Payment</strong> {form.payment === "gcash" ? "GCash" : "Cash on arrival"}</p>
                 {form.payment === "gcash" && pendingGcash ? (
                   <p>
-                    <strong>GCash</strong> {formatEvPeso(pendingGcash.paidNum)} on {pendingGcash.date} · Ref. {pendingGcash.txId}
-                    {pendingGcash.proofPreview ? " · Proof attached" : ""}
+                    <strong>GCash</strong> {formatEvPeso(pendingGcash.paidNum)} on {pendingGcash.date} ? Ref. {pendingGcash.txId}
+                    {pendingGcash.proofPreview ? " ? Proof attached" : ""}
                   </p>
                 ) : null}
               </div>
@@ -1767,14 +1777,14 @@ export default function EventVenues() {
                 Cancel
               </button>
               <button type="button" className="ev-btn-submit-confirm" onClick={confirmSubmit} disabled={resSubmitting}>
-                {resSubmitting ? "Sending…" : "Confirm & submit"}
+                {resSubmitting ? "Sending?" : "Confirm & submit"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* -- Booking submitted toast (same UX as Rooms — no full-page scrim) -- */}
+      {/* -- Booking submitted toast (same UX as Rooms ? no full-page scrim) -- */}
       {bookingSuccessToast && (
         <div className="booking-success-toast-anchor" aria-live="polite">
           <div className="booking-success-toast" role="status">
@@ -1784,7 +1794,7 @@ export default function EventVenues() {
               aria-label="Dismiss notification"
               onClick={() => setBookingSuccessToast(null)}
             >
-              ×
+              ?
             </button>
             <div className="booking-success-toast__icon" aria-hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">
@@ -1801,6 +1811,13 @@ export default function EventVenues() {
         </div>
       )}
 
+      <ImagePreviewModal
+        open={Boolean(venueImagePreview)}
+        onClose={() => setVenueImagePreview(null)}
+        src={venueImagePreview?.src}
+        alt={venueImagePreview?.alt}
+        caption={venueImagePreview?.caption}
+      />
       <LogoutConfirmModal
         open={logoutModalOpen}
         onClose={closeLogoutModal}

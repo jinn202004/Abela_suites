@@ -327,6 +327,50 @@
     overflow: hidden;
     flex-shrink: 0;           /* never shrink — always shows */
   }
+
+  .rm-dish-img-wrap--previewable {
+    display: block;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: zoom-in;
+    position: relative;
+    transition: filter 0.15s ease;
+  }
+
+  .rm-dish-img-wrap--previewable:hover {
+    filter: brightness(1.03);
+  }
+
+  .rm-dish-img-wrap--previewable:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: -2px;
+  }
+
+  .rm-dish-img-zoom-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 10px;
+    transform: translateX(-50%);
+    padding: 5px 10px;
+    border-radius: 4px;
+    background: rgba(42, 32, 20, 0.72);
+    color: #fff;
+    font-family: "Montserrat", sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .rm-dish-img-wrap--previewable:hover .rm-dish-img-zoom-hint,
+  .rm-dish-img-wrap--previewable:focus-visible .rm-dish-img-zoom-hint {
+    opacity: 1;
+  }
   
   .rm-dish-img {
     width: 100%;
@@ -334,6 +378,7 @@
     object-fit: cover;        /* fills box, crops cleanly */
     object-position: center;
     display: block;
+    pointer-events: none;
   }
   
   /* Fallback placeholder */

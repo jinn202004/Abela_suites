@@ -20,8 +20,7 @@ import { useFrontdeskShell } from "./FrontdeskShellContext";
 import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "./FrontdeskSidebarToggle";
 import FrontdeskSidebar from "./FrontdeskSidebar";
-import { StaffNotificationDetailModal, useStaffNotificationDetail } from "./StaffNotificationDetailModal";
-import { getFrontdeskNotificationBookingPath } from "./staffNotificationUtils";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import {
   loadDashboardBundle,
   formatPeso,
@@ -271,7 +270,7 @@ export default function FrontdeskDashboard() {
     location.pathname === "/frontdesk-dashboard" ||
     location.pathname.endsWith("/frontdesk-dashboard");
 
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
+  const onNotificationItemClick = useNotificationRedirect("frontdesk");
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
 
   const { pendingCount, displayNotifications, markStaffNotificationsSeen } = useFrontdeskPendingNotifications({
@@ -574,9 +573,7 @@ export default function FrontdeskDashboard() {
             dot={pendingCount > 0 ? "active" : null}
             dotTitle="Pending or unread alerts"
             onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
-            onNotificationItemClick={(n) => {
-              openStaffNotification(n);
-            }}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>
@@ -910,21 +907,6 @@ export default function FrontdeskDashboard() {
               <p>No booking selected.</p>
             )}
       </Modal>
-
-      <StaffNotificationDetailModal
-        notification={staffNotification}
-        onClose={closeStaffNotification}
-        onOpenReservation={(n) => {
-          closeStaffNotification();
-          const path = getFrontdeskNotificationBookingPath(n);
-          if (path) {
-            navigate(path);
-            return;
-          }
-          const bookingId = String(n?.bookingId || "").trim();
-          if (bookingId) void openFrontdeskBookingDetails(bookingId);
-        }}
-      />
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>

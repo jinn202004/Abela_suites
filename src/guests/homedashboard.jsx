@@ -8,6 +8,7 @@ import {
 } from "../api/guestApi";
 import { backendUrl } from "../api/config";
 import { useFadeCarousel } from "../hooks/useFadeCarousel";
+import { ImagePreviewModal } from "../components/ImagePreviewModal";
 import "./homedashboard.css";
 
 const LANDING_SYNC_MS = 12000;
@@ -197,6 +198,7 @@ function CatalogCarousel({
   onNext,
   onDot,
   onHoverChange,
+  onImageClick,
   ariaLabel,
 }) {
   const current = slides[index] ?? slides[0];
@@ -215,10 +217,16 @@ function CatalogCarousel({
       <button type="button" className="catalog-arrow catalog-prev" onClick={onPrev} aria-label="Previous slide">
         &#8249;
       </button>
-      <div className="catalog-img-wrapper">
+      <button
+        type="button"
+        className="catalog-img-wrapper catalog-img-wrapper--previewable"
+        onClick={() => onImageClick?.(index)}
+        aria-label={`View full-size photo of ${current.name}`}
+      >
         <img
           src={current.image}
-          alt={current.name}
+          alt=""
+          aria-hidden="true"
           className="catalog-img"
           style={{
             opacity: fade ? 1 : 0,
@@ -226,7 +234,10 @@ function CatalogCarousel({
             transition: "opacity 0.28s ease, transform 0.28s ease",
           }}
         />
-      </div>
+        <span className="catalog-img-zoom-hint" aria-hidden="true">
+          View photo
+        </span>
+      </button>
       <button type="button" className="catalog-arrow catalog-next" onClick={onNext} aria-label="Next slide">
         &#8250;
       </button>
@@ -258,6 +269,7 @@ function CatalogCarouselSection({
   slides,
   carousel,
   onHoverChange,
+  onImageClick,
   linkTo,
   linkLabel,
   liveCount,
@@ -276,6 +288,7 @@ function CatalogCarouselSection({
           onNext={() => carousel.advance(1)}
           onDot={carousel.goTo}
           onHoverChange={onHoverChange}
+          onImageClick={onImageClick}
           ariaLabel={title}
         />
         <div className="catalog-text">
@@ -316,6 +329,20 @@ export default function HomeDashboard() {
   const [roomsPaused, setRoomsPaused] = useState(false);
   const [eventsPaused, setEventsPaused] = useState(false);
   const [foodPaused, setFoodPaused] = useState(false);
+  const [catalogPreview, setCatalogPreview] = useState(null);
+
+  const openCatalogPreview = useCallback((slides, slideIndex) => {
+    const images = (slides ?? [])
+      .map((s) => ({
+        src: String(s?.image ?? "").trim(),
+        alt: String(s?.name ?? "").trim(),
+        caption: String(s?.name ?? "").trim(),
+      }))
+      .filter((item) => item.src);
+    if (!images.length) return;
+    const idx = Math.min(Math.max(0, slideIndex), images.length - 1);
+    setCatalogPreview({ images, index: idx });
+  }, []);
 
   const roomsCarousel = useFadeCarousel(roomSlides, {
     intervalMs: CAROUSEL_AUTO_MS,
@@ -482,6 +509,7 @@ export default function HomeDashboard() {
           slides={roomSlides}
           carousel={roomsCarousel}
           onHoverChange={setRoomsPaused}
+          onImageClick={(idx) => openCatalogPreview(roomSlides, idx)}
           liveCount={roomSlides.length}
         />
 
@@ -494,6 +522,7 @@ export default function HomeDashboard() {
           slides={eventSlides}
           carousel={eventsCarousel}
           onHoverChange={setEventsPaused}
+          onImageClick={(idx) => openCatalogPreview(eventSlides, idx)}
           liveCount={eventSlides.length}
         />
 
@@ -505,9 +534,17 @@ export default function HomeDashboard() {
           slides={foodSlides}
           carousel={foodCarousel}
           onHoverChange={setFoodPaused}
+          onImageClick={(idx) => openCatalogPreview(foodSlides, idx)}
           liveCount={foodSlides.length}
         />
       </div>
+
+      <ImagePreviewModal
+        open={Boolean(catalogPreview)}
+        onClose={() => setCatalogPreview(null)}
+        images={catalogPreview?.images}
+        initialIndex={catalogPreview?.index ?? 0}
+      />
 
       <section className="why-section" id="testimonials">
         <span className="section-label">Our Promise</span>

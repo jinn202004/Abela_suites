@@ -7,6 +7,8 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import "./inventory.css";
+import "./adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 /** Inventory table: rows per page (client-side slice; localStorage + in-memory list unchanged). */
 const INV_TABLE_PAGE_SIZE = 10;
@@ -407,7 +409,13 @@ export default function InventoryManagement() {
                 ) : pagedItems.map(item => {
                   const st = getStatus(item);
                   return (
-                    <tr key={item.id}>
+                    <tr
+                      key={item.id}
+                      className="admin-clickable-row"
+                      tabIndex={0}
+                      onClick={(e) => handleAdminRowActivate(e, () => openViewModal(item.id))}
+                      onKeyDown={(e) => handleAdminRowKeyDown(e, () => openViewModal(item.id))}
+                    >
                       <td>{item.name}</td>
                       <td>{item.category}</td>
                       <td>{item.unit}</td>
@@ -415,18 +423,29 @@ export default function InventoryManagement() {
                       <td>{item.threshold}</td>
                       <td><span className={`inv-badge ${st.cls}`}>{st.label}</span></td>
                       <td className="action-cell">
-                        <button className="icon-action view-btn" title="View" onClick={() => openViewModal(item.id)}>
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                          </svg>
-                        </button>
-                        <button className="icon-action edit-btn" title="Edit" onClick={() => openEditModal(item.id)}>
+                        <button
+                          type="button"
+                          className="icon-action edit-btn"
+                          title="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditModal(item.id);
+                          }}
+                        >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
                           </svg>
                         </button>
-                        <button className="icon-action delete-btn" title="Delete" onClick={() => openDelete(item.id)}>
+                        <button
+                          type="button"
+                          className="icon-action delete-btn"
+                          title="Delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDelete(item.id);
+                          }}
+                        >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
@@ -554,7 +573,7 @@ export default function InventoryManagement() {
         onClick={e => { if (e.target === e.currentTarget) setViewModalOpen(false); }}>
         <div className="rm-modal inv-modal--narrow">
           <div className="rm-modal-header">
-            <h2 className="rm-modal-title">View Item</h2>
+            <h2 className="rm-modal-title">Item Details</h2>
             <button type="button" className="rm-modal-close" onClick={() => setViewModalOpen(false)}>&#x2715;</button>
           </div>
           <div className="rm-modal-body">

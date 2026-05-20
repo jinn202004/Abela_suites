@@ -1,0 +1,47 @@
+.admin-view-detail-modal {
+  max-width: 520px;
+}
+
+.admin-view-detail-body .view-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.admin-view-detail-body .view-item-row {
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-dark);
+  line-height: 1.5;
+}
+
+.admin-view-detail-body .view-item-row strong {
+  font-weight: 600;
+}
+
+.admin-view-detail-hero {
+  width: 100%;
+  max-height: 220px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #f5f0e6;
+  border: 1px solid #e8dcc8;
+}
+
+.admin-view-detail-hero img {
+  display: block;
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+}
+
+.admin-view-detail-desc {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: "Roboto", sans-serif;
+  font-size: 14px;
+  color: var(--text-dark);
+  line-height: 1.55;
+}

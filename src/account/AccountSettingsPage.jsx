@@ -15,10 +15,7 @@ import { useFrontdeskShell } from "../frontdesks/FrontdeskShellContext";
 import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "../frontdesks/FrontdeskSidebarToggle";
 import FrontdeskSidebar from "../frontdesks/FrontdeskSidebar";
-import {
-  StaffNotificationDetailModal,
-  useStaffNotificationDetail,
-} from "../frontdesks/StaffNotificationDetailModal";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import { useFrontdeskPendingNotifications } from "../frontdesks/useFrontdeskPendingNotifications";
 import { useCashierSidebarLayout } from "../cashier/useCashierSidebarLayout";
 import { useCashierUnifiedBell } from "../cashier/useCashierUnifiedBell";
@@ -604,7 +601,7 @@ function FrontdeskAccountSettings() {
   const { pendingCount, displayNotifications, markStaffNotificationsSeen } = useFrontdeskPendingNotifications({
     bookingType: "all",
   });
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
+  const onNotificationItemClick = useNotificationRedirect("frontdesk");
   const [notifOpen, setNotifOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
   const { mainStyle } = useFrontdeskShell();
@@ -661,7 +658,7 @@ function FrontdeskAccountSettings() {
               onItemClick={(n) => {
                 setNotifOpen(false);
                 setUserOpen(false);
-                openStaffNotification(n);
+                onNotificationItemClick(n);
               }}
             />
             <div className="icon-btn" ref={userRef} onClick={toggleUser} title="Account" style={{ position: "relative" }}>
@@ -694,7 +691,6 @@ function FrontdeskAccountSettings() {
         </header>
         <SettingsPageBody core={core} showBackArrow={false} avatarSize="96" avatarFill="#b8922a" />
       </RailPortalShell>
-      <StaffNotificationDetailModal notification={staffNotification} onClose={closeStaffNotification} />
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>
   );
@@ -807,6 +803,7 @@ function HousekeepingAccountSettings() {
   const core = useAccountSettingsCore("housekeeping", { refreshTopbarProfile });
   const { needsCleaningCount, displayNotifications, markHousekeepingInboxSeen } =
     useHousekeepingCleaningNotifications();
+  const onNotificationItemClick = useNotificationRedirect("housekeeping");
   const {
     sidebarCollapsed,
     isMobile,
@@ -881,6 +878,11 @@ function HousekeepingAccountSettings() {
               bellIconClassName="topbar-icon"
               title="Rooms & venues waiting to be cleaned"
               dot={needsCleaningCount > 0 ? "plain" : null}
+              onItemClick={(n) => {
+                setNotifOpen(false);
+                setUserOpen(false);
+                onNotificationItemClick(n);
+              }}
             />
             <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
               <TopbarAvatar src={core.avatarSrc || topbarProfile.avatarUrl} className="topbar-nav-avatar" />

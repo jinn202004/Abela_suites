@@ -22,6 +22,14 @@ import {
   resolveBookingRawStatus,
 } from "./adminBookingStatusDisplay";
 import "./room-management.css";
+import "./adminClickable.css";
+import { ImagePreviewModal } from "../components/ImagePreviewModal";
+import {
+  AdminViewDetailModal,
+  AdminDetailRow,
+  AdminDetailHeroImage,
+} from "../components/AdminViewDetailModal";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 /** Admin room tables: rows per page (client-side slice only; API unchanged). */
 const RM_TABLE_PAGE_SIZE = 10;
@@ -217,6 +225,9 @@ export default function RoomManagement() {
   const [toast, setToast] = useState({ visible: false, msg: "" });
   const toastTimer = useRef(null);
 
+  const [imagePreview, setImagePreview] = useState(null);
+  const [viewRoom, setViewRoom] = useState(null);
+
   const roomStatusRows = useMemo(() => {
     const byId = new Map(rooms.map((r) => [String(r.apiId || "").trim(), r]));
     const byNum = new Map();
@@ -325,6 +336,10 @@ export default function RoomManagement() {
     setForm(BLANK_FORM);
     setFormErr("");
     setModalOpen(true);
+  }
+
+  function openViewRoom(r) {
+    if (r) setViewRoom(r);
   }
 
   function openEdit(idx) {
@@ -792,12 +807,31 @@ export default function RoomManagement() {
                     ) : pagedRooms.map(r => {
                       const idx = rooms.indexOf(r);
                       return (
-                        <tr key={(r.apiId || "") + r.roomNum + idx}>
+                        <tr
+                          key={(r.apiId || "") + r.roomNum + idx}
+                          className="admin-clickable-row"
+                          tabIndex={0}
+                          onClick={(e) => handleAdminRowActivate(e, () => openViewRoom(r))}
+                          onKeyDown={(e) => handleAdminRowKeyDown(e, () => openViewRoom(r))}
+                        >
                           <td>
-                            {r.image
-                              ? <img src={r.image} className="rm-thumb" alt={r.package}/>
-                              : <div className="rm-thumb-empty"><IconThumb/></div>
-                            }
+                            {r.image ? (
+                              <button
+                                type="button"
+                                className="rm-thumb-btn"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setImagePreview({ src: r.image, alt: r.package, caption: r.package });
+                                }}
+                                aria-label={`View full-size photo of ${r.package}`}
+                              >
+                                <img src={r.image} className="rm-thumb" alt="" aria-hidden="true" />
+                              </button>
+                            ) : (
+                              <div className="rm-thumb-empty">
+                                <IconThumb />
+                              </div>
+                            )}
                           </td>
                           <td>{r.roomNum}</td>
                           <td>{r.package}</td>
@@ -806,10 +840,28 @@ export default function RoomManagement() {
                           <td>{r.price}</td>
                           <td className="action-cell rm-td-action">
                             <span className="rm-action-btns">
-                              <button className="icon-action edit-btn" title="Edit"
-                                      onClick={() => openEdit(idx)}><IconEdit/></button>
-                              <button className="icon-action delete-btn" title="Delete"
-                                      onClick={() => openDelete(idx)}><IconDelete/></button>
+                              <button
+                                type="button"
+                                className="icon-action edit-btn"
+                                title="Edit"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openEdit(idx);
+                                }}
+                              >
+                                <IconEdit/>
+                              </button>
+                              <button
+                                type="button"
+                                className="icon-action delete-btn"
+                                title="Delete"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openDelete(idx);
+                                }}
+                              >
+                                <IconDelete/>
+                              </button>
                             </span>
                           </td>
                         </tr>
@@ -1029,6 +1081,54 @@ export default function RoomManagement() {
           </div>,
           document.body
         )}
+
+      <AdminViewDetailModal
+        open={Boolean(viewRoom)}
+        onClose={() => setViewRoom(null)}
+        title="Room Details"
+      >
+        {viewRoom ? (
+          <div className="view-item-info">
+            <AdminDetailHeroImage src={viewRoom.image} alt={viewRoom.package} />
+            <AdminDetailRow label="Package" value={viewRoom.package} />
+            <AdminDetailRow label="Room number" value={viewRoom.roomNum || "—"} />
+            <AdminDetailRow label="Type" value={viewRoom.type} />
+            <AdminDetailRow label="Guest limit" value={viewRoom.limit} />
+            <AdminDetailRow label="Price" value={viewRoom.price} />
+            <AdminDetailRow
+              label="Status"
+              value={
+                String(viewRoom.apiStatus || "available")
+                  .replace(/_/g, " ")
+                  .replace(/\b\w/g, (c) => c.toUpperCase()) || "—"
+              }
+            />
+            <AdminDetailRow
+              label="Amenities"
+              value={
+                Array.isArray(viewRoom.features) && viewRoom.features.length
+                  ? viewRoom.features.join(", ")
+                  : "—"
+              }
+            />
+            <AdminDetailRow label="Description">
+              {viewRoom.description ? (
+                <p className="admin-view-detail-desc">{viewRoom.description}</p>
+              ) : (
+                "—"
+              )}
+            </AdminDetailRow>
+          </div>
+        ) : null}
+      </AdminViewDetailModal>
+
+      <ImagePreviewModal
+        open={Boolean(imagePreview)}
+        onClose={() => setImagePreview(null)}
+        src={imagePreview?.src}
+        alt={imagePreview?.alt}
+        caption={imagePreview?.caption}
+      />
 
       <LogoutConfirmModal
         open={logoutModalOpen}

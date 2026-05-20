@@ -7,6 +7,12 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import "./attendance-management.css";
+import "./adminClickable.css";
+import {
+  AdminViewDetailModal,
+  AdminDetailRow,
+} from "../components/AdminViewDetailModal";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 const STATUS_OPTIONS = ["Present", "Late", "Absent", "On leave", "Half-day"];
 
@@ -46,6 +52,7 @@ export default function AttendanceManagement() {
   const [deletingId, setDeletingId] = useState(null);
 
   const [toast, setToast] = useState({ visible: false, msg: "" });
+  const [viewRow, setViewRow] = useState(null);
 
   /** After sidebar route change, ignore stray activations on Add / row actions (shared admin shell). */
   const suppressModalOpensUntilRef = useRef(0);
@@ -87,6 +94,11 @@ export default function AttendanceManagement() {
     setForm(emptyForm());
     setFormErr("");
     setModalOpen(true);
+  };
+
+  const openViewRow = (row) => {
+    if (performance.now() < suppressModalOpensUntilRef.current) return;
+    if (row) setViewRow(row);
   };
 
   const openEdit = (row) => {
@@ -265,7 +277,13 @@ export default function AttendanceManagement() {
                   </tr>
                 ) : (
                   filtered.map((r) => (
-                    <tr key={r.id}>
+                    <tr
+                      key={r.id}
+                      className="admin-clickable-row"
+                      tabIndex={0}
+                      onClick={(e) => handleAdminRowActivate(e, () => openViewRow(r))}
+                      onKeyDown={(e) => handleAdminRowKeyDown(e, () => openViewRow(r))}
+                    >
                       <td>{r.employeeName}</td>
                       <td>{r.role}</td>
                       <td>{r.date}</td>
@@ -276,13 +294,29 @@ export default function AttendanceManagement() {
                       </td>
                       <td className="att-notes-cell">{r.notes || "—"}</td>
                       <td className="action-cell">
-                        <button className="icon-action edit-btn" type="button" title="Edit" onClick={() => openEdit(r)}>
+                        <button
+                          className="icon-action edit-btn"
+                          type="button"
+                          title="Edit"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(r);
+                          }}
+                        >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                             <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
                             <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                           </svg>
                         </button>
-                        <button className="icon-action delete-btn" type="button" title="Delete" onClick={() => openDelete(r.id)}>
+                        <button
+                          className="icon-action delete-btn"
+                          type="button"
+                          title="Delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDelete(r.id);
+                          }}
+                        >
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
                             <polyline points="3 6 5 6 21 6" />
                             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
@@ -437,6 +471,26 @@ export default function AttendanceManagement() {
           <span>{toast.msg}</span>
         </div>
       ) : null}
+
+      <AdminViewDetailModal
+        open={Boolean(viewRow)}
+        onClose={() => setViewRow(null)}
+        title="Attendance Details"
+      >
+        {viewRow ? (
+          <div className="view-item-info">
+            <AdminDetailRow label="Employee" value={viewRow.employeeName} />
+            <AdminDetailRow label="Role" value={viewRow.role} />
+            <AdminDetailRow label="Date" value={viewRow.date} />
+            <AdminDetailRow label="Time in" value={viewRow.timeIn || "—"} />
+            <AdminDetailRow label="Time out" value={viewRow.timeOut || "—"} />
+            <AdminDetailRow label="Status">
+              <span className={`sm-badge ${badgeClass(viewRow.status)}`}>{viewRow.status}</span>
+            </AdminDetailRow>
+            <AdminDetailRow label="Notes" value={viewRow.notes || "—"} />
+          </div>
+        ) : null}
+      </AdminViewDetailModal>
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
     </>

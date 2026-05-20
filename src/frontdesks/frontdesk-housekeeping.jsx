@@ -7,7 +7,7 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import FrontdeskSidebarToggle from "./FrontdeskSidebarToggle";
 import FrontdeskSidebar from "./FrontdeskSidebar";
 import { useFrontdeskShell } from "./FrontdeskShellContext";
-import { StaffNotificationDetailModal, useStaffNotificationDetail } from "./StaffNotificationDetailModal";
+import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import {
   fetchRoomsCatalog,
   fetchEventVenuesBackend,
@@ -121,7 +121,7 @@ export default function HousekeepingRooms() {
   const [statusDraft, setStatusDraft] = useState({});
   const [savingRoomKey, setSavingRoomKey] = useState(null);
   const [rowActionError, setRowActionError] = useState({});
-  const { staffNotification, openStaffNotification, closeStaffNotification } = useStaffNotificationDetail();
+  const onNotificationItemClick = useNotificationRedirect("frontdesk");
 
   const loadRooms = useCallback(async (opts = {}) => {
     const silent = opts.silent === true;
@@ -282,9 +282,7 @@ export default function HousekeepingRooms() {
             dot={pendingCount > 0 ? "active" : null}
             dotTitle="Pending or unread alerts"
             onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
-            onNotificationItemClick={(n) => {
-              openStaffNotification(n);
-            }}
+            onNotificationItemClick={onNotificationItemClick}
             onRequestLogout={requestLogout}
           />
         </header>
@@ -615,7 +613,6 @@ export default function HousekeepingRooms() {
         </main>
       </RailPortalShell>
 
-      <StaffNotificationDetailModal notification={staffNotification} onClose={closeStaffNotification} />
 
       <LogoutConfirmModal
         open={logoutModalOpen}

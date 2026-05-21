@@ -254,6 +254,7 @@ function buildCalendarGridCells(year, monthIndex) {
 function getBadgeClass(status) {
   const s = String(status || "").trim();
   if (s === "Available") return "badge-available";
+  if (s === "Reserved") return "badge-pending";
   if (s === "Needs clean" || s === "Need Clean") return "badge-needclean";
   if (s === "Occupied") return "badge-occupied";
   if (s === "In Progress") return "badge-inprogress";

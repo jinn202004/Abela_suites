@@ -46,7 +46,11 @@ import {
   packageLabelForReservedGuestRow,
 } from "../guests/bookingRoomDisplay";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
-import { bookingStatusBlocksOverlap } from "../guests/guestAvailability";
+import {
+  bookingStatusBlocksOverlap,
+  eventBookedRangesFromBookings,
+  guestEventCalendarNightsFromBookedRanges,
+} from "../guests/guestAvailability";
 import { DayPicker, DayButton, labelDayButton as defaultLabelDayButton } from "react-day-picker";
 import "react-day-picker/style.css";
 import "./dashboard.css";
@@ -256,36 +260,15 @@ function normEventWalkinDate(d) {
   return s.includes("T") ? s.slice(0, 10) : s.trim();
 }
 
-/** Per-day sets for walk-in DayPicker: occupied vs reserved/pending (same tones as dashboard booking calendar). */
-function splitWalkinEventOccupiedReservedNights(eventBookingsRaw, selectedVenueId) {
-  const occupied = new Set();
-  const reserved = new Set();
-  if (!selectedVenueId || !Array.isArray(eventBookingsRaw)) return { occupied, reserved };
-  const vid = String(selectedVenueId).trim().toLowerCase();
-  for (const b of eventBookingsRaw) {
-    if (!b || String(b.type || "").toLowerCase() !== "event") continue;
-    if (!bookingStatusBlocksOverlap(b.status)) continue;
-    if (String(b.eventVenueId ?? "").trim().toLowerCase() !== vid) continue;
-    const sRaw = normEventWalkinDate(b.eventDate);
-    const eRaw = normEventWalkinDate(b.eventEndDate || b.eventDate) || sRaw;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(sRaw)) continue;
-    const end = /^\d{4}-\d{2}-\d{2}$/.test(eRaw) ? eRaw : sRaw;
-    const isOcc = String(b.status || "").trim().toLowerCase() === "occupied";
-    let cur = parseLocalYmd(sRaw);
-    const endD = parseLocalYmd(end);
-    if (!cur || !endD) continue;
-    while (cur <= endD) {
-      const key = formatLocalYmd(cur);
-      if (isOcc) {
-        occupied.add(key);
-        reserved.delete(key);
-      } else if (!occupied.has(key)) {
-        reserved.add(key);
-      }
-      cur = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate() + 1, 12, 0, 0, 0);
-    }
-  }
-  return { occupied, reserved };
+/** Per-day sets for walk-in DayPicker (yellow pending, green approved, red occupied). */
+function splitWalkinEventCalendarNights(eventBookingsRaw, selectedVenueId) {
+  const ranges = eventBookedRangesFromBookings(
+    (Array.isArray(eventBookingsRaw) ? eventBookingsRaw : []).map((b) => ({
+      ...b,
+      type: b?.type || "event",
+    })),
+  );
+  return guestEventCalendarNightsFromBookedRanges(ranges, selectedVenueId);
 }
 
 const EVENT_TIME_OVERLAP_ALERT =
@@ -1628,7 +1611,7 @@ function eventCalendarRowAccent(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
   if (s === "occupied") return "#e74c3c";
   if (s === "pending") return "#f1c40f";
-  if (s === "approved" || s === "confirmed") return "#3498db";
+  if (s === "approved" || s === "confirmed" || s === "reserved") return "#27ae60";
   return "#95a5a6";
 }
 
@@ -1730,8 +1713,12 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
     return hit ? String(hit.id).trim() : "";
   }, [venuesCatalog, form.package]);
 
-  const { occupied: eventOccupiedNightSet, reserved: eventReservedNightSet } = useMemo(
-    () => splitWalkinEventOccupiedReservedNights(eventBookingsRaw, selectedVenueId),
+  const {
+    occupied: eventOccupiedNightSet,
+    approved: eventApprovedNightSet,
+    pending: eventPendingNightSet,
+  } = useMemo(
+    () => splitWalkinEventCalendarNights(eventBookingsRaw, selectedVenueId),
     [eventBookingsRaw, selectedVenueId],
   );
 
@@ -1750,14 +1737,16 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
         let label = defaultLabelDayButton(date, modifiers, options, dateLib);
         const key = formatLocalYmd(date);
         if (selectedVenueId && eventOccupiedNightSet.has(key)) {
-          label = `${label}. This venue has an in-house event (occupied) on this date — check booked times below if partial-day slots apply.`;
-        } else if (selectedVenueId && eventReservedNightSet.has(key)) {
-          label = `${label}. This venue has a blocking reservation on this date — you may still book non-overlapping hours if times are on file; see the list below.`;
+          label = `${label}. Occupied on this date.`;
+        } else if (selectedVenueId && eventApprovedNightSet.has(key)) {
+          label = `${label}. Approved / reserved on this date.`;
+        } else if (selectedVenueId && eventPendingNightSet.has(key)) {
+          label = `${label}. Pending reservation on this date.`;
         }
         return label;
       },
     }),
-    [selectedVenueId, eventOccupiedNightSet, eventReservedNightSet],
+    [selectedVenueId, eventOccupiedNightSet, eventApprovedNightSet, eventPendingNightSet],
   );
 
   const checkEventDateDisabledMatchers = useMemo(() => {
@@ -2313,8 +2302,8 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
 
                 <div className="form-row form-row--event-schedule ev-form-row ev-form-row--guest-event-date-cal">
                   <p className="booking-cal-unavailable-hint">
-                    <strong>How to book:</strong> Past dates are disabled. Red or gold marks full-day holds. When times are on file,
-                    pick a date and choose start/end that do not overlap another booking or the 2-hour cleaning buffer.
+                    <strong>How to book:</strong> Past dates are disabled. Yellow is pending, green is approved, red is occupied.
+                    Pick start/end times that do not overlap another booking on the same date.
                   </p>
                   <div className="ev-form-group">
                     <span className="form-label-static" id="ev-wi-guest-date-label">
@@ -2339,12 +2328,15 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                         modifiers={{
                           evOccupied: (date) =>
                             Boolean(selectedVenueId) && eventOccupiedNightSet.has(formatLocalYmd(date)),
-                          evReserved: (date) =>
-                            Boolean(selectedVenueId) && eventReservedNightSet.has(formatLocalYmd(date)),
+                          evApproved: (date) =>
+                            Boolean(selectedVenueId) && eventApprovedNightSet.has(formatLocalYmd(date)),
+                          evPending: (date) =>
+                            Boolean(selectedVenueId) && eventPendingNightSet.has(formatLocalYmd(date)),
                         }}
                         modifiersClassNames={{
                           evOccupied: "fd-cal-cell fd-cal-cell--occupied",
-                          evReserved: "fd-cal-cell fd-cal-cell--reserved",
+                          evApproved: "fd-cal-cell fd-cal-cell--approved",
+                          evPending: "fd-cal-cell fd-cal-cell--pending",
                         }}
                         className="booking-day-picker"
                         id="wi-ev-date-calendar"
@@ -2389,8 +2381,7 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                       </div>
                     </div>
                     <span className={`ev-field-err${errors.startTime || errors.endTime ? " visible" : ""}`}>
-                      Choose end after start (0.5–72 hours). Times must not overlap another booking or the 2-hour cleaning buffer
-                      after an existing event.
+                      Choose end after start (0.5–72 hours). Times must not overlap another booking on the same date.
                     </span>
                     <p className="booking-schedule-note" role="note">
                       <strong>Note:</strong> The first {EVENT_BASE_INCLUDED_HOURS} hours are included in the venue base rate. Each
@@ -2401,18 +2392,16 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                 <div className="ev-guest-ev-cal-legend-wrap">
                   <div className="fd-cal-legend" aria-label="Schedule legend">
                     <span className="fd-cal-legend-item">
+                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
+                    </span>
+                    <span className="fd-cal-legend-item">
+                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--pending" aria-hidden /> Pending
+                    </span>
+                    <span className="fd-cal-legend-item">
+                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--approved" aria-hidden /> Approved / Reserved
+                    </span>
+                    <span className="fd-cal-legend-item">
                       <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
-                    </span>
-                    <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch" style={{ background: "#3498db", border: "1px solid #2980b9" }} aria-hidden />{" "}
-                      Approved / Confirmed
-                    </span>
-                    <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Pending
-                    </span>
-                    <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch" style={{ background: "#bdc3c7", border: "1px solid #95a5a6" }} aria-hidden />{" "}
-                      Cleaning buffer (2 h after events)
                     </span>
                   </div>
                 </div>
@@ -2448,9 +2437,6 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                               <span style={{ color: "#6b5a3e", marginLeft: 8 }}>
                                 · {String(r.status || "").trim() || "—"}
                               </span>
-                              {r.customerName ? (
-                                <span style={{ color: "#6b5a3e", marginLeft: 6 }}>({r.customerName})</span>
-                              ) : null}
                             </li>
                           );
                         })
@@ -2477,46 +2463,58 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                   </p>
                 ) : null}
 
-                <div className="ev-form-row">
-                  <div className="ev-form-group">
-                    <span className="ev-form-label-static">
-                      Customer ID <span style={{ color: "#e74c3c" }}>*</span>
-                    </span>
-                    <label htmlFor="wi-ev-id-file" className={`ev-upload-box ev-upload-box--id${errors.id ? " ev-error" : ""}`}>
-                      <input id="wi-ev-id-file" type="file" accept="image/*" onChange={handleIdFile} />
-                      {idPreview ? (
-                        <img src={idPreview} className="ev-upload-preview" alt="ID preview" />
-                      ) : (
-                        <div className="ev-upload-placeholder">
-                          <UserIcon />
-                          <span>Upload government ID</span>
-                        </div>
-                      )}
-                    </label>
-                    <span className={`ev-field-err${errors.id ? " visible" : ""}`}>Please upload a valid government ID.</span>
-                  </div>
-                  <div className="ev-form-group">
-                    <label>
-                      Estimated Attendees <span style={{ color: "#e74c3c" }}>*</span>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="wi-ev-attendees">
+                      Estimated Attendees <span className="required">*</span>
                     </label>
                     <input
+                      id="wi-ev-attendees"
                       type="number"
                       name="attendees"
                       min={1}
                       placeholder="e.g. 30"
                       value={form.attendees}
-                      className={errors.attendees ? "ev-error" : ""}
+                      className={errors.attendees ? "input-error" : ""}
                       onChange={(e) => set("attendees", e.target.value)}
                     />
-                    <span className={`ev-field-err${errors.attendees ? " visible" : ""}`}>Please enter the number of attendees.</span>
+                    {errors.attendees ? (
+                      <span className="field-error">Please enter the number of attendees.</span>
+                    ) : null}
+                  </div>
+                  <div className="form-group">
+                    <span className="form-label-static">
+                      Guest ID <span className="required">*</span>
+                    </span>
+                    <label
+                      htmlFor="wi-ev-id-file"
+                      className={`upload-box upload-box--booking-id${errors.id ? " box-error" : ""}`}
+                    >
+                      <input id="wi-ev-id-file" type="file" accept="image/*" onChange={handleIdFile} />
+                      {idPreview ? (
+                        <img src={idPreview} className="upload-preview" alt="ID preview" />
+                      ) : (
+                        <div className="upload-placeholder">
+                          <UserIcon />
+                          <span>Upload government ID</span>
+                        </div>
+                      )}
+                    </label>
+                    {errors.id ? <span className="field-error">{errors.id}</span> : null}
                   </div>
                 </div>
 
-                <div className="ev-form-section ev-form-section--textarea">
-                  <label className="ev-form-section__label" htmlFor="wi-ev-requests">
+                <div className="form-section form-section--textarea">
+                  <label className="form-section__label" htmlFor="wi-ev-requests">
                     Additional requests
                   </label>
-                  <textarea id="wi-ev-requests" rows={4} value={form.requests} placeholder="Special requests or notes (optional)" onChange={(e) => set("requests", e.target.value)} />
+                  <textarea
+                    id="wi-ev-requests"
+                    rows={4}
+                    value={form.requests}
+                    placeholder="Special requests or notes (optional)"
+                    onChange={(e) => set("requests", e.target.value)}
+                  />
                 </div>
 
                 <div className="ev-form-section ev-form-section--payment">

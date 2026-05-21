@@ -146,7 +146,7 @@ function eventCalendarRowAccent(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
   if (s === "occupied") return "#e74c3c";
   if (s === "pending") return "#f1c40f";
-  if (s === "approved" || s === "confirmed") return "#3498db";
+  if (s === "approved" || s === "confirmed" || s === "reserved") return "#27ae60";
   return "#95a5a6";
 }
 
@@ -187,12 +187,6 @@ function isVenueAvailable(venueId, wantStart, wantEnd, bookedDates) {
   return isVenueAvailableForDates(venueId, wantStart, wantEnd, bookedDates);
 }
 
-const VENUE_MAINTENANCE_STATUSES = new Set(["needs_cleaning", "cleaning_in_progress"]);
-
-function isVenueCatalogMaintenance(statusRaw) {
-  return VENUE_MAINTENANCE_STATUSES.has(String(statusRaw || "").trim().toLowerCase());
-}
-
 /** Per-venue availability for the search bar date range (does not hide venues from the list). */
 function computeVenueAvailabilityStatuses({ venueCatalog, barStart, barEnd, barGuests, bookedDates }) {
   if (!barStart) {
@@ -213,10 +207,6 @@ function computeVenueAvailabilityStatuses({ venueCatalog, barStart, barEnd, barG
     effectiveEnd !== barStart ? fmtDate(barStart) + " – " + fmtDate(effectiveEnd) : fmtDate(barStart);
 
   for (const v of venueCatalog) {
-    if (isVenueCatalogMaintenance(v.catalogStatus)) {
-      statuses[v.id] = { ok: false, label: "Unavailable", dateLabel };
-      continue;
-    }
     const guestOk = guests <= v.maxGuests;
     const dateOk = isVenueAvailable(v.id, barStart, effectiveEnd, bookedDates);
     const ok = guestOk && dateOk;
@@ -501,17 +491,19 @@ export default function EventVenues() {
 
   const {
     eventGuestOccupiedNightSet,
-    eventGuestReservedNightSet,
+    eventGuestApprovedNightSet,
+    eventGuestPendingNightSet,
     guestEventDayLabelSuffixByKey,
     guestEventDayTitleByKey,
   } = useMemo(() => {
-    const { occupied, reserved, dayLabelSuffixByKey, dayTitleByKey } = guestEventCalendarNightsFromBookedRanges(
+    const { occupied, approved, pending, dayLabelSuffixByKey, dayTitleByKey } = guestEventCalendarNightsFromBookedRanges(
       bookedDates,
       guestEventVenueId,
     );
     return {
       eventGuestOccupiedNightSet: occupied,
-      eventGuestReservedNightSet: reserved,
+      eventGuestApprovedNightSet: approved,
+      eventGuestPendingNightSet: pending,
       guestEventDayLabelSuffixByKey: dayLabelSuffixByKey,
       guestEventDayTitleByKey: dayTitleByKey,
     };
@@ -1213,24 +1205,21 @@ export default function EventVenues() {
               </p>
             ) : (
               venueCatalog.map((v) => {
-              const maintenance = isVenueCatalogMaintenance(v.catalogStatus);
               const st = venueStatuses[v.id];
-              const isUnavailable = maintenance || Boolean(st && !st.ok);
-              const badgeLabel = maintenance
-                ? "Unavailable"
-                : st
-                  ? st.label
-                  : barStart
-                    ? "—"
-                    : "";
+              const isUnavailable = Boolean(st && !st.ok);
+              const badgeLabel = st
+                ? st.label
+                : barStart
+                  ? "—"
+                  : "";
               return (
                 <div key={v.id} className={`room-card${isUnavailable ? " unavailable" : ""}`}>
                   <span
                     className={`avail-badge${
-                      st || maintenance ? (isUnavailable ? " badge-unavailable" : " badge-available") : ""
+                      st ? (isUnavailable ? " badge-unavailable" : " badge-available") : ""
                     }`}
                   >
-                    {isUnavailable ? <XIcon /> : st || maintenance ? <CheckIcon /> : null}
+                    {isUnavailable ? <XIcon /> : st ? <CheckIcon /> : null}
                     <span>{badgeLabel}</span>
                   </span>
                   <div className="room-img-wrap">
@@ -1340,7 +1329,7 @@ export default function EventVenues() {
 
               <div className="form-row form-row--event-schedule ev-form-row--guest-event-date-cal">
                 <p className="booking-cal-unavailable-hint">
-                  <strong>How to book:</strong> Past dates are disabled. Red or gold marks full-day holds. When times are on file, pick a date and choose start/end that do not overlap another booking or the 2-hour cleaning buffer.
+                  <strong>How to book:</strong> Past dates are disabled. Yellow is pending, green is approved, red is occupied. Pick a date and choose start/end times that do not overlap another booking on the same day.
                 </p>
                 <div className="ev-form-group">
                   <span className="form-label-static" id="ev-guest-date-label">
@@ -1364,12 +1353,15 @@ export default function EventVenues() {
                       modifiers={{
                         evGuestOccupied: (date) =>
                           Boolean(guestEventVenueId) && eventGuestOccupiedNightSet.has(formatLocalYmd(date)),
-                        evGuestReserved: (date) =>
-                          Boolean(guestEventVenueId) && eventGuestReservedNightSet.has(formatLocalYmd(date)),
+                        evGuestApproved: (date) =>
+                          Boolean(guestEventVenueId) && eventGuestApprovedNightSet.has(formatLocalYmd(date)),
+                        evGuestPending: (date) =>
+                          Boolean(guestEventVenueId) && eventGuestPendingNightSet.has(formatLocalYmd(date)),
                       }}
                       modifiersClassNames={{
                         evGuestOccupied: "fd-cal-cell fd-cal-cell--occupied",
-                        evGuestReserved: "fd-cal-cell fd-cal-cell--reserved",
+                        evGuestApproved: "fd-cal-cell fd-cal-cell--approved",
+                        evGuestPending: "fd-cal-cell fd-cal-cell--pending",
                       }}
                       className="booking-day-picker"
                       id="ev-guest-date-calendar"
@@ -1418,8 +1410,7 @@ export default function EventVenues() {
                     </div>
                   </div>
                   <span className={`ev-field-err${formErrors.startTime || formErrors.endTime ? " visible" : ""}`}>
-                    Choose end after start (0.5?72 hours). Times must not overlap another booking or the 2-hour cleaning
-                    buffer after an existing event.
+                    Choose end after start (0.5–72 hours). Times must not overlap another booking on the same date.
                   </span>
                   <p className="booking-schedule-note" role="note">
                     <strong>Note:</strong> The first {EVENT_BASE_INCLUDED_HOURS} hours are included in the venue base rate. Each additional hour is {formatPeso(EVENT_EXTRA_HOUR_FLAT_RATE)}.
@@ -1429,19 +1420,16 @@ export default function EventVenues() {
               <div className="ev-guest-ev-cal-legend-wrap">
                 <div className="fd-cal-legend" aria-label="Schedule legend">
                   <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch" style={{ background: "#27ae60", border: "1px solid #1e8449" }} aria-hidden /> Available
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--pending" aria-hidden /> Pending
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--approved" aria-hidden /> Approved / Reserved
                   </span>
                   <span className="fd-cal-legend-item">
                     <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
-                  </span>
-                  <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch" style={{ background: "#3498db", border: "1px solid #2980b9" }} aria-hidden /> Approved / Confirmed
-                  </span>
-                  <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Pending
-                  </span>
-                  <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch" style={{ background: "#bdc3c7", border: "1px solid #95a5a6" }} aria-hidden /> Cleaning buffer (2 h after events)
                   </span>
                 </div>
               </div>
@@ -1481,11 +1469,8 @@ export default function EventVenues() {
                           >
                             <strong>{label}</strong>
                             <span style={{ color: "#6b5a3e", marginLeft: 8 }}>
-                              ? {String(r.status || "").trim() || "?"}
+                              · {String(r.status || "").trim() || "—"}
                             </span>
-                            {r.customerName ? (
-                              <span style={{ color: "#6b5a3e", marginLeft: 6 }}>({r.customerName})</span>
-                            ) : null}
                           </li>
                         );
                       })}
@@ -1519,32 +1504,55 @@ export default function EventVenues() {
                 </p>
               ) : null}
 
-              <div className="ev-form-row">
-                <div className="ev-form-group">
-                  <span className="ev-form-label-static">Customer ID <span style={{ color: "#e74c3c" }}>*</span></span>
-                  <label htmlFor="ev-id-file" className={`ev-upload-box ev-upload-box--id${formErrors.id ? " ev-error" : ""}`}>
-                    <input id="ev-id-file" type="file" accept="image/*" onChange={handleIdUpload} />
-                    {idPreview
-                      ? <img src={idPreview} className="ev-upload-preview" alt="ID preview" />
-                      : <div className="ev-upload-placeholder"><UserIcon /><span>Upload government ID</span></div>}
-                  </label>
-                  <span className={`ev-field-err${formErrors.id ? " visible" : ""}`}>Please upload a valid government ID.</span>
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="ev-attendees">Estimated Attendees <span className="required">*</span></label>
+                  <input
+                    id="ev-attendees"
+                    type="number"
+                    name="attendees"
+                    value={form.attendees}
+                    min="1"
+                    placeholder="e.g. 30"
+                    className={formErrors.attendees ? "input-error" : ""}
+                    onChange={handleFormChange}
+                  />
+                  {formErrors.attendees ? <span className="field-error">Please enter the number of attendees.</span> : null}
                 </div>
-                <div className="ev-form-group">
-                  <label>Estimated Attendees <span style={{ color: "#e74c3c" }}>*</span></label>
-                  <input type="number" name="attendees" value={form.attendees}
-                    min="1" placeholder="e.g. 30"
-                    className={formErrors.attendees ? "ev-error" : ""}
-                    onChange={handleFormChange} />
-                  <span className={`ev-field-err${formErrors.attendees ? " visible" : ""}`}>Please enter the number of attendees.</span>
+                <div className="form-group">
+                  <span className="form-label-static">
+                    Guest ID <span className="required">*</span>
+                  </span>
+                  <label
+                    htmlFor="ev-id-file"
+                    className={`upload-box upload-box--booking-id${formErrors.id ? " box-error" : ""}`}
+                  >
+                    <input id="ev-id-file" type="file" accept="image/*" onChange={handleIdUpload} />
+                    {idPreview ? (
+                      <img src={idPreview} className="upload-preview" alt="ID preview" />
+                    ) : (
+                      <div className="upload-placeholder">
+                        <UserIcon />
+                        <span>Upload government ID</span>
+                      </div>
+                    )}
+                  </label>
+                  {formErrors.id ? <span className="field-error">{formErrors.id}</span> : null}
                 </div>
               </div>
 
-              <div className="ev-form-section ev-form-section--textarea">
-                <label className="ev-form-section__label" htmlFor="ev-requests">Additional requests</label>
-                <textarea id="ev-requests" name="requests" rows={4} value={form.requests}
+              <div className="form-section form-section--textarea">
+                <label className="form-section__label" htmlFor="ev-requests">
+                  Additional requests
+                </label>
+                <textarea
+                  id="ev-requests"
+                  name="requests"
+                  rows={4}
+                  value={form.requests}
                   placeholder="Special requests or notes (optional)"
-                  onChange={handleFormChange} />
+                  onChange={handleFormChange}
+                />
               </div>
 
               {/* Payment Options */}

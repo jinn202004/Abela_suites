@@ -57,6 +57,7 @@ function dashboardAssetStatusLabel(s) {
   const k = normStatus(s);
   if (!k) return "—";
   if (k === "available") return "Available";
+  if (k === "reserved") return "Reserved";
   if (k === "occupied") return "Occupied";
   if (k === "needs_cleaning") return "Needs clean";
   if (k === "cleaning_in_progress") return "In Progress";
@@ -64,17 +65,15 @@ function dashboardAssetStatusLabel(s) {
   return "—";
 }
 
-/** When catalog is empty, derive rows from bookings — collapse booking workflow to the same three labels. */
+/** When catalog is empty, derive rows from bookings — map booking workflow to dashboard labels. */
 function dashboardBookingFallbackStatusLabel(bookingStatusRaw) {
   const k = normStatus(bookingStatusRaw);
   if (!k) return "—";
-  if (
-    k === "approved" ||
-    k === "occupied" ||
-    k === "confirmed" ||
-    k === "active"
-  ) {
+  if (k === "occupied" || k === "active") {
     return "Occupied";
+  }
+  if (k === "approved" || k === "confirmed" || k === "reserved") {
+    return "Reserved";
   }
   return "Available";
 }

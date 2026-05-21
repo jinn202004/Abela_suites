@@ -1,0 +1,247 @@
+/* ─── Terms & Agreements (luxury hotel styling) ─── */
+.ta-terms-agreements {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ta-terms-agreements .terms-block,
+.ta-terms-agreements .agreements-block,
+.walkin-room-booking-root .ta-terms-agreements .terms-block,
+.walkin-room-booking-root .ta-terms-agreements .agreements-block {
+  box-shadow: 0 4px 18px rgba(92, 72, 38, 0.06);
+}
+
+/* Smooth custom scrollbar — inline preview + modal body */
+.ta-terms-agreements .terms-body,
+.ta-policy-modal__body {
+  scrollbar-width: thin;
+  scrollbar-color: #b8922a #f5f0e6;
+}
+
+.ta-terms-agreements .terms-body::-webkit-scrollbar,
+.ta-policy-modal__body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ta-terms-agreements .terms-body::-webkit-scrollbar-track,
+.ta-policy-modal__body::-webkit-scrollbar-track {
+  background: #f5f0e6;
+  border-radius: 8px;
+}
+
+.ta-terms-agreements .terms-body::-webkit-scrollbar-thumb,
+.ta-policy-modal__body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c9a84c 0%, #b8922a 100%);
+  border-radius: 8px;
+  border: 2px solid #f5f0e6;
+}
+
+.ta-terms-agreements .terms-body::-webkit-scrollbar-thumb:hover,
+.ta-policy-modal__body::-webkit-scrollbar-thumb:hover {
+  background: #9a7a28;
+}
+
+/* Clickable policy links (replace anchor styling) */
+.ta-policy-link {
+  appearance: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--gold, #b8922a);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+}
+
+.ta-policy-link:hover,
+.ta-policy-link:focus-visible {
+  color: var(--gold-dark, #9a7a28);
+  border-bottom-color: currentColor;
+  outline: none;
+}
+
+.ta-policy-link--active {
+  opacity: 0.85;
+}
+
+.ta-checkbox-label--locked input[type="checkbox"] {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.ta-terms-hint {
+  margin: 0;
+  font-family: "Roboto", sans-serif;
+  font-size: 12px;
+  color: #9a7a28;
+  background: #faf6ee;
+  border: 1px solid #e8dcc8;
+  border-radius: 6px;
+  padding: 8px 12px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.ta-terms-hint--visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ─── Policy modal ─── */
+.ta-policy-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px 16px;
+  pointer-events: none;
+  visibility: hidden;
+}
+
+.ta-policy-modal--open {
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.ta-policy-modal__overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(18, 14, 10, 0.58);
+  opacity: 0;
+  transition: opacity 0.28s ease;
+}
+
+.ta-policy-modal--visible .ta-policy-modal__overlay {
+  opacity: 1;
+}
+
+.ta-policy-modal__dialog {
+  position: relative;
+  z-index: 1;
+  width: min(640px, 100%);
+  max-height: min(82vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1.5px solid #d4c4a8;
+  border-radius: 12px;
+  box-shadow: 0 20px 50px rgba(30, 22, 10, 0.22);
+  opacity: 0;
+  transform: translateY(18px) scale(0.97);
+  transition:
+    opacity 0.28s ease,
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ta-policy-modal--visible .ta-policy-modal__dialog {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
+
+.ta-policy-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid #ebe2d4;
+}
+
+.ta-policy-modal__title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #b8922a;
+  line-height: 1.3;
+}
+
+.ta-policy-modal__close {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #5c5348;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ta-policy-modal__close:hover,
+.ta-policy-modal__close:focus-visible {
+  background: rgba(184, 146, 42, 0.1);
+  color: #b8922a;
+  outline: none;
+}
+
+.ta-policy-modal__body {
+  overflow-y: auto;
+  padding: 16px 22px 22px;
+  font-family: "Roboto", sans-serif;
+  font-size: 0.875rem;
+  color: #3d3832;
+  line-height: 1.65;
+}
+
+.ta-policy-modal__body ol {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0 0;
+}
+
+.ta-policy-modal__body ol li {
+  margin-bottom: 0.65rem;
+}
+
+.ta-policy-modal__body ul {
+  padding-left: 1.1rem;
+  margin: 0.35rem 0 0;
+}
+
+.ta-policy-modal__body ul li {
+  margin-bottom: 0.3rem;
+}
+
+.ta-policy-modal__body strong {
+  color: #b8922a;
+}
+
+.ta-policy-modal__body p {
+  margin: 0 0 0.75rem;
+}
+
+body.ta-policy-modal-open {
+  overflow: hidden;
+}
+
+@media (max-width: 480px) {
+  .ta-policy-modal {
+    padding: 12px 10px;
+    align-items: flex-end;
+  }
+
+  .ta-policy-modal__dialog {
+    width: 100%;
+    max-height: 88vh;
+    border-radius: 12px 12px 10px 10px;
+  }
+
+  .ta-policy-modal__header {
+    padding: 14px 16px 12px;
+  }
+
+  .ta-policy-modal__body {
+    padding: 14px 16px 18px;
+    font-size: 0.8125rem;
+  }
+}

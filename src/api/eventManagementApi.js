@@ -90,6 +90,7 @@ export async function deleteEventVenueAdmin(id) {
 
 export const EVENT_VENUE_STATUSES = [
   "available",
+  "reserved",
   "occupied",
   "needs_cleaning",
   "cleaning_in_progress",

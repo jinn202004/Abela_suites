@@ -9,6 +9,7 @@ export const HK_ASSET_STATUS = {
   CLEANING_IN_PROGRESS: "cleaning_in_progress",
   READY: "ready",
   AVAILABLE: "available",
+  RESERVED: "reserved",
   OCCUPIED: "occupied",
 };
 
@@ -16,6 +17,7 @@ export const HK_ASSET_STATUS = {
 export function assetStatusToDisplayLabel(statusRaw) {
   const s = String(statusRaw ?? "").trim().toLowerCase();
   if (s === HK_ASSET_STATUS.AVAILABLE) return "Ready for Use";
+  if (s === HK_ASSET_STATUS.RESERVED) return "Reserved";
   if (s === HK_ASSET_STATUS.OCCUPIED) return "Occupied";
   if (s === HK_ASSET_STATUS.NEEDS_CLEANING) return "Needs Cleaning";
   if (s === HK_ASSET_STATUS.CLEANING_IN_PROGRESS) return "Cleaning in Progress";
@@ -45,6 +47,7 @@ export function getAssetStatusBadgeClass(displayLabel) {
   if (s === "Cleaning in Progress") return "badge-inprogress";
   if (s === "Cleaning Complete") return "badge-completed";
   if (s === "Ready for Use") return "badge-available";
+  if (s === "Reserved") return "badge-pending";
   if (s === "Occupied") return "badge-occupied";
   return "badge-neutral";
 }

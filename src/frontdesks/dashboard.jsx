@@ -174,22 +174,26 @@ function bookingCalendarDateKeys(b) {
 function bookingCalendarTone(statusRaw) {
   const k = normBkStatus(statusRaw);
   if (k === "occupied" || k === "completed") return "occupied";
-  if (k === "pending" || k === "approved" || k === "confirmed") return "reserved";
+  if (k === "approved" || k === "confirmed") return "approved";
+  if (k === "pending") return "pending";
   return null;
 }
 
 function calendarToneForDay(dayKey, bookingsList) {
   let occ = false;
-  let res = false;
+  let appr = false;
+  let pend = false;
   for (const b of bookingsList) {
     if (isBookingExcludedFromCalendar(b)) continue;
     if (!bookingCalendarDateKeys(b).includes(dayKey)) continue;
     const tone = bookingCalendarTone(b.status);
     if (tone === "occupied") occ = true;
-    else if (tone === "reserved") res = true;
+    else if (tone === "approved") appr = true;
+    else if (tone === "pending") pend = true;
   }
   if (occ) return "occupied";
-  if (res) return "reserved";
+  if (appr) return "approved";
+  if (pend) return "pending";
   return null;
 }
 
@@ -221,8 +225,8 @@ function bookingCalendarStatusDisplay(statusRaw) {
   const k = normBkStatus(statusRaw);
   if (k === "occupied") return "Occupied";
   if (k === "completed") return "Completed";
-  if (k === "pending") return "Reserved";
-  if (k === "approved" || k === "confirmed") return "Reserved";
+  if (k === "pending") return "Pending";
+  if (k === "approved" || k === "confirmed") return "Approved";
   if (k === "cancelled") return "Cancelled";
   if (k === "rejected" || k === "declined") return "Declined";
   return String(statusRaw || "—").trim() || "—";
@@ -731,7 +735,8 @@ export default function FrontdeskDashboard() {
                         cell.inMonth ? "" : "fd-cal-cell--muted",
                         isSel ? "fd-cal-cell--selected" : "",
                         !isSel && tone === "occupied" ? "fd-cal-cell--occupied" : "",
-                        !isSel && tone === "reserved" ? "fd-cal-cell--reserved" : "",
+                        !isSel && tone === "approved" ? "fd-cal-cell--approved" : "",
+                        !isSel && tone === "pending" ? "fd-cal-cell--pending" : "",
                       ]
                         .filter(Boolean)
                         .join(" ");
@@ -754,10 +759,16 @@ export default function FrontdeskDashboard() {
                   </div>
                   <div className="fd-cal-legend">
                     <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" /> Occupied
+                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
                     </span>
                     <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" /> Reserved
+                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--pending" aria-hidden /> Pending
+                    </span>
+                    <span className="fd-cal-legend-item">
+                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--approved" aria-hidden /> Approved
+                    </span>
+                    <span className="fd-cal-legend-item">
+                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
                     </span>
                   </div>
                 </>

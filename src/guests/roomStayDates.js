@@ -70,33 +70,48 @@ export function blockedCheckInSetFromRanges(ranges) {
   return set;
 }
 
+/** Map API / booking status to calendar cell tone (occupied | approved | pending). */
+export function stayToneFromStatus(statusRaw) {
+  const st = String(statusRaw ?? "").trim().toLowerCase();
+  if (st === "occupied" || st === "completed") return "occupied";
+  if (st === "approved" || st === "confirmed" || st === "reserved") return "approved";
+  if (st === "pending") return "pending";
+  return "pending";
+}
+
 /**
- * Split booked nights for calendar styling: in-house (occupied) vs reserved (pending / approved / confirmed).
- * Aligns with front desk dashboard tones. If a night falls in overlapping ranges, occupied wins.
- * @param {Array<{ checkIn: string, checkOut: string, stayTone?: string }>} ranges
- * @returns {{ occupiedNightSet: Set<string>, reservedNightSet: Set<string> }}
+ * Split booked nights for calendar styling: occupied (red), approved (green), pending (gold).
+ * Overlap priority: occupied > approved > pending.
+ * @param {Array<{ checkIn: string, checkOut: string, stayTone?: string, calendarTone?: string }>} ranges
+ * @returns {{ occupiedNightSet: Set<string>, approvedNightSet: Set<string>, pendingNightSet: Set<string> }}
  */
 export function splitGuestStayNightsByTone(ranges) {
   const occupiedNightSet = new Set();
-  const reservedNightSet = new Set();
-  if (!Array.isArray(ranges)) return { occupiedNightSet, reservedNightSet };
+  const approvedNightSet = new Set();
+  const pendingNightSet = new Set();
+  if (!Array.isArray(ranges)) return { occupiedNightSet, approvedNightSet, pendingNightSet };
   for (const b of ranges) {
     if (!b) continue;
-    const tone =
-      String(b?.stayTone ?? b?.calendarTone ?? "").trim().toLowerCase() === "occupied"
-        ? "occupied"
-        : "reserved";
+    const tone = stayToneFromStatus(b?.stayTone ?? b?.calendarTone ?? "pending");
     const nights = blockedCheckInSetFromRanges([b]);
     if (tone === "occupied") {
       nights.forEach((d) => {
         occupiedNightSet.add(d);
-        reservedNightSet.delete(d);
+        approvedNightSet.delete(d);
+        pendingNightSet.delete(d);
+      });
+    } else if (tone === "approved") {
+      nights.forEach((d) => {
+        if (!occupiedNightSet.has(d)) {
+          approvedNightSet.add(d);
+          pendingNightSet.delete(d);
+        }
       });
     } else {
       nights.forEach((d) => {
-        if (!occupiedNightSet.has(d)) reservedNightSet.add(d);
+        if (!occupiedNightSet.has(d) && !approvedNightSet.has(d)) pendingNightSet.add(d);
       });
     }
   }
-  return { occupiedNightSet, reservedNightSet };
+  return { occupiedNightSet, approvedNightSet, pendingNightSet };
 }

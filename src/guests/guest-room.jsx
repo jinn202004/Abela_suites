@@ -458,7 +458,7 @@ export default function Rooms() {
 
   const blockedCheckInSet = useMemo(() => blockedCheckInSetFromRanges(roomOccupancyRanges), [roomOccupancyRanges]);
 
-  const { occupiedNightSet, reservedNightSet } = useMemo(
+  const { occupiedNightSet, approvedNightSet, pendingNightSet } = useMemo(
     () => splitGuestStayNightsByTone(roomOccupancyRanges),
     [roomOccupancyRanges],
   );
@@ -471,13 +471,15 @@ export default function Rooms() {
         if (resRoomId && blockedCheckInSet.has(key)) {
           const detail = occupiedNightSet.has(key)
             ? " In-house stay (guest is currently checked in)."
-            : " This night is already reserved for this room.";
+            : approvedNightSet.has(key)
+              ? " This night is approved and confirmed for this room."
+              : " This night has a pending reservation for this room.";
           label = `${label}.${detail} You cannot choose it as your check-in date.`;
         }
         return label;
       },
     }),
-    [resRoomId, blockedCheckInSet, occupiedNightSet],
+    [resRoomId, blockedCheckInSet, occupiedNightSet, approvedNightSet],
   );
 
   const checkInDisabledMatchers = useMemo(() => {
@@ -1193,8 +1195,9 @@ export default function Rooms() {
 
               <div className="form-row form-row--stay-calendars">
                 <p className="booking-cal-unavailable-hint">
-                  <strong>Calendar key:</strong> <span className="booking-cal-unavailable-hint__inline">Occupied</span> (red) and{" "}
-                  <span className="booking-cal-unavailable-hint__inline">Reserved</span> (gold) nights match the front desk view. They cannot be used as your check-in date for this room.
+                  <strong>Calendar key:</strong> <span className="booking-cal-unavailable-hint__inline">Pending</span> (gold),{" "}
+                  <span className="booking-cal-unavailable-hint__inline">Approved</span> (green), and{" "}
+                  <span className="booking-cal-unavailable-hint__inline">Occupied</span> (red) nights match the front desk view. They cannot be used as your check-in date for this room.
                 </p>
                 <div className="form-group">
                   <span className="form-label-static" id="booking-checkin-label">Check-in date <span className="required">*</span></span>
@@ -1212,12 +1215,15 @@ export default function Rooms() {
                       modifiers={{
                         stayOccupied: (date) =>
                           Boolean(resRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
-                        stayReserved: (date) =>
-                          Boolean(resRoomId) && reservedNightSet.has(formatLocalYmd(date)),
+                        stayApproved: (date) =>
+                          Boolean(resRoomId) && approvedNightSet.has(formatLocalYmd(date)),
+                        stayPending: (date) =>
+                          Boolean(resRoomId) && pendingNightSet.has(formatLocalYmd(date)),
                       }}
                       modifiersClassNames={{
                         stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
-                        stayReserved: "fd-cal-cell fd-cal-cell--reserved",
+                        stayApproved: "fd-cal-cell fd-cal-cell--approved",
+                        stayPending: "fd-cal-cell fd-cal-cell--pending",
                       }}
                       className="booking-day-picker"
                       id="booking-checkin-calendar"
@@ -1255,12 +1261,15 @@ export default function Rooms() {
                       modifiers={{
                         stayOccupied: (date) =>
                           Boolean(resRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
-                        stayReserved: (date) =>
-                          Boolean(resRoomId) && reservedNightSet.has(formatLocalYmd(date)),
+                        stayApproved: (date) =>
+                          Boolean(resRoomId) && approvedNightSet.has(formatLocalYmd(date)),
+                        stayPending: (date) =>
+                          Boolean(resRoomId) && pendingNightSet.has(formatLocalYmd(date)),
                       }}
                       modifiersClassNames={{
                         stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
-                        stayReserved: "fd-cal-cell fd-cal-cell--reserved",
+                        stayApproved: "fd-cal-cell fd-cal-cell--approved",
+                        stayPending: "fd-cal-cell fd-cal-cell--pending",
                       }}
                       className="booking-day-picker"
                       id="booking-checkout-calendar"
@@ -1284,19 +1293,22 @@ export default function Rooms() {
                     <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
                   </span>
                   <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Reserved / Pending
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--pending" aria-hidden /> Pending
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--approved" aria-hidden /> Approved
                   </span>
                   <span className="fd-cal-legend-item">
                     <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
                   </span>
                 </div>
                 <p className="booking-cal-legend-help">
-                  Each night shows this room&apos;s status. <strong>Gold</strong> covers pending and approved stays not yet checked in.{" "}
-                  <strong>Red</strong> means a guest is currently in-house. Open dates are available for your stay.
+                  Each night shows this room&apos;s status. <strong>Gold</strong> is a pending request awaiting front desk review.{" "}
+                  <strong>Green</strong> is an approved stay not yet checked in. <strong>Red</strong> means a guest is currently in-house. Open dates are available for your stay.
                 </p>
               </div>
               <p className="booking-schedule-note" role="note">
-                <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk calendar: <strong>Occupied</strong> (red) and <strong>Reserved</strong> (gold) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
+                <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk calendar: <strong>Pending</strong> (gold), <strong>Approved</strong> (green), and <strong>Occupied</strong> (red) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
               </p>
 
               {stayNightsCount >= 1 && form.checkInDate && form.checkOutDate ? (

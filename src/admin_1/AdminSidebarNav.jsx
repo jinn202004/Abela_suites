@@ -1,3 +1,4 @@
+import { useCallback, useLayoutEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAdminShell } from "./AdminShellContext";
 import "./admin-sidebar-collapse.css";
@@ -127,7 +128,7 @@ function navItemIsActive(to, pathname) {
  * `mousedown`-based navigation fires `navigate()` mid-gesture so `mouseup`/`click` can land on
  * the next page’s buttons (Add / Delete modals on staff, attendance, inventory).
  */
-function scheduleAdminNav(to, e, { pathname, navigate, isMobile, closeMobileSidebar }) {
+function scheduleAdminNav(to, e, { pathname, navigate, isMobile, closeMobileSidebar, persistAdminSidebarNavScroll }) {
   if (e && e.type === "click" && e.button !== 0) return;
 
   if (adminNavIsSameRoute(to, pathname)) {
@@ -140,6 +141,7 @@ function scheduleAdminNav(to, e, { pathname, navigate, isMobile, closeMobileSide
     e.stopPropagation();
   }
 
+  persistAdminSidebarNavScroll?.();
   if (isMobile) closeMobileSidebar();
   navigate(to);
 }
@@ -158,14 +160,40 @@ export default function AdminSidebarNav({ logoSrc = "/public/logo.png", onLogoEr
     logoWrapStyle,
     logoImgStyle,
     shellClassName,
+    persistAdminSidebarNavScroll,
+    syncAdminSidebarNavScroll,
+    registerAdminSidebarNavEl,
   } = useAdminShell();
+
+  const navScrollRefCallback = useCallback(
+    (node) => {
+      registerAdminSidebarNavEl(node);
+    },
+    [registerAdminSidebarNavEl],
+  );
+
+  const pathnameForScroll = normalizePath(location.pathname);
+
+  useLayoutEffect(() => {
+    syncAdminSidebarNavScroll();
+  }, [pathnameForScroll, sidebarCollapsed, syncAdminSidebarNavScroll]);
+
+  const handleNavScroll = useCallback(() => {
+    persistAdminSidebarNavScroll();
+  }, [persistAdminSidebarNavScroll]);
 
   const normalizedLogoSrc =
     logoSrc === "/images/logo.png" || logoSrc === "/public/logo.png"
       ? "/logo.png"
       : logoSrc;
 
-  const navCtx = { pathname: location.pathname, navigate, isMobile, closeMobileSidebar };
+  const navCtx = {
+    pathname: location.pathname,
+    navigate,
+    isMobile,
+    closeMobileSidebar,
+    persistAdminSidebarNavScroll,
+  };
 
   return (
     <>
@@ -197,7 +225,10 @@ export default function AdminSidebarNav({ logoSrc = "/public/logo.png", onLogoEr
           className="sidebar-logo"
           title="Admin dashboard"
           style={logoWrapStyle}
-          onClick={(e) => scheduleAdminNav("/admin-dashboard", e, navCtx)}
+          onClick={(e) => {
+            navCtx.persistAdminSidebarNavScroll?.();
+            scheduleAdminNav("/admin-dashboard", e, navCtx);
+          }}
         >
           <img
             src={normalizedLogoSrc}
@@ -208,7 +239,7 @@ export default function AdminSidebarNav({ logoSrc = "/public/logo.png", onLogoEr
             onError={onLogoError}
           />
         </button>
-        <nav className="sidebar-nav">
+        <nav className="sidebar-nav" ref={navScrollRefCallback} onScroll={handleNavScroll}>
           {SIDEBAR_ITEMS.map((item) => {
             const active = navItemIsActive(item.to, pathname);
             return (
@@ -218,7 +249,10 @@ export default function AdminSidebarNav({ logoSrc = "/public/logo.png", onLogoEr
                 title={sidebarCollapsed ? item.label : undefined}
                 className={`nav-item${active ? " active" : ""}`}
                 aria-current={active ? "page" : undefined}
-                onClick={(e) => scheduleAdminNav(item.to, e, navCtx)}
+                onClick={(e) => {
+                  navCtx.persistAdminSidebarNavScroll?.();
+                  scheduleAdminNav(item.to, e, navCtx);
+                }}
               >
                 <span className="nav-icon">{item.icon}</span>
                 <span className="nav-label">{item.label}</span>

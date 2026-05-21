@@ -18,6 +18,7 @@ import {
 } from "../api/guestApi";
 import {
   FRONTDESK_HK_STATUS_OPTIONS,
+  frontDeskHousekeepingStatusEditable,
   frontDeskSelectValueFromRaw,
   frontDeskStatusLabel,
 } from "../housekeeping/housekeepingStatusDisplay";
@@ -424,11 +425,18 @@ export default function HousekeepingRooms() {
                           <div className="fd-hk-card__row fd-hk-card__row--full">
                             <dt>Housekeeping</dt>
                             <dd className="fd-hk-card__hk-actions">
+                              {viewMode === "rooms" && !frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
+                                <span className="fd-hk-readonly-status">{r.displayStatus}</span>
+                              ) : (
                               <select
                                 className="hk-status-select"
                                 aria-label={`Housekeeping status for ${viewMode === "venues" ? "venue" : "room"} ${r.number}`}
                                 value={selectValueForRow(r)}
-                                disabled={viewMode !== "rooms" || savingRoomKey === r.key}
+                                disabled={
+                                  viewMode !== "rooms" ||
+                                  savingRoomKey === r.key ||
+                                  !frontDeskHousekeepingStatusEditable(r.rawStatus)
+                                }
                                 onChange={(e) =>
                                   setStatusDraft((d) => ({ ...d, [r.key]: e.target.value }))
                                 }
@@ -439,7 +447,8 @@ export default function HousekeepingRooms() {
                                   </option>
                                 ))}
                               </select>
-                              {viewMode === "rooms" ? (
+                              )}
+                              {viewMode === "rooms" && frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
                               <button
                                 type="button"
                                 className="hk-update-btn"
@@ -502,11 +511,18 @@ export default function HousekeepingRooms() {
                         <td>{r.type}</td>
                         <td>
                           <div className="hk-status-cell">
+                            {viewMode === "rooms" && !frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
+                              <span className="fd-hk-readonly-status">{r.displayStatus}</span>
+                            ) : (
                             <select
                               className="hk-status-select"
                               aria-label={`Housekeeping status for ${viewMode === "venues" ? "venue" : "room"} ${r.number}`}
                               value={selectValueForRow(r)}
-                              disabled={viewMode !== "rooms" || savingRoomKey === r.key}
+                              disabled={
+                                viewMode !== "rooms" ||
+                                savingRoomKey === r.key ||
+                                !frontDeskHousekeepingStatusEditable(r.rawStatus)
+                              }
                               onChange={(e) =>
                                 setStatusDraft((d) => ({ ...d, [r.key]: e.target.value }))
                               }
@@ -517,6 +533,7 @@ export default function HousekeepingRooms() {
                                 </option>
                               ))}
                             </select>
+                            )}
                             {rowActionError[r.key] ? (
                               <span className="hk-row-error hk-row-error--table" role="alert">
                                 {rowActionError[r.key]}
@@ -525,7 +542,7 @@ export default function HousekeepingRooms() {
                           </div>
                         </td>
                         <td className="hk-td-actions">
-                          {viewMode === "rooms" ? (
+                          {viewMode === "rooms" && frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
                             <button
                               type="button"
                               className="hk-update-btn"
@@ -534,6 +551,8 @@ export default function HousekeepingRooms() {
                             >
                               {savingRoomKey === r.key ? "Saving…" : "Update"}
                             </button>
+                          ) : viewMode === "venues" ? (
+                            <span className="fd-hk-venues-readonly">—</span>
                           ) : (
                             <span className="fd-hk-venues-readonly">—</span>
                           )}

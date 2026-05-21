@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { fetchBookingByIdBackend } from "../api/guestApi";
+import { resolveGovernmentIdUrl } from "../guests/guestBookingIdPhoto";
 
 /**
- * List payloads may omit `guest.validIdPhotoData`; load one booking when a modal opens.
- * @param {{ open: boolean, bookingId?: string | null, rowPhoto?: string }} p
+ * List payloads may omit full guest ID data; load one booking when a modal opens.
+ * @param {{ open: boolean, bookingId?: string | null, rowPhoto?: string, booking?: object | null }} p
  */
-export function useLazyBookingIdPhoto({ open, bookingId, rowPhoto }) {
+export function useLazyBookingIdPhoto({ open, bookingId, rowPhoto, booking }) {
   const [photo, setPhoto] = useState("");
 
   useEffect(() => {
@@ -13,6 +14,13 @@ export function useLazyBookingIdPhoto({ open, bookingId, rowPhoto }) {
       setPhoto("");
       return;
     }
+
+    const fromBooking = resolveGovernmentIdUrl(booking);
+    if (fromBooking) {
+      setPhoto(fromBooking);
+      return;
+    }
+
     const row = String(rowPhoto || "").trim();
     const inline =
       row.startsWith("data:image/") || /^https?:\/\//i.test(row) ? row : "";
@@ -20,19 +28,18 @@ export function useLazyBookingIdPhoto({ open, bookingId, rowPhoto }) {
       setPhoto(inline);
       return;
     }
+
     const id = String(bookingId ?? "").trim();
     if (!id) {
       setPhoto("");
       return;
     }
+
     let cancelled = false;
     fetchBookingByIdBackend(id)
       .then((b) => {
-        const g = b?.guest;
-        const raw = String(g?.validIdPhotoData || "").trim();
-        const p =
-          raw.startsWith("data:image/") || /^https?:\/\//i.test(raw) ? raw : "";
-        if (!cancelled) setPhoto(p);
+        const url = resolveGovernmentIdUrl(b);
+        if (!cancelled) setPhoto(url || "");
       })
       .catch(() => {
         if (!cancelled) setPhoto("");
@@ -40,7 +47,7 @@ export function useLazyBookingIdPhoto({ open, bookingId, rowPhoto }) {
     return () => {
       cancelled = true;
     };
-  }, [open, bookingId, rowPhoto]);
+  }, [open, bookingId, rowPhoto, booking]);
 
   return photo;
 }

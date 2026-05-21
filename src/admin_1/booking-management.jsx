@@ -12,6 +12,7 @@ import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { fetchBookingsBackend, fetchBookingByIdBackend, fetchRoomsCatalog, deleteBookingBackend } from "../api/guestApi";
 import { ReservationProofPreview } from "../components/ReservationProofPreview";
+import GovernmentIdPreview from "../components/GovernmentIdPreview";
 import {
   derivePaymentStatusLine,
   paymentMethodDisplayLabel,
@@ -123,6 +124,7 @@ function mapRoomBookingRow(b, roomIdToNumber) {
     paymentMethod: b.paymentMethod || "",
     paymethod: b.paymentMethod || "",
     paymentProofData: "",
+    governmentIdUrl: String(b.governmentIdUrl || b.validIdPhotoUrl || "").trim(),
   };
 }
 
@@ -166,6 +168,7 @@ function mapEventBookingRow(b) {
     paymentMethod: b.paymentMethod || "",
     paymethod: b.paymentMethod || "",
     paymentProofData: "",
+    governmentIdUrl: String(b.governmentIdUrl || b.validIdPhotoUrl || "").trim(),
   };
 }
 
@@ -821,6 +824,13 @@ function RoomModal({ d }) {
           </dl>
         </section>
         <ReservationProofPreview booking={proofBooking} proofSrc={proofSrc} />
+        <GovernmentIdPreview
+          booking={{
+            governmentIdUrl: d.governmentIdUrl,
+            validIdPhotoUrl: d.governmentIdUrl,
+            guest: d.guest,
+          }}
+        />
       </div>
     </div>
   );
@@ -940,6 +950,13 @@ function EventModal({ d }) {
           </dl>
         </section>
         <ReservationProofPreview booking={proofBooking} proofSrc={proofSrc} />
+        <GovernmentIdPreview
+          booking={{
+            governmentIdUrl: d.governmentIdUrl,
+            validIdPhotoUrl: d.governmentIdUrl,
+            guest: d.guest,
+          }}
+        />
       </div>
     </div>
   );
@@ -1134,6 +1151,12 @@ export default function BookingManagement() {
       paymentProofData: viewDetailBooking.paymentProofData || base.paymentProofData || "",
       paymentMethod: viewDetailBooking.paymentMethod || base.paymentMethod,
       paymethod: viewDetailBooking.paymentMethod || base.paymethod,
+      governmentIdUrl:
+        viewDetailBooking.governmentIdUrl ||
+        viewDetailBooking.validIdPhotoUrl ||
+        base.governmentIdUrl ||
+        "",
+      guest: viewDetailBooking.guest || base.guest,
     };
   }, [viewModal, viewDetailBooking]);
 

@@ -31,7 +31,7 @@ import {
 import { getBackendBaseURL, backendUrl } from "../api/config";
 import { getStoredAuthToken, clearStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
-import { resolveGuestIdImageSrc } from "./guestBookingIdPhoto";
+import { resolveGovernmentIdUrl } from "./guestBookingIdPhoto";
 import GuestSidebar from "./GuestSidebar";
 import { GuestArchiveIcon } from "./guestArchiveIcon";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
@@ -706,6 +706,7 @@ export default function Home() {
 
   function closeCancel() {
     setCancelOpen(false);
+    setConfirmOpen(false);
   }
 
   function closeConfirm() {
@@ -769,8 +770,8 @@ export default function Home() {
     roomRawBase && detailMatches ? { ...roomRawBase, ...detailBooking } : roomRawBase;
   const eventRaw =
     eventRawBase && detailMatches ? { ...eventRawBase, ...detailBooking } : eventRawBase;
-  const roomIdPhotoSrc = roomRaw ? resolveGuestIdImageSrc(roomRaw) : null;
-  const eventIdPhotoSrc = eventRaw ? resolveGuestIdImageSrc(eventRaw) : null;
+  const roomIdPhotoSrc = roomRaw ? resolveGovernmentIdUrl(roomRaw) : null;
+  const eventIdPhotoSrc = eventRaw ? resolveGovernmentIdUrl(eventRaw) : null;
   const {
     sidebarCollapsed,
     isMobile,
@@ -1303,7 +1304,7 @@ export default function Home() {
       </Modal>
 
       <Modal
-        open={cancelOpen && !!selectedRow}
+        open={cancelOpen && !!selectedRow && !confirmOpen}
         onClose={closeCancel}
         title="Reason for cancellation"
         size="sm"
@@ -1353,22 +1354,36 @@ export default function Home() {
         contentOnly
         shellStyle={false}
         size="sm"
-        panelClassName="confirm-box"
+        overlayClassName="guest-home-confirm-overlay"
+        panelClassName="confirm-box confirm-box--booking-decision guest-home-confirm"
         ariaLabel="Confirm cancellation"
       >
-        <div className="confirm-icon">!</div>
-        <p className="confirm-text">
-          Are you sure you want to
-          <br />
-          cancel your booking?
-        </p>
-        <div className="confirm-btns">
-          <button type="button" className="btn-confirm-cancel" onClick={closeConfirm}>
-            Cancel
-          </button>
-          <button type="button" className="btn-confirm-submit" onClick={submitCancellation} disabled={cancelSubmitting}>
-            {cancelSubmitting ? "Submitting…" : "Submit"}
-          </button>
+        <div className="confirm-formal confirm-formal--booking">
+          <div className="confirm-formal__main">
+            <div className="confirm-formal__seal confirm-formal__seal--caution" aria-hidden="true">
+              <span className="confirm-formal__seal-mark">!</span>
+            </div>
+            <div className="confirm-formal__message">
+              <p className="confirm-text confirm-text--multiline">
+                Are you sure you want to cancel your booking?
+              </p>
+            </div>
+          </div>
+          <div className="confirm-formal__footer">
+            <div className="confirm-btns">
+              <button type="button" className="btn-confirm-cancel" onClick={closeConfirm}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-confirm-submit"
+                onClick={submitCancellation}
+                disabled={cancelSubmitting}
+              >
+                {cancelSubmitting ? "Submitting…" : "Submit"}
+              </button>
+            </div>
+          </div>
         </div>
       </Modal>
 

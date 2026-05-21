@@ -156,9 +156,8 @@ const VENUES = [
     id: "skybar",
     name: "Mini Sky Bar",
     typeLabel: "Rooftop venue",
-    price: "?1,148",
     priceNum: 1148,
-    guests: "30?40 Guests",
+    guests: "30–40 Guests",
     maxGuests: 40,
     desc: "Perfect for debuts, seminars, meetings, birthdays, and more.",
     features: ["30 Chairs", "Speaker", "10 Tables", "Microphone"],
@@ -168,9 +167,8 @@ const VENUES = [
     id: "hall",
     name: "Function Hall",
     typeLabel: "Banquet hall",
-    price: "?2,205",
     priceNum: 2205,
-    guests: "20?30 Guests",
+    guests: "20–30 Guests",
     maxGuests: 30,
     desc: "With free Breakfast, private toilet and bath, aircon, and wifi.",
     features: ["30 Chairs", "Speaker", "10 Tables", "Microphone", "Smart TV", "Air Conditioning"],
@@ -189,13 +187,79 @@ function isVenueAvailable(venueId, wantStart, wantEnd, bookedDates) {
   return isVenueAvailableForDates(venueId, wantStart, wantEnd, bookedDates);
 }
 
+const VENUE_MAINTENANCE_STATUSES = new Set(["needs_cleaning", "cleaning_in_progress"]);
+
+function isVenueCatalogMaintenance(statusRaw) {
+  return VENUE_MAINTENANCE_STATUSES.has(String(statusRaw || "").trim().toLowerCase());
+}
+
+/** Per-venue availability for the search bar date range (does not hide venues from the list). */
+function computeVenueAvailabilityStatuses({ venueCatalog, barStart, barEnd, barGuests, bookedDates }) {
+  if (!barStart) {
+    return { ok: false, message: "Please select a start date.", statuses: {}, availCount: 0, n: venueCatalog.length };
+  }
+  if (new Date(barStart) < new Date(today)) {
+    return { ok: false, message: "Start date cannot be in the past.", statuses: {}, availCount: 0, n: venueCatalog.length };
+  }
+  const effectiveEnd = barEnd || barStart;
+  if (barEnd && barEnd < barStart) {
+    return { ok: false, message: "End date must be on or after the start date.", statuses: {}, availCount: 0, n: venueCatalog.length };
+  }
+  const guests = parseInt(barGuests, 10);
+  const statuses = {};
+  let availCount = 0;
+  const n = venueCatalog.length;
+  const dateLabel =
+    effectiveEnd !== barStart ? fmtDate(barStart) + " – " + fmtDate(effectiveEnd) : fmtDate(barStart);
+
+  for (const v of venueCatalog) {
+    if (isVenueCatalogMaintenance(v.catalogStatus)) {
+      statuses[v.id] = { ok: false, label: "Unavailable", dateLabel };
+      continue;
+    }
+    const guestOk = guests <= v.maxGuests;
+    const dateOk = isVenueAvailable(v.id, barStart, effectiveEnd, bookedDates);
+    const ok = guestOk && dateOk;
+    statuses[v.id] = {
+      ok,
+      label: !guestOk ? "Too many guests" : ok ? "Available" : "Unavailable",
+      dateLabel,
+    };
+    if (ok) availCount++;
+  }
+
+  let summaryText;
+  let summaryDot;
+  if (n === 0) {
+    summaryText = "No event venues are in the catalog yet.";
+    summaryDot = "#9a8060";
+  } else if (availCount === n) {
+    summaryDot = "#27ae60";
+    summaryText = `All venues are available for ${dateLabel} (${guests} guests)`;
+  } else if (availCount === 0) {
+    summaryDot = "#e74c3c";
+    summaryText = "No venues available for the selected dates / guest count.";
+  } else {
+    summaryDot = "#e6a817";
+    summaryText = `${availCount} of ${n} venues available for ${dateLabel}`;
+  }
+
+  return { ok: true, message: summaryText, dot: summaryDot, statuses, availCount, n, effectiveLabel: dateLabel };
+}
+
 function fmtDate(str) {
   const d = new Date(str + "T00:00:00");
   return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
 }
 
+function formatEventVenuePriceDisplay(n) {
+  if (n == null || !Number.isFinite(Number(n))) return "—";
+  const num = Number(n);
+  return `₱${Math.round(num).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
 function parsePriceToNumber(priceStr) {
-  const n = Number(String(priceStr || "").replace(/[?,\s]/g, ""));
+  const n = Number(String(priceStr || "").replace(/[₱?,\s]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -217,12 +281,13 @@ function mapApiEventVenueToGuestCard(v) {
   const img =
     String(v?.imageUrl || v?.image || "").trim() ||
     "https://images.unsplash.com/photo-1519167758481-83f29da34588?w=800";
-  const priceLabel = priceNum > 0 ? `?${Math.round(priceNum).toLocaleString("en-PH")}` : "?0";
+  const priceLabel = formatEventVenuePriceDisplay(priceNum);
   const typeLabel =
     String(v?.package || "").trim() ||
     String(v?.venueType || v?.type || "").trim() ||
     "Event venue";
-  return { id, name, typeLabel, price: priceLabel, priceNum, guests, maxGuests, desc, features, img };
+  const catalogStatus = String(v?.status || "available").trim().toLowerCase();
+  return { id, name, typeLabel, price: priceLabel, priceNum, guests, maxGuests, desc, features, img, catalogStatus };
 }
 
 /** Listed venue price = base for the first N hours; each hour beyond that is a flat add-on. */
@@ -259,7 +324,7 @@ function formatEvPeso(n) {
 
 function buildEventPricingFootnote(bill) {
   return (
-    `[Venue hire ${bill.durationHours} h ? base (${EVENT_BASE_INCLUDED_HOURS} h) ${formatEvPeso(bill.basePrice)}; ` +
+    `[Venue hire ${bill.durationHours} h · base (${EVENT_BASE_INCLUDED_HOURS} h) ${formatEvPeso(bill.basePrice)}; ` +
     `extra ${bill.extraHours} h @ ${formatEvPeso(bill.hourlyRate)}/h = ${formatEvPeso(bill.additionalCharge)}; ` +
     `total ${formatEvPeso(bill.total)}]`
   );
@@ -636,47 +701,37 @@ export default function EventVenues() {
   }, [payOpen, resPick, form.startTime, form.endTime, pendingGcash]);
 
   // --- Availability ---
-  function checkAvailability() {
-    if (!barStart) {
-      setAvailResult({ dot: "#9a8060", text: "Please select a start date." }); return;
-    }
-    if (new Date(barStart) < new Date(today)) {
-      setAvailResult({ dot: "#e74c3c", text: "Start date cannot be in the past." }); return;
-    }
-    const effectiveEnd = barEnd || barStart;
-    if (barEnd && barEnd < barStart) {
-      setAvailResult({ dot: "#e74c3c", text: "End date must be on or after the start date." }); return;
-    }
-    const guests = parseInt(barGuests, 10);
-    const statuses = {};
-    let availCount = 0;
-    const n = venueCatalog.length;
-    for (const v of venueCatalog) {
-      const guestOk = guests <= v.maxGuests;
-      const dateOk  = isVenueAvailable(v.id, barStart, effectiveEnd, bookedDates);
-      const ok = guestOk && dateOk;
-      const dateLabel = effectiveEnd !== barStart
-        ? fmtDate(barStart) + " ? " + fmtDate(effectiveEnd)
-        : fmtDate(barStart);
-      statuses[v.id] = { ok, label: !guestOk ? "Too many guests" : ok ? "Available" : "Not Available", dateLabel };
-      if (ok) availCount++;
-    }
-    setVenueStatuses(statuses);
-    const effectiveLabel = effectiveEnd !== barStart
-      ? fmtDate(barStart) + " ? " + fmtDate(effectiveEnd)
-      : fmtDate(barStart);
-    if (n === 0) {
-      setAvailResult({ dot: "#9a8060", text: "No event venues are available in the catalog yet." });
+  function applyVenueAvailabilitySearch() {
+    const result = computeVenueAvailabilityStatuses({
+      venueCatalog,
+      barStart,
+      barEnd,
+      barGuests,
+      bookedDates,
+    });
+    if (!result.ok) {
+      setVenueStatuses(result.statuses || {});
+      setAvailResult({ dot: "#e74c3c", text: result.message });
       return;
     }
-    if (availCount === n)
-      setAvailResult({ dot: "#27ae60", text: `All venues are available for ${effectiveLabel} (${guests} guests)` });
-    else if (availCount === 0)
-      setAvailResult({ dot: "#e74c3c", text: "No venues available for the selected dates / guest count." });
-    else
-      setAvailResult({ dot: "#e6a817", text: `${availCount} of ${n} venues available for ${effectiveLabel}` });
-    setForm(f => ({ ...f, date: barStart }));
+    setVenueStatuses(result.statuses);
+    setAvailResult({ dot: result.dot, text: result.message });
+    if (barStart) setForm((f) => ({ ...f, date: barStart }));
   }
+
+  function checkAvailability() {
+    applyVenueAvailabilitySearch();
+  }
+
+  /** Keep card badges in sync when the guest changes dates (availability is schedule-based, not list membership). */
+  useEffect(() => {
+    if (!barStart) {
+      setVenueStatuses({});
+      return;
+    }
+    applyVenueAvailabilitySearch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- applyVenueAvailabilitySearch closes over latest bar/catalog state
+  }, [barStart, barEnd, barGuests, bookedDates, venueCatalog]);
 
   // --- Reservation ---
   function openRes(venueRow) {
@@ -983,7 +1038,7 @@ export default function EventVenues() {
     const eventTotal = computeEventVenueBill(resPick.priceNum, String(dh > 0 ? dh : EVENT_BASE_INCLUDED_HOURS)).total;
     if (Number.isFinite(eventTotal) && eventTotal > 0 && paid > eventTotal) {
       window.alert(
-        `Amount paid cannot be greater than the booking total (?${eventTotal.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`,
+        `Amount paid cannot be greater than the booking total (${formatEvPeso(eventTotal)}).`,
       );
       return;
     }
@@ -1091,7 +1146,7 @@ export default function EventVenues() {
               }}
             >
               <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>?</span>
+              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
               <RoleUserDropdown
                 isOpen={userOpen}
                 profile={topbarProfile}
@@ -1158,13 +1213,25 @@ export default function EventVenues() {
               </p>
             ) : (
               venueCatalog.map((v) => {
+              const maintenance = isVenueCatalogMaintenance(v.catalogStatus);
               const st = venueStatuses[v.id];
-              const isUnavailable = Boolean(st && !st.ok);
+              const isUnavailable = maintenance || Boolean(st && !st.ok);
+              const badgeLabel = maintenance
+                ? "Unavailable"
+                : st
+                  ? st.label
+                  : barStart
+                    ? "—"
+                    : "";
               return (
                 <div key={v.id} className={`room-card${isUnavailable ? " unavailable" : ""}`}>
-                  <span className={`avail-badge${st ? (st.ok ? " badge-available" : " badge-unavailable") : ""}`}>
-                    {st && !st.ok ? <XIcon /> : <CheckIcon />}
-                    <span>{st ? st.label : "Available"}</span>
+                  <span
+                    className={`avail-badge${
+                      st || maintenance ? (isUnavailable ? " badge-unavailable" : " badge-available") : ""
+                    }`}
+                  >
+                    {isUnavailable ? <XIcon /> : st || maintenance ? <CheckIcon /> : null}
+                    <span>{badgeLabel}</span>
                   </span>
                   <div className="room-img-wrap">
                     <button
@@ -1186,15 +1253,19 @@ export default function EventVenues() {
                       <span className="room-type-value">{v.typeLabel}</span>
                     </p>
                     <div className="room-pricing">
-                      <span className="room-price-new">{v.price}</span>
-                      <span className="venue-price-note">Base ? {EVENT_BASE_INCLUDED_HOURS} h</span>
+                      <span className="room-price-new">
+                        {formatEventVenuePriceDisplay(v.priceNum)}
+                      </span>
+                      <span className="venue-price-note">Base ({EVENT_BASE_INCLUDED_HOURS} h)</span>
                       <span className="room-guests"><GuestsIcon /> {v.guests}</span>
                     </div>
                     <p className="room-desc">{v.desc}</p>
                     <p className="features-label">Features:</p>
                     <div className="features-grid">
                       {v.features.map((f, i) => (
-                        <span key={`${v.id}-f-${i}`} className="feature-item">? {f}</span>
+                        <span key={`${v.id}-f-${i}`} className="feature-item">
+                          ✔ {f}
+                        </span>
                       ))}
                     </div>
                     <div className="room-footer">
@@ -1357,6 +1428,9 @@ export default function EventVenues() {
               </div>
               <div className="ev-guest-ev-cal-legend-wrap">
                 <div className="fd-cal-legend" aria-label="Schedule legend">
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch" style={{ background: "#27ae60", border: "1px solid #1e8449" }} aria-hidden /> Available
+                  </span>
                   <span className="fd-cal-legend-item">
                     <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
                   </span>

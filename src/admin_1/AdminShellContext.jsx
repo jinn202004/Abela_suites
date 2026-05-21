@@ -24,10 +24,24 @@ const PAD_EXPANDED = 15;
 
 const AdminShellContext = createContext(null);
 
+/** Restore admin rail scroll and keep the active item visible after route-driven remounts. */
+function applyAdminSidebarNavScroll(navEl, scrollRef) {
+  if (!navEl || !scrollRef) return;
+  navEl.scrollTop = scrollRef.current;
+  const active = navEl.querySelector(".nav-item.active");
+  if (active) {
+    active.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }
+  scrollRef.current = navEl.scrollTop;
+}
+
 export function AdminShellProvider({ children }) {
   const location = useLocation();
   const navGhostRouteRef = useRef(undefined);
   const navGhostTimerRef = useRef(null);
+  /** Persists `.sidebar-nav` scrollTop across admin page remounts (sidebar lives inside each route). */
+  const adminSidebarNavScrollRef = useRef(0);
+  const adminSidebarNavElRef = useRef(null);
 
   /**
    * Ghost navigation click: mousedown on the rail can finish with mouseup/click on the *new* page.
@@ -202,6 +216,20 @@ export function AdminShellProvider({ children }) {
     setMobileSidebarOpen(false);
   }, []);
 
+  const persistAdminSidebarNavScroll = useCallback(() => {
+    const el = adminSidebarNavElRef.current;
+    if (el) adminSidebarNavScrollRef.current = el.scrollTop;
+  }, []);
+
+  const syncAdminSidebarNavScroll = useCallback(() => {
+    applyAdminSidebarNavScroll(adminSidebarNavElRef.current, adminSidebarNavScrollRef);
+  }, []);
+
+  const registerAdminSidebarNavEl = useCallback((el) => {
+    adminSidebarNavElRef.current = el;
+    if (el) applyAdminSidebarNavScroll(el, adminSidebarNavScrollRef);
+  }, []);
+
   const value = {
     sidebarCollapsed,
     isMobile,
@@ -214,6 +242,9 @@ export function AdminShellProvider({ children }) {
     logoWrapStyle,
     logoImgStyle,
     shellClassName: `admin-rail-shell${!isMobile && sidebarCollapsed ? " sidebar-collapsed" : ""}${isMobile ? " admin-mobile-shell" : ""}${isMobile && mobileSidebarOpen ? " mobile-open" : ""}`,
+    persistAdminSidebarNavScroll,
+    syncAdminSidebarNavScroll,
+    registerAdminSidebarNavEl,
   };
 
   return <AdminShellContext.Provider value={value}>{children}</AdminShellContext.Provider>;

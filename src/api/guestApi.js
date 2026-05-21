@@ -212,7 +212,7 @@ export async function fetchRoomAvailabilityWindow(checkIn, checkOut) {
 
 /**
  * GET /api/rooms/:roomId/guest-occupancy?from=&to= — public; blocking stays for one room (no PII).
- * Each range may include `stayTone`: `"occupied"` (in-house) or `"reserved"` (pending / approved / confirmed).
+ * Each range may include `stayTone`: `"occupied"` | `"approved"` | `"pending"`.
  * @returns {Promise<{ roomId: string, bookedRanges: { checkIn: string, checkOut: string, stayTone?: string }[] }>}
  */
 export async function fetchRoomGuestOccupancy(roomId, from, to) {

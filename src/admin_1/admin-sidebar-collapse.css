@@ -10,23 +10,127 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   --sidebar-w: 64px;
 }
 
-/* Same rail root as front desk (`frontdesk-rooms.jsx` → `app-layout` + row flex + scrollable main). */
-.app-layout.admin-app-layout {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: nowrap;
-  align-items: stretch;
-  min-height: 100vh;
-  width: 100%;
-  min-width: 0;
+/*
+ * Fixed gold sidebar + main column with margin-left.
+ * Scroll: document/body (not .content overflow-y trap).
+ */
+html:has(.app-layout.admin-app-layout),
+body:has(.app-layout.admin-app-layout) {
+  height: auto;
+  min-height: 100%;
   overflow-x: hidden;
+  overflow-y: auto;
 }
 
-.app-layout.admin-app-layout > .main-wrapper {
+.app-layout.admin-app-layout {
+  --sidebar-w: 240px;
+  --topbar-h: 62px;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  overflow: visible;
+  position: relative;
+}
+
+.sidebar.admin-rail-shell:not(.admin-mobile-shell) {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--sidebar-w);
+  min-width: var(--sidebar-w);
+  max-width: var(--sidebar-w);
+  height: 100vh;
+  max-height: 100vh;
+  z-index: 400;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar.admin-rail-shell .sidebar-nav {
+  align-self: stretch;
+  width: 100%;
   flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.sidebar.admin-rail-shell .sidebar-nav::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar.admin-rail-shell .sidebar-nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 4px;
+}
+
+.sidebar.admin-rail-shell + .main-wrapper,
+.app-layout.admin-app-layout > .main-wrapper {
+  margin-left: var(--sidebar-w);
+  width: calc(100% - var(--sidebar-w));
+  min-height: 100vh;
   min-width: 0;
   display: flex;
   flex-direction: column;
+  overflow: visible;
+  box-sizing: border-box;
+  transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
+    width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-layout.admin-app-layout > .main-wrapper > .topbar {
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 300;
+}
+
+.app-layout.admin-app-layout > .main-wrapper > .content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: visible;
+  overflow-x: hidden;
+}
+
+/* Page roots must not trap viewport scroll (bills, rm-app, settings, etc.). */
+.app-layout.admin-app-layout.app-root,
+.app-layout.admin-app-layout.rm-app,
+.app-layout.admin-app-layout.bills-page,
+.app-layout.admin-app-layout.admin-general-page,
+.app-layout.admin-app-layout.admin-settings-page,
+.app-layout.admin-app-layout.resto-admin-page,
+.app-layout.admin-app-layout.admin-rooms-page,
+.app-layout.admin-app-layout.em-event {
+  display: block;
+  min-height: 100vh;
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/* Undo page-bundle traps on main column when admin shell is active. */
+.app-layout.admin-app-layout .main-wrapper,
+.app-layout.admin-app-layout.bills-page .main-wrapper,
+.app-layout.admin-app-layout.rm-app .main-wrapper,
+.app-layout.admin-app-layout.app-root .main-wrapper,
+.app-layout.admin-app-layout.admin-settings-page .main-wrapper,
+.app-layout.admin-app-layout.admin-general-page .main-wrapper,
+.app-layout.admin-app-layout.resto-admin-page .main-wrapper {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.app-layout.admin-app-layout .main-wrapper > .content,
+.app-layout.admin-app-layout.bills-page .content,
+.app-layout.admin-app-layout.rm-app .content,
+.app-layout.admin-app-layout.app-root .content,
+.app-layout.admin-app-layout.resto-admin-page > .main-wrapper > .content {
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
 }
 
 .sidebar.admin-rail-shell .sidebar-logo {
@@ -52,11 +156,6 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   object-position: center;
   background: #fff;
   box-sizing: border-box;
-}
-
-.sidebar.admin-rail-shell .sidebar-nav {
-  align-self: stretch;
-  width: 100%;
 }
 
 /* Fixed icon column + label column so every title lines up (same as clean admin rail reference). */
@@ -148,7 +247,6 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
 
   .sidebar.admin-rail-shell.admin-mobile-shell .nav-item .nav-label {
     display: inline !important;
-    /* Keep long labels readable in half-width drawer (no hard truncation). */
     white-space: normal !important;
     overflow: visible !important;
     text-overflow: clip !important;
@@ -209,7 +307,8 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
    * still set .main-wrapper { margin-left: 64px } at this breakpoint — override so
    * content and tables are not clipped on the right.
    */
-  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper {
+  .sidebar.admin-rail-shell.admin-mobile-shell + .main-wrapper,
+  .app-layout.admin-app-layout > .main-wrapper {
     margin-left: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
@@ -248,7 +347,6 @@ html[data-admin-sidebar-collapsed="true"] .admin-settings-page {
   box-sizing: border-box;
 }
 
-/* Logo: restore divider under crest (shared rule above used `border: none` and removed it). */
 .sidebar.admin-rail-shell button.sidebar-logo {
   border: none;
   border-bottom: 1px solid rgba(255, 255, 255, 0.3);

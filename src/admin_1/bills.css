@@ -14,11 +14,9 @@
   font-family: 'Roboto', sans-serif;
   background: var(--bg-page);
   color: var(--text-dark);
-  min-height: 100vh;
   width: 100%;
   max-width: 100%;
-  overflow-x: hidden;
-  display: flex;
+  min-width: 0;
 }
 
 .bills-page *,
@@ -106,12 +104,13 @@
   .bills-page .main-wrapper {
     margin-left: var(--sidebar-w);
     width: calc(100% - var(--sidebar-w));
-    flex: 1;
-    min-height: 0;
+    min-height: 100vh;
     min-width: 0;
+    overflow: visible;
     display: flex;
     flex-direction: column;
     background: var(--bg-page);
+    box-sizing: border-box;
   }
   
   /* ════════════════════════════════════════
@@ -283,8 +282,10 @@
      CONTENT
   ════════════════════════════════════════ */
   .bills-page .content {
-    flex: 1;
+    flex: 1 1 auto;
     min-height: 0;
+    overflow: visible;
+    overflow-x: hidden;
     padding: 22px 26px;
     display: flex;
     flex-direction: column;
@@ -418,9 +419,9 @@
      TABLE
   ════════════════════════════════════════ */
   .bills-page .bills-table-wrap {
-    flex: 0 0 auto;
-    min-height: 220px;
-    max-height: 52vh;
+    flex: 1 1 auto;
+    min-height: 240px;
+    max-height: none;
     background: #faf5ec;
     border-radius: 10px;
     border: 1px solid #e8dcc8;
@@ -1346,6 +1347,18 @@
 
 .bills-page .bm-print-footer-btn.pdf:hover:not(:disabled) {
   background: #164726;
+}
+
+/* Ledger table scrolls inside its frame (not the whole .content column). */
+.app-layout.admin-app-layout.bills-page .bills-ledger-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.app-layout.admin-app-layout.bills-page .bills-table-wrap {
+  max-height: min(70vh, 720px);
 }
 
 @media print {

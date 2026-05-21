@@ -5,7 +5,6 @@ import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
-import { useLazyBookingIdPhoto } from "./useLazyBookingIdPhoto";
 import {
   fetchBookingsBackend,
   fetchBookingByIdBackend,
@@ -21,6 +20,7 @@ import {
   patchBookingBackend,
 } from "../api/guestApi";
 import { ReservationProofPreview } from "../components/ReservationProofPreview";
+import GovernmentIdPreview from "../components/GovernmentIdPreview";
 import {
   derivePaymentStatusLine,
   parseAdditionalRequestChargeLines,
@@ -207,16 +207,27 @@ function fmtPeso(n) {
   return `₱${n.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function formatChargeLinesForAdditionalRequests(items) {
+function parseExtraHoursValue(raw) {
+  const n = parseFloat(String(raw ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) && n > 0 ? n : NaN;
+}
+
+/** Display extra hours in the charges summary (e.g. "2 hrs", "1 hr"). */
+function formatExtraHoursDisplay(hours) {
+  const n = typeof hours === "number" ? hours : parseExtraHoursValue(hours);
+  if (!Number.isFinite(n) || n <= 0) return "—";
+  if (n === 1) return "1 hr";
+  const display = Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+  return `${display} hrs`;
+}
+
+function formatEventChargeLinesForAdditionalRequests(items) {
   if (!Array.isArray(items) || items.length === 0) return "";
   return items
     .map((c) => {
-      const q = Math.max(1, Math.floor(Number(c.qty) || 1));
-      const unit = Number(c.amount) || 0;
-      const sub = unit * q;
-      const name = String(c.item || "").trim() || "Item";
-      if (q <= 1) return `${name} (₱${sub.toFixed(2)})`;
-      return `${name} ×${q} (₱${sub.toFixed(2)})`;
+      const amount = Number(c.amount) || 0;
+      const hrsLabel = formatExtraHoursDisplay(c.extraHours);
+      return `Extra ${hrsLabel} (₱${amount.toFixed(2)})`;
     })
     .join("; ");
 }
@@ -426,7 +437,9 @@ function mapApiEventBookingToRow(b, venueIdToEventNum, venueIdToName) {
     addreq: b.additionalRequests || "N/A",
     paymethod: b.paymentMethod || "—",
     paymentProofData: "",
-    validIdPhotoData: g.validIdPhotoData || "",
+    governmentIdUrl: String(b.governmentIdUrl || b.validIdPhotoUrl || "").trim(),
+    validIdPhotoData:
+      String(b.governmentIdUrl || b.validIdPhotoUrl || g.validIdPhotoData || "").trim(),
     declineReason: String(b.declineReason || "").trim(),
   };
 }
@@ -624,7 +637,7 @@ function SuccessDialog({ open, onClose }) {
 /* ══════════════════════════════════════════
    EVENT RESERVATION DETAILS (shared body)
 ══════════════════════════════════════════ */
-function EventReservationDetailsInner({ r, idSrc, open }) {
+function EventReservationDetailsInner({ r, open }) {
   const [apiBooking, setApiBooking] = useState(null);
   const [detailBusy, setDetailBusy] = useState(false);
 
@@ -665,10 +678,24 @@ function EventReservationDetailsInner({ r, idSrc, open }) {
       transid: apiBooking.transactionId || r.transid,
       paydate,
       paymentProofData: apiBooking.paymentProofData || r.paymentProofData || "",
+      governmentIdUrl:
+        apiBooking.governmentIdUrl || apiBooking.validIdPhotoUrl || r.governmentIdUrl || "",
+      validIdPhotoData:
+        apiBooking.governmentIdUrl ||
+        apiBooking.validIdPhotoUrl ||
+        apiBooking.guest?.validIdPhotoData ||
+        r.validIdPhotoData ||
+        "",
+      guest: apiBooking.guest || r.guest,
     };
   }, [r, apiBooking]);
 
   const x = display || r;
+  const idBooking = apiBooking || {
+    governmentIdUrl: r?.governmentIdUrl,
+    validIdPhotoUrl: r?.governmentIdUrl,
+    guest: { validIdPhotoData: r?.validIdPhotoData },
+  };
   const proofBooking = { paymentMethod: x.paymethod, paymentProofData: x.paymentProofData };
   const proofSrc = paymentProofFromBooking(proofBooking);
   const payLine = derivePaymentStatusLine(
@@ -793,12 +820,7 @@ function EventReservationDetailsInner({ r, idSrc, open }) {
           </dl>
         </section>
         <ReservationProofPreview booking={proofBooking} proofSrc={proofSrc} />
-        <section className="rdm-card">
-          <h4 className="rdm-card__title">Government ID</h4>
-          <div className="rdm-media-frame rdm-media-frame--tall">
-            <img src={idSrc} alt="Guest ID" className="rdm-media-img" decoding="async" />
-          </div>
-        </section>
+        <GovernmentIdPreview booking={idBooking} />
       </div>
     </div>
   );
@@ -808,13 +830,6 @@ function EventReservationDetailsInner({ r, idSrc, open }) {
    DETAILS MODAL (Review)
 ══════════════════════════════════════════ */
 function DetailsModal({ r, open, onClose, onApprove, onReject, onEdit }) {
-  const idPhotoData = useLazyBookingIdPhoto({
-    open: open && !!r,
-    bookingId: r?._bookingId,
-    rowPhoto: r?.validIdPhotoData,
-  });
-  const idSrc =
-    idPhotoData && String(idPhotoData).startsWith("data:") ? idPhotoData : IMAGES.guestId;
   if (!r) return null;
   const pendingReview = isFrontdeskBookingPending(r);
   return (
@@ -852,7 +867,7 @@ function DetailsModal({ r, open, onClose, onApprove, onReject, onEdit }) {
         </div>
       }
     >
-      <EventReservationDetailsInner r={r} idSrc={idSrc} open={open} />
+      <EventReservationDetailsInner r={r} open={open} />
     </Modal>
   );
 }
@@ -1171,8 +1186,8 @@ function CheckModal({ open, row, onClose, onCheckin, onCheckout, onAddCharges })
                   </div>
                 </div>
                 {addreqParsed.charges.length > 0 ? (
-                  <div className="rdm-charge-lines" aria-label="Itemized additional charges">
-                    <div className="rdm-charge-lines__title">Additional charges (itemized)</div>
+                  <div className="rdm-charge-lines" aria-label="Extra-hour additional charges">
+                    <div className="rdm-charge-lines__title">Additional extra-hour charges</div>
                     <ul className="rdm-charge-lines__list">
                       {addreqParsed.charges.map((c, idx) => (
                         <li key={`${c.label}-${idx}`} className="rdm-charge-lines__row">
@@ -1353,7 +1368,7 @@ function GuestEditModal({ open, row, onClose, onSave }) {
 }
 
 /* ══════════════════════════════════════════
-   ADD CHARGES MODAL (matches frontdesk-rooms AddChargesModal — display only; save path unchanged)
+   ADD CHARGES MODAL — extra hours + flat amount (no item/qty)
 ══════════════════════════════════════════ */
 function AddChargesModal({
   open,
@@ -1363,24 +1378,33 @@ function AddChargesModal({
   currentStayTotalStr = "—",
   currentPaymentsStr = "—",
 }) {
-  const [item, setItem] = useState("");
+  const [extraHours, setExtraHours] = useState("");
   const [amount, setAmount] = useState("");
-  const [qty, setQty] = useState(1);
   const [chargeItems, setChargeItems] = useState([]);
   const [showConfirm, setShowConfirm] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setItem("");
+    setExtraHours("");
     setAmount("");
-    setQty(1);
     setChargeItems([]);
     setShowConfirm(false);
   }, [open]);
 
+  const draftHours = parseExtraHoursValue(extraHours);
+  const draftAmount = parseFloat(String(amount).replace(/,/g, ""));
+  const draftChargeValid = Number.isFinite(draftHours) && Number.isFinite(draftAmount) && draftAmount > 0;
+  const showDraftRow = Boolean(extraHours.trim() || amount.trim());
+  const draftHoursLabel = Number.isFinite(draftHours)
+    ? formatExtraHoursDisplay(draftHours)
+    : "0 hrs";
+  const draftAmountLabel =
+    Number.isFinite(draftAmount) && draftAmount > 0 ? fmtPeso(draftAmount) : "—";
+  const showSummaryEmpty = chargeItems.length === 0 && !showDraftRow;
+
   const previewTotal =
-    chargeItems.reduce((s, c) => s + c.amount * c.qty, 0) +
-    (item && parseFloat(amount) > 0 ? parseFloat(amount) * qty : 0);
+    chargeItems.reduce((s, c) => s + (Number(c.amount) || 0), 0) +
+    (draftChargeValid ? draftAmount : 0);
   const balanceDueNum = parsePesoNum(currentTotalBalanceStr);
   const stayTotalNum = parsePesoNum(currentStayTotalStr);
   const balanceAfterCharges = Number.isFinite(balanceDueNum) ? Math.max(0, balanceDueNum + previewTotal) : NaN;
@@ -1389,16 +1413,15 @@ function AddChargesModal({
   const showPaidLine = currentPaymentsStr && currentPaymentsStr !== "—";
   if (!open) return null;
 
-  const changeQty = (i, d) => setChargeItems((prev) => prev.map((c, idx) => (idx === i ? { ...c, qty: Math.max(1, c.qty + d) } : c)));
   const remove = (i) => setChargeItems((prev) => prev.filter((_, idx) => idx !== i));
   const clear = () => {
-    setItem("");
+    setExtraHours("");
     setAmount("");
-    setQty(1);
   };
 
   const doAdd = () => {
-    const newItems = [...chargeItems, { item, amount: parseFloat(amount), qty }];
+    if (!draftChargeValid) return;
+    const newItems = [...chargeItems, { extraHours: draftHours, amount: draftAmount }];
     setChargeItems(newItems);
     clear();
     setShowConfirm(false);
@@ -1424,7 +1447,7 @@ function AddChargesModal({
               type="button"
               className="btn-confirm-submit"
               onClick={() => {
-                if (!item.trim() || !parseFloat(amount)) return;
+                if (!draftChargeValid) return;
                 setShowConfirm(true);
               }}
             >
@@ -1436,74 +1459,70 @@ function AddChargesModal({
         <div className="charges-layout">
           <div className="charges-form">
             <div className="form-group">
-              <label className="detail-label">Items</label>
+              <label className="detail-label">Extra Hours</label>
               <input
                 type="text"
+                inputMode="decimal"
                 className="charges-input"
-                placeholder="e.g. extra hours, catering"
-                value={item}
-                onChange={(e) => setItem(e.target.value)}
+                placeholder="e.g. 2"
+                value={extraHours}
+                onChange={(e) => setExtraHours(e.target.value)}
               />
             </div>
             <div className="form-group">
               <label className="detail-label">Amount</label>
               <input
                 type="text"
+                inputMode="decimal"
                 className="charges-input"
-                placeholder="e.g. 50"
+                placeholder="e.g. 1000"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
               />
             </div>
-            <div className="form-group">
-              <label className="detail-label">Quantity</label>
-              <input
-                type="number"
-                className="charges-input"
-                min="1"
-                value={qty}
-                onChange={(e) => setQty(parseInt(e.target.value, 10) || 1)}
-              />
-            </div>
           </div>
           <div className="charges-list-wrap">
-            <div className="charges-list-header">Item</div>
+            <div className="charges-list-header">
+              <span>Extra Hours</span>
+              <span>Amount</span>
+            </div>
             <div className="charges-list">
+              {showSummaryEmpty ? (
+                <div className="charge-item-row charge-summary-empty">
+                  <span>0 hrs</span>
+                  <span>—</span>
+                </div>
+              ) : null}
               {chargeItems.map((c, i) => (
                 <div key={i} className="charge-item-row">
-                  <span className="charge-item-name">
-                    {c.item}
-                    <br />
-                    <small>₱{c.amount.toFixed(2)}</small>
-                  </span>
-                  <div className="charge-qty-ctrl">
-                    <button type="button" onClick={() => changeQty(i, -1)}>
-                      −
-                    </button>
-                    <span>{c.qty}</span>
-                    <button type="button" onClick={() => changeQty(i, 1)}>
-                      +
-                    </button>
-                    <button type="button" className="charge-remove" onClick={() => remove(i)}>
+                  <span className="charge-item-hours">{formatExtraHoursDisplay(c.extraHours)}</span>
+                  <div className="charge-item-amount-wrap">
+                    <span className="charge-item-amount">{fmtPeso(c.amount)}</span>
+                    <button
+                      type="button"
+                      className="charge-remove"
+                      onClick={() => remove(i)}
+                      aria-label="Remove charge"
+                    >
                       ✕
                     </button>
                   </div>
                 </div>
               ))}
-              {item && parseFloat(amount) > 0 && (
-                <div className="charge-item-row charge-preview-row" style={{ opacity: 0.6 }}>
-                  <span className="charge-item-name">
-                    {item}
-                    <br />
-                    <small>₱{parseFloat(amount).toFixed(2)}</small>
+              {showDraftRow ? (
+                <div className="charge-item-row charge-preview-row">
+                  <span className="charge-item-hours">{draftHoursLabel}</span>
+                  <span
+                    className={`charge-item-amount${draftAmountLabel === "—" ? " charge-item-amount--muted" : ""}`}
+                  >
+                    {draftAmountLabel}
                   </span>
-                  <span className="charge-qty-ctrl">× {qty}</span>
                 </div>
-              )}
+              ) : null}
             </div>
             <div className="charges-total-row">
               <span>New charges total</span>
-              <span>₱{previewTotal.toFixed(2)}</span>
+              <span>{fmtPeso(previewTotal)}</span>
             </div>
             <div className="charges-balance-hint charges-balance-hint--stack" aria-live="polite">
               <div className="charges-balance-hint__caption">Current bill (before this save)</div>
@@ -1529,14 +1548,18 @@ function AddChargesModal({
               {showStayLine ? (
                 <div>
                   <span className="charges-balance-hint-label">Event total on bill</span>
-                  <span className="charges-balance-hint-value">
+                  <span
+                    className={`charges-balance-hint-value${previewTotal > 0 ? " charges-balance-hint-value--changed" : ""}`}
+                  >
                     {Number.isFinite(stayTotalAfterCharges) ? fmtPeso(stayTotalAfterCharges) : "—"}
                   </span>
                 </div>
               ) : null}
               <div>
                 <span className="charges-balance-hint-label">Balance due</span>
-                <span className="charges-balance-hint-value">
+                <span
+                  className={`charges-balance-hint-value${previewTotal > 0 ? " charges-balance-hint-value--changed" : ""}`}
+                >
                   {Number.isFinite(balanceAfterCharges) ? fmtPeso(balanceAfterCharges) : "—"}
                 </span>
               </div>
@@ -1549,7 +1572,7 @@ function AddChargesModal({
         layout="booking"
         tone="caution"
         headline="Add event charge"
-        text="Add this item to the event bill and update the total balance?"
+        text="Add this extra-hours charge to the event bill and update the total balance?"
         size="md"
         panelClassName="confirm-box confirm-box--booking-decision"
         onCancel={() => setShowConfirm(false)}
@@ -3259,7 +3282,7 @@ function EventReservation() {
       setAddChargesOpen(false);
       return;
     }
-    const extra = items.reduce((s, c) => s + (Number(c.amount) || 0) * (Number(c.qty) || 0), 0);
+    const extra = items.reduce((s, c) => s + (Number(c.amount) || 0), 0);
     if (extra <= 0) {
       setAddChargesOpen(false);
       return;
@@ -3271,7 +3294,7 @@ function EventReservation() {
     const d0 = Number.isFinite(downWas) ? downWas : 0;
     const newTotal = t0 + extra;
     const newBal = Math.max(0, newTotal - d0);
-    const chargeLine = formatChargeLinesForAdditionalRequests(items);
+    const chargeLine = formatEventChargeLinesForAdditionalRequests(items);
     const prevReq = String(r.addreq || "").trim();
     const addreqMerged = [prevReq && prevReq !== "N/A" ? prevReq : "", chargeLine]
       .filter(Boolean)

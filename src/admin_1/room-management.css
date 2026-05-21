@@ -1,7 +1,7 @@
 @import "./admin-dashboard.css";
 
+/* Layout shell: see admin-sidebar-collapse.css (.app-layout.admin-app-layout.rm-app) */
 .rm-app {
-  min-height: 100vh;
   width: 100%;
 }
 

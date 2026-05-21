@@ -31,7 +31,7 @@ import {
   bookingPhoneDisplay,
 } from "./bookingRoomDisplay";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
-import { resolveGuestIdImageSrc } from "./guestBookingIdPhoto";
+import { resolveGovernmentIdUrl } from "./guestBookingIdPhoto";
 import "./idUploadedCard.css";
 import "./booking-history.css";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
@@ -454,7 +454,7 @@ export default function BookingHistory() {
     };
   }, [loadBookings]);
 
-  const detailIdPhotoSrc = bookingDetailRow ? resolveGuestIdImageSrc(bookingDetailRow) : null;
+  const detailIdPhotoSrc = bookingDetailRow ? resolveGovernmentIdUrl(bookingDetailRow) : null;
 
   const roomPagination = useMemo(() => {
     const total = roomBookings.length;

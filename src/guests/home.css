@@ -1469,6 +1469,12 @@
     display: flex;
   }
 
+  .modal-overlay.guest-home-confirm-overlay {
+    z-index: 510;
+    background: rgba(58, 46, 30, 0.45);
+    backdrop-filter: blur(2px);
+  }
+
   .confirm-box {
     background: #fff;
     border-radius: 10px;
@@ -1478,6 +1484,111 @@
     max-width: 92vw;
     box-shadow: 0 16px 50px rgba(0, 0, 0, 0.28);
     animation: homeModalIn 0.25s ease both;
+  }
+
+  /* Final cancel confirm — portaled to body; same footer button row as staff booking-decision modals */
+  .confirm-box.confirm-box--booking-decision.guest-home-confirm.abel-modal-panel {
+    max-width: 420px;
+    width: calc(100% - 32px);
+    padding: 0;
+    overflow: hidden;
+    border-radius: 12px;
+    border: 1px solid #e8dcc8;
+    background: #fffbf7;
+    box-shadow: 0 20px 56px rgba(58, 46, 30, 0.24);
+    text-align: left;
+    max-height: min(92vh, 520px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .guest-home-confirm .confirm-formal--booking {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .guest-home-confirm .confirm-formal__main {
+    padding: 28px 28px 20px;
+    background: #fffbf7;
+    text-align: center;
+  }
+
+  .guest-home-confirm .confirm-formal__seal {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 14px;
+    border: 2px solid #8a6f3a;
+    background: linear-gradient(165deg, #fffdf9, #faf3e4);
+    color: #6b5428;
+    flex-shrink: 0;
+  }
+
+  .guest-home-confirm .confirm-formal__seal-mark {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .guest-home-confirm .confirm-formal__message {
+    margin: 0;
+    padding: 14px 16px;
+    background: #fdf8f0;
+    border: 1px solid #e8dcc8;
+    border-radius: 10px;
+  }
+
+  .guest-home-confirm .confirm-formal__message .confirm-text.confirm-text--multiline {
+    margin: 0;
+    font-family: 'Montserrat', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--gold);
+    line-height: 1.45;
+  }
+
+  .guest-home-confirm .confirm-formal__footer {
+    margin: 0;
+    padding: 16px 24px max(20px, env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid #e8dcc8;
+    background: #fdf8f0;
+    flex-shrink: 0;
+  }
+
+  .guest-home-confirm .confirm-btns {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .guest-home-confirm .confirm-btns .btn-confirm-cancel,
+  .guest-home-confirm .confirm-btns .btn-confirm-submit {
+    min-width: 9.5rem;
+    flex: 0 0 auto;
+    max-width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    .guest-home-confirm .confirm-btns {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .guest-home-confirm .confirm-btns .btn-confirm-cancel,
+    .guest-home-confirm .confirm-btns .btn-confirm-submit {
+      width: 100%;
+      justify-content: center;
+    }
   }
 
   .confirm-icon {

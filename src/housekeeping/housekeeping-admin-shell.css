@@ -14,9 +14,10 @@
   }
 }
 
-/* ── Success snackbar (rooms / events / dashboard) ── */
+/* ── Success snackbar (legacy class names; prefer StaffNoticeToast) ── */
 .rc-success-toast,
-.rm-success-toast.active {
+.rm-success-toast.active,
+.hk-notice-toast {
   position: fixed;
   bottom: 28px;
   top: auto;
@@ -118,12 +119,17 @@ body:has(.housekeeping-portal-layout) .modal-overlay.abel-modal--top {
 }
 
 body:has(.housekeeping-portal-layout) .rc-modal.modal-box.abel-modal-panel,
-body:has(.housekeeping-portal-layout) .rm-modal.modal-box.abel-modal-panel {
+body:has(.housekeeping-portal-layout) .rm-modal.modal-box.abel-modal-panel,
+body:has(.housekeeping-portal-layout) .staff-success-modal.modal-box.abel-modal-panel {
   background: #fff;
   border: 1px solid #e8dcc8;
   border-radius: 12px;
   box-shadow: 0 20px 50px rgba(0, 0, 0, 0.2);
   max-width: 640px;
+}
+
+body:has(.housekeeping-portal-layout) .staff-success-modal.modal-box.abel-modal-panel {
+  max-width: 380px;
 }
 
 body:has(.housekeeping-portal-layout) .rc-modal.modal-box .modal-header,
@@ -251,9 +257,15 @@ body:has(.housekeeping-portal-layout) .rm-confirm-dialog {
 
 @media (max-width: 768px) {
   .rc-success-toast,
-  .rm-success-toast.active {
+  .rm-success-toast.active,
+  .hk-notice-toast {
     max-width: calc(100vw - 24px);
     padding: 12px 16px;
+  }
+
+  body:has(.housekeeping-portal-layout) .staff-success-modal.modal-box.abel-modal-panel {
+    width: 100%;
+    max-width: none;
   }
 
   body:has(.housekeeping-portal-layout) .rc-modal.modal-box.abel-modal-panel {

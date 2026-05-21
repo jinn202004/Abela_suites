@@ -55,17 +55,29 @@ export const FRONTDESK_HK_STATUS_OPTIONS = [
   { value: HK_ASSET_STATUS.AVAILABLE, label: "Available" },
 ];
 
-/** Map catalog status to the two-option front desk select value. */
+/** Map catalog status to the two-option front desk select value (occupied / in-progress are read-only). */
 export function frontDeskSelectValueFromRaw(raw) {
   const s = String(raw ?? "").trim().toLowerCase();
   if (s === HK_ASSET_STATUS.AVAILABLE || s === HK_ASSET_STATUS.READY) {
     return HK_ASSET_STATUS.AVAILABLE;
   }
+  if (s === HK_ASSET_STATUS.OCCUPIED || s === HK_ASSET_STATUS.CLEANING_IN_PROGRESS) {
+    return s;
+  }
   return HK_ASSET_STATUS.NEEDS_CLEANING;
 }
 
 export function frontDeskStatusLabel(raw) {
-  return frontDeskSelectValueFromRaw(raw) === HK_ASSET_STATUS.AVAILABLE
-    ? "Available"
-    : "Needs Cleaning";
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (s === HK_ASSET_STATUS.AVAILABLE || s === HK_ASSET_STATUS.READY) return "Available";
+  if (s === HK_ASSET_STATUS.OCCUPIED) return "Occupied";
+  if (s === HK_ASSET_STATUS.CLEANING_IN_PROGRESS) return "In Progress";
+  if (s === HK_ASSET_STATUS.NEEDS_CLEANING) return "Needs Cleaning";
+  return "—";
+}
+
+/** Front desk HK page: manual status override only when not occupied or actively being cleaned. */
+export function frontDeskHousekeepingStatusEditable(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  return s !== HK_ASSET_STATUS.OCCUPIED && s !== HK_ASSET_STATUS.CLEANING_IN_PROGRESS;
 }

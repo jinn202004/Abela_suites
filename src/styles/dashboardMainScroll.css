@@ -14,7 +14,9 @@ html:not(.abela-auth-scroll):not(.homedashboard-route) .main-wrapper {
   min-height: 0 !important;
 }
 
-html:not(.abela-auth-scroll):not(.homedashboard-route) .main-wrapper > .content {
+html:not(.abela-auth-scroll):not(.homedashboard-route):not(:has(.app-layout.admin-app-layout))
+  .main-wrapper
+  > .content {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   overflow-x: hidden !important;
@@ -23,12 +25,22 @@ html:not(.abela-auth-scroll):not(.homedashboard-route) .main-wrapper > .content 
 }
 
 /* Front desk rooms: .app-layout > .main-wrapper > .content */
-html:not(.abela-auth-scroll):not(.homedashboard-route) .app-layout > .main-wrapper > .content {
+html:not(.abela-auth-scroll):not(.homedashboard-route):not(:has(.app-layout.admin-app-layout))
+  .app-layout
+  > .main-wrapper
+  > .content {
   flex: 1 1 auto !important;
   min-height: 0 !important;
   overflow-x: hidden !important;
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
+}
+
+/* Admin: fixed sidebar + page scroll — do not trap scroll in .content */
+html:has(.app-layout.admin-app-layout) .main-wrapper > .content,
+html:has(.app-layout.admin-app-layout) .app-layout > .main-wrapper > .content {
+  overflow-y: visible !important;
+  overflow-x: hidden !important;
 }
 
 /* Admin / guest router shells (Outlet column) */
@@ -54,11 +66,16 @@ html:not(.abela-auth-scroll):not(.homedashboard-route) .guest-layout__content {
   -webkit-overflow-scrolling: touch !important;
 }
 
-/* admin_1 room/staff roots: flex column + scrollable main-wrapper */
-html:not(.abela-auth-scroll):not(.homedashboard-route) .rm-app > .main-wrapper,
-html:not(.abela-auth-scroll):not(.homedashboard-route) .app-root > .main-wrapper {
+/* admin_1 room/staff roots (non-admin scroll trap only): flex column main-wrapper */
+html:not(.abela-auth-scroll):not(.homedashboard-route):not(:has(.app-layout.admin-app-layout))
+  .rm-app
+  > .main-wrapper,
+html:not(.abela-auth-scroll):not(.homedashboard-route):not(:has(.app-layout.admin-app-layout))
+  .app-root
+  > .main-wrapper {
   flex: 1 1 auto !important;
   min-height: 0 !important;
+  min-width: 0 !important;
 }
 
 /* Cashier POS: two-column layout uses inner scroll; stacked layout (≤900px) must scroll the whole page */

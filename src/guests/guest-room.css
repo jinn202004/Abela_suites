@@ -983,9 +983,15 @@
     border: 1px solid #c0392b;
     border-radius: 8px;
   }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--pending,
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell--reserved {
     background: #f1c40f;
     border: 1px solid #d4ac0d;
+    border-radius: 8px;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--approved {
+    background: #27ae60;
+    border: 1px solid #1e8449;
     border-radius: 8px;
   }
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell .rdp-day_button {
@@ -1004,8 +1010,12 @@
     z-index: 1;
     pointer-events: auto;
   }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--pending .rdp-day_button,
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell--reserved .rdp-day_button {
     color: #4a3d08 !important;
+  }
+  .booking-form .booking-day-picker .rdp-day.fd-cal-cell--approved .rdp-day_button {
+    color: #fff !important;
   }
   .booking-form .booking-day-picker .rdp-day.fd-cal-cell--occupied .rdp-day_button {
     color: #fff !important;
@@ -1058,9 +1068,14 @@
     background: #e74c3c;
     border-color: #c0392b;
   }
+  .booking-form-fd-cal-legend .fd-cal-legend-swatch--pending,
   .booking-form-fd-cal-legend .fd-cal-legend-swatch--reserved {
     background: #f1c40f;
     border-color: #d4ac0d;
+  }
+  .booking-form-fd-cal-legend .fd-cal-legend-swatch--approved {
+    background: #27ae60;
+    border-color: #1e8449;
   }
   .booking-form-fd-cal-legend .fd-cal-legend-swatch--available {
     background: #ffffff;

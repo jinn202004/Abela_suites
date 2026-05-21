@@ -1,5 +1,6 @@
 /**
- * Staff “Add charges” appends segments like `Label (₱12.34)` or `Label ×2 (₱24.68)`, joined with `"; "`.
+ * Staff “Add charges” appends segments like `Label (₱12.34)`, `Label ×2 (₱24.68)` (rooms), or
+ * `Extra 2 hrs (₱50.00)` (events), joined with `"; "`.
  * Other text (e.g. guest requests) stays as note segments without a `(₱…)` tail.
  * @returns {{ charges: Array<{ label: string, amount: number }>, notes: string[] }}
  */

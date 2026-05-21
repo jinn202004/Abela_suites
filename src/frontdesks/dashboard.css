@@ -414,10 +414,17 @@
   color: #fff;
 }
 
+.fd-cal-cells .fd-cal-cell--pending,
 .fd-cal-cells .fd-cal-cell--reserved {
   background: #f1c40f;
   border-color: #d4ac0d;
   color: #4a3d08;
+}
+
+.fd-cal-cells .fd-cal-cell--approved {
+  background: #27ae60;
+  border-color: #1e8449;
+  color: #fff;
 }
 
 .fd-cal-legend {
@@ -447,8 +454,15 @@
   background: #e74c3c;
 }
 
+.fd-cal-legend-swatch--pending,
 .fd-cal-legend-swatch--reserved {
   background: #f1c40f;
+  border-color: #d4ac0d;
+}
+
+.fd-cal-legend-swatch--approved {
+  background: #27ae60;
+  border-color: #1e8449;
 }
 
 .fd-cal-legend-swatch--available {

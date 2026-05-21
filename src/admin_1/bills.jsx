@@ -571,145 +571,147 @@ export default function Bills() {
 
           {loadNotice ? <div className="bills-load-notice">{loadNotice}</div> : null}
 
-          <div className="bills-section-label">Billing records</div>
+          <div className="bills-ledger-stack">
+            <div className="bills-section-label">Billing records</div>
 
-          <div className="bills-table-wrap">
-            <table className="bills-table">
-              <thead>
-                <tr>
-                  <th>Guest</th>
-                  <th>Type</th>
-                  <th>Booking</th>
-                  <th>Total</th>
-                  <th>Paid</th>
-                  <th>Balance</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
+            <div className="bills-table-wrap">
+              <table className="bills-table">
+                <thead>
                   <tr>
-                    <td colSpan={8} className="bills-empty">
-                      Loading billing…
-                    </td>
+                    <th>Guest</th>
+                    <th>Type</th>
+                    <th>Booking</th>
+                    <th>Total</th>
+                    <th>Paid</th>
+                    <th>Balance</th>
+                    <th>Status</th>
+                    <th>Action</th>
                   </tr>
-                ) : rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="bills-empty">
-                      No billing records match this view.
-                    </td>
-                  </tr>
-                ) : (
-                  rows.map((r) => (
-                    <tr key={r.id}>
-                      <td>{String(r.guestName || "").trim() || "—"}</td>
-                      <td>{bookingTypeLabel(r.bookingType)}</td>
-                      <td>{String(r.contextLabel || "").trim() || "—"}</td>
-                      <td>{fmtPeso(r.totalAmount)}</td>
-                      <td>{fmtPeso(r.amountPaid)}</td>
-                      <td>{fmtPeso(r.balance)}</td>
-                      <td>
-                        <span className={`bills-pay-badge bills-pay-badge--${String(r.paymentStatus || "unpaid")}`}>
-                          {paymentStatusLabel(r.paymentStatus)}
-                        </span>
-                      </td>
-                      <td className="action-cell">
-                        <button type="button" className="icon-action view-btn" title="View details" onClick={() => setDetailId(r.id)}>
-                          <Icons.Eye />
-                        </button>
-                        <button type="button" className="icon-action print-btn" title="Open bill PDF (read-only)" onClick={() => printRowSummary(r)}>
-                          <Icons.Print />
-                        </button>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={8} className="bills-empty">
+                        Loading billing…
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {!loading && (
-            <div className="rm-pagination-row">
-              <div className="rm-pagination-meta">
-                <span className="rm-pagination-count">
-                  {rows.length > 0 ? (
-                    <>
-                      Showing {billsSliceFrom}–{billsSliceTo} of {totalItems} · Page {page} of {totalPages}
-                    </>
+                  ) : rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="bills-empty">
+                        No billing records match this view.
+                      </td>
+                    </tr>
                   ) : (
-                    <>
-                      {totalItems} record{totalItems === 1 ? "" : "s"} · Page {page} of {totalPages}
-                    </>
+                    rows.map((r) => (
+                      <tr key={r.id}>
+                        <td>{String(r.guestName || "").trim() || "—"}</td>
+                        <td>{bookingTypeLabel(r.bookingType)}</td>
+                        <td>{String(r.contextLabel || "").trim() || "—"}</td>
+                        <td>{fmtPeso(r.totalAmount)}</td>
+                        <td>{fmtPeso(r.amountPaid)}</td>
+                        <td>{fmtPeso(r.balance)}</td>
+                        <td>
+                          <span className={`bills-pay-badge bills-pay-badge--${String(r.paymentStatus || "unpaid")}`}>
+                            {paymentStatusLabel(r.paymentStatus)}
+                          </span>
+                        </td>
+                        <td className="action-cell">
+                          <button type="button" className="icon-action view-btn" title="View details" onClick={() => setDetailId(r.id)}>
+                            <Icons.Eye />
+                          </button>
+                          <button type="button" className="icon-action print-btn" title="Open bill PDF (read-only)" onClick={() => printRowSummary(r)}>
+                            <Icons.Print />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
                   )}
-                </span>
-                <label className="rm-pagination-limit">
-                  <span>Per page</span>
-                  <select
-                    className="rm-pagination-select"
-                    value={limit}
-                    onChange={(e) => {
-                      setLimit(Number(e.target.value));
-                      setPage(1);
-                    }}
-                  >
-                    <option value={10}>10</option>
-                    <option value={20}>20</option>
-                    <option value={50}>50</option>
-                  </select>
-                </label>
-              </div>
-              <div className="rm-pagination-btns">
-                <button
-                  type="button"
-                  className="rm-page-btn"
-                  disabled={page <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                >
-                  Previous
-                </button>
-                {visiblePageNumbers(page, totalPages).map((pNum, idx, arr) => {
-                  const prev = arr[idx - 1];
-                  const showEllipsis = prev && pNum - prev > 1;
-                  return (
-                    <span key={pNum} className="rm-page-btn-wrap">
-                      {showEllipsis ? <span className="rm-page-ellipsis">…</span> : null}
-                      <button
-                        type="button"
-                        className={`rm-page-btn${pNum === page ? " rm-page-btn--active" : ""}`}
-                        onClick={() => setPage(pNum)}
-                      >
-                        {pNum}
-                      </button>
-                    </span>
-                  );
-                })}
-                <button
-                  type="button"
-                  className="rm-page-btn"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                >
-                  Next
-                </button>
-              </div>
+                </tbody>
+              </table>
             </div>
-          )}
 
-          <BillsPrintModal
-            open={printOpen}
-            onClose={closeBillsPrint}
-            monthLabel={printMonthLabel}
-            variant={printVariant}
-            rows={printRowsFiltered}
-            printMonthKey={printMonth}
-            loading={printLoading}
-            error={printError}
-            rootClass="bills-page"
-            note="Totals and transaction list for this period (respects search and tab). Use per-row PDF on the table for a single billing snapshot."
-          />
+            {!loading && (
+              <div className="rm-pagination-row">
+                <div className="rm-pagination-meta">
+                  <span className="rm-pagination-count">
+                    {rows.length > 0 ? (
+                      <>
+                        Showing {billsSliceFrom}–{billsSliceTo} of {totalItems} · Page {page} of {totalPages}
+                      </>
+                    ) : (
+                      <>
+                        {totalItems} record{totalItems === 1 ? "" : "s"} · Page {page} of {totalPages}
+                      </>
+                    )}
+                  </span>
+                  <label className="rm-pagination-limit">
+                    <span>Per page</span>
+                    <select
+                      className="rm-pagination-select"
+                      value={limit}
+                      onChange={(e) => {
+                        setLimit(Number(e.target.value));
+                        setPage(1);
+                      }}
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                    </select>
+                  </label>
+                </div>
+                <div className="rm-pagination-btns">
+                  <button
+                    type="button"
+                    className="rm-page-btn"
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  >
+                    Previous
+                  </button>
+                  {visiblePageNumbers(page, totalPages).map((pNum, idx, arr) => {
+                    const prev = arr[idx - 1];
+                    const showEllipsis = prev && pNum - prev > 1;
+                    return (
+                      <span key={pNum} className="rm-page-btn-wrap">
+                        {showEllipsis ? <span className="rm-page-ellipsis">…</span> : null}
+                        <button
+                          type="button"
+                          className={`rm-page-btn${pNum === page ? " rm-page-btn--active" : ""}`}
+                          onClick={() => setPage(pNum)}
+                        >
+                          {pNum}
+                        </button>
+                      </span>
+                    );
+                  })}
+                  <button
+                    type="button"
+                    className="rm-page-btn"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </main>
       </RailPortalShell>
+
+      <BillsPrintModal
+        open={printOpen}
+        onClose={closeBillsPrint}
+        monthLabel={printMonthLabel}
+        variant={printVariant}
+        rows={printRowsFiltered}
+        printMonthKey={printMonth}
+        loading={printLoading}
+        error={printError}
+        rootClass="bills-page"
+        note="Totals and transaction list for this period (respects search and tab). Use per-row PDF on the table for a single billing snapshot."
+      />
 
       <DetailsModal billingId={detailId} onClose={() => setDetailId(null)} />
 

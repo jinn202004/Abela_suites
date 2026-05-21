@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { Modal } from "../components/Modal";
+import { StaffSuccessModal } from "../components/StaffSuccessModal";
+import { StaffNoticeToast } from "../components/StaffNoticeToast";
+import "../components/StaffSuccessModal.css";
+import "../components/StaffNoticeToast.css";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { useHousekeepingCleaningNotifications } from "./useHousekeepingCleaningNotifications";
@@ -127,6 +131,7 @@ export default function EventCleaning() {
   const [currentTab, setCurrentTab] = useState("pending");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState(null);
+  const [successModal, setSuccessModal] = useState(null);
   const [damageModalOpen, setDamageModalOpen] = useState(false);
   const [damageTaskId, setDamageTaskId] = useState("");
   const [damageDesc, setDamageDesc] = useState("");
@@ -305,8 +310,19 @@ export default function EventCleaning() {
 
   function showToast(title, sub) {
     setToast({ title, sub });
-    setTimeout(() => setToast(null), 3500);
+    window.clearTimeout(toastDismissRef.current);
+    toastDismissRef.current = window.setTimeout(() => setToast(null), 3500);
   }
+
+  function showSuccessModal(title, message) {
+    setSuccessModal({ title, message });
+  }
+
+  useEffect(() => {
+    return () => {
+      if (toastDismissRef.current) window.clearTimeout(toastDismissRef.current);
+    };
+  }, []);
 
   async function handleStart(taskId) {
     setBusyId(taskId);
@@ -328,7 +344,7 @@ export default function EventCleaning() {
       await putHousekeepingTaskStatusBackend(taskId, "completed");
       await loadTasks();
       dispatchHousekeepingTasksRefresh();
-      showToast("Completed", "Venue marked ready.");
+      showSuccessModal("Completed", "Venue marked ready.");
     } catch (e) {
       showToast("Update failed", e?.message || "Request failed.");
     } finally {
@@ -559,20 +575,14 @@ export default function EventCleaning() {
         </main>
       </RailPortalShell>
 
-      {toast ? (
-        <div className="rc-success-toast" role="status" aria-live="polite">
-          <div className="rc-success-inner">
-            <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#2ecc71" strokeWidth="2.2">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="9 12 11 14 15 10" />
-            </svg>
-            <div>
-              <p className="rc-success-title">{toast.title}</p>
-              <p className="rc-success-sub">{toast.sub}</p>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <StaffSuccessModal
+        open={Boolean(successModal)}
+        title={successModal?.title ?? "Completed"}
+        message={successModal?.message ?? ""}
+        onClose={() => setSuccessModal(null)}
+      />
+
+      <StaffNoticeToast open={Boolean(toast)} title={toast?.title} message={toast?.sub} />
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
 

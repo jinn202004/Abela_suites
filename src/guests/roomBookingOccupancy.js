@@ -1,5 +1,5 @@
 import { fetchRoomAvailabilityWindow, fetchRoomGuestOccupancy } from "../api/guestApi";
-import { addLocalDays, parseLocalYmd } from "./roomStayDates";
+import { addLocalDays, stayToneFromStatus } from "./roomStayDates";
 
 export function stayRangeKey(checkIn, checkOut) {
   return `${String(checkIn ?? "").trim()}|${String(checkOut ?? "").trim()}`;
@@ -16,16 +16,14 @@ export function mergeRoomBookedRanges(primary, secondary) {
     const co = String(r?.checkOut ?? "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ci) || !/^\d{4}-\d{2}-\d{2}$/.test(co) || co <= ci) continue;
     const k = stayRangeKey(ci, co);
-    if (!m.has(k)) m.set(k, { checkIn: ci, checkOut: co, stayTone: "reserved" });
+    if (!m.has(k)) m.set(k, { checkIn: ci, checkOut: co, stayTone: "pending" });
   }
   for (const r of primary || []) {
     const ci = String(r?.checkIn ?? "").trim();
     const co = String(r?.checkOut ?? "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(ci) || !/^\d{4}-\d{2}-\d{2}$/.test(co) || co <= ci) continue;
     const k = stayRangeKey(ci, co);
-    const tone =
-      String(r?.stayTone ?? "").trim().toLowerCase() === "occupied" ? "occupied" : "reserved";
-    m.set(k, { checkIn: ci, checkOut: co, stayTone: tone });
+    m.set(k, { checkIn: ci, checkOut: co, stayTone: stayToneFromStatus(r?.stayTone ?? "pending") });
   }
   return [...m.values()].sort((a, b) =>
     a.checkIn !== b.checkIn ? a.checkIn.localeCompare(b.checkIn) : a.checkOut.localeCompare(b.checkOut),

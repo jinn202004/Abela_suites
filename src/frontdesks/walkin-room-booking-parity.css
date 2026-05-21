@@ -1085,8 +1085,12 @@
   font-weight: 600;
   color: var(--text-mid);
 }
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell--pending .rdp-day_button,
 .walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell--reserved .rdp-day_button {
   color: #4a3d08 !important;
+}
+.walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell--approved .rdp-day_button {
+  color: #fff !important;
 }
 .walkin-room-booking-root .booking-form .booking-day-picker .rdp-day.fd-cal-cell--occupied .rdp-day_button {
   color: #fff !important;

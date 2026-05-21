@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
-import { useLazyBookingIdPhoto } from "./useLazyBookingIdPhoto";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -27,6 +26,7 @@ import {
   GUEST_BOOKINGS_STORAGE_PING_KEY,
 } from "../api/guestApi";
 import { ReservationProofPreview } from "../components/ReservationProofPreview";
+import GovernmentIdPreview from "../components/GovernmentIdPreview";
 import {
   derivePaymentStatusLine,
   parseAdditionalRequestChargeLines,
@@ -454,7 +454,9 @@ function mapApiRoomBookingToRow(b, roomIdToNumber) {
     addreq: b.additionalRequests || "N/A",
     paymethod: b.paymentMethod || "—",
     paymentProofData: "",
-    validIdPhotoData: g.validIdPhotoData || "",
+    governmentIdUrl: String(b.governmentIdUrl || b.validIdPhotoUrl || "").trim(),
+    validIdPhotoData:
+      String(b.governmentIdUrl || b.validIdPhotoUrl || g.validIdPhotoData || "").trim(),
     declineReason: String(b.declineReason || "").trim(),
   };
 }
@@ -730,19 +732,26 @@ function DetailsModal({ open, row, onClose, onApprove, onReject, onEdit }) {
       email: bookingEmailDisplay(apiBooking) || row.email,
       contact: bookingPhoneDisplay(apiBooking) || row.contact,
       declineReason: declineFromApi !== "" ? declineFromApi : row.declineReason || "",
+      governmentIdUrl:
+        apiBooking.governmentIdUrl || apiBooking.validIdPhotoUrl || row.governmentIdUrl || "",
+      validIdPhotoData:
+        apiBooking.governmentIdUrl ||
+        apiBooking.validIdPhotoUrl ||
+        apiBooking.guest?.validIdPhotoData ||
+        row.validIdPhotoData ||
+        "",
+      guest: apiBooking.guest || row.guest,
     };
   }, [row, apiBooking]);
 
-  const idPhotoData = useLazyBookingIdPhoto({
-    open: open && !!row,
-    bookingId: row?._bookingId,
-    rowPhoto: row?.validIdPhotoData,
-  });
   if (!row) return null;
   const r = display || row;
+  const idBooking = apiBooking || {
+    governmentIdUrl: row.governmentIdUrl,
+    validIdPhotoUrl: row.governmentIdUrl,
+    guest: { validIdPhotoData: row.validIdPhotoData },
+  };
   const roomType = roomTitleFromPackageField(r.package);
-  const idSrc =
-    idPhotoData && String(idPhotoData).startsWith("data:") ? idPhotoData : IMAGES.guestId;
   const proofBooking = { paymentMethod: r.paymethod, paymentProofData: r.paymentProofData };
   const proofSrc = paymentProofFromBooking(proofBooking);
   const pmLabel = paymentMethodDisplayLabel(proofBooking);
@@ -944,12 +953,7 @@ function DetailsModal({ open, row, onClose, onApprove, onReject, onEdit }) {
               </div>
             </dl>
           </section>
-          <section className="rdm-card">
-            <h4 className="rdm-card__title">Government ID</h4>
-            <div className="rdm-media-frame rdm-media-frame--tall">
-              <img src={idSrc} alt="Guest ID" className="rdm-media-img" decoding="async" />
-            </div>
-          </section>
+          <GovernmentIdPreview booking={idBooking} />
         </div>
       </div>
     </Modal>
@@ -1070,7 +1074,7 @@ function RejectModal({ open, onClose, onSubmit, initialReason = "" }) {
             disabled={!canContinue}
             onClick={() => canContinue && onSubmit(trimmed)}
           >
-            Continue to confirmation
+            Confirm
           </button>
         </div>
       }
@@ -1193,23 +1197,29 @@ function CheckModal({ open, row, onClose, onCheckin, onCheckout, onAddCharges })
       email: bookingEmailDisplay(apiBooking) || row.email,
       contact: bookingPhoneDisplay(apiBooking) || row.contact,
       declineReason: declineFromApi !== "" ? declineFromApi : row.declineReason || "",
+      governmentIdUrl:
+        apiBooking.governmentIdUrl || apiBooking.validIdPhotoUrl || row.governmentIdUrl || "",
+      validIdPhotoData:
+        apiBooking.governmentIdUrl ||
+        apiBooking.validIdPhotoUrl ||
+        apiBooking.guest?.validIdPhotoData ||
+        row.validIdPhotoData ||
+        "",
+      guest: apiBooking.guest || row.guest,
     };
   }, [row, apiBooking]);
-
-  const idPhotoData = useLazyBookingIdPhoto({
-    open: open && !!row,
-    bookingId: row?._bookingId,
-    rowPhoto: row?.validIdPhotoData,
-  });
 
   if (!row) return null;
   const isOccupied = String(row.status || "").toLowerCase() === "occupied";
   const r = display || row;
+  const idBooking = apiBooking || {
+    governmentIdUrl: row.governmentIdUrl,
+    validIdPhotoUrl: row.governmentIdUrl,
+    guest: { validIdPhotoData: row.validIdPhotoData },
+  };
   const addreqParsed = parseAdditionalRequestChargeLines(r.addreq);
   const addOnsSubtotal = addreqParsed.charges.reduce((s, c) => s + c.amount, 0);
   const roomType = roomTitleFromPackageField(r.package);
-  const idSrc =
-    idPhotoData && String(idPhotoData).startsWith("data:") ? idPhotoData : IMAGES.guestId;
   const proofBooking = { paymentMethod: r.paymethod, paymentProofData: r.paymentProofData };
   const proofSrc = paymentProofFromBooking(proofBooking);
   const pmLabel = paymentMethodDisplayLabel(proofBooking);
@@ -1447,12 +1457,7 @@ function CheckModal({ open, row, onClose, onCheckin, onCheckout, onAddCharges })
               </div>
             </dl>
           </section>
-          <section className="rdm-card">
-            <h4 className="rdm-card__title">Government ID</h4>
-            <div className="rdm-media-frame rdm-media-frame--tall">
-              <img src={idSrc} alt="Guest ID" className="rdm-media-img" decoding="async" />
-            </div>
-          </section>
+          <GovernmentIdPreview booking={idBooking} />
         </div>
       </div>
     </Modal>
@@ -1856,7 +1861,7 @@ function WalkinModal({ open, onClose, onSubmit }) {
     [roomOccupancyRanges],
   );
 
-  const { occupiedNightSet, reservedNightSet } = useMemo(
+  const { occupiedNightSet, approvedNightSet, pendingNightSet } = useMemo(
     () => splitGuestStayNightsByTone(roomOccupancyRanges),
     [roomOccupancyRanges],
   );
@@ -1869,13 +1874,15 @@ function WalkinModal({ open, onClose, onSubmit }) {
         if (selectedRoomId && blockedCheckInSet.has(key)) {
           const detail = occupiedNightSet.has(key)
             ? " In-house stay (checked in)."
-            : " This night is already reserved for the selected room.";
+            : approvedNightSet.has(key)
+              ? " This night is approved and confirmed for the selected room."
+              : " This night has a pending reservation for this room.";
           label = `${label}.${detail} Not available as walk-in check-in.`;
         }
         return label;
       },
     }),
-    [blockedCheckInSet, occupiedNightSet, selectedRoomId],
+    [blockedCheckInSet, occupiedNightSet, approvedNightSet, selectedRoomId],
   );
 
   const checkInDisabledMatchers = useMemo(() => {
@@ -2277,8 +2284,9 @@ function WalkinModal({ open, onClose, onSubmit }) {
 
               <div className="form-row form-row--stay-calendars">
                 <p className="booking-cal-unavailable-hint">
-                  <strong>Calendar key:</strong> <span className="booking-cal-unavailable-hint__inline">Occupied</span> (red) and{" "}
-                  <span className="booking-cal-unavailable-hint__inline">Reserved</span> (gold) nights match the front desk view. They cannot be used as your check-in date for this room.
+                  <strong>Calendar key:</strong> <span className="booking-cal-unavailable-hint__inline">Pending</span> (gold),{" "}
+                  <span className="booking-cal-unavailable-hint__inline">Approved</span> (green), and{" "}
+                  <span className="booking-cal-unavailable-hint__inline">Occupied</span> (red) nights match the front desk dashboard. They cannot be used as walk-in check-in for this room.
                 </p>
                 <div className="form-group">
                   <span className="form-label-static" id="wi-checkin-label">
@@ -2298,12 +2306,15 @@ function WalkinModal({ open, onClose, onSubmit }) {
                       modifiers={{
                         stayOccupied: (date) =>
                           Boolean(selectedRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
-                        stayReserved: (date) =>
-                          Boolean(selectedRoomId) && reservedNightSet.has(formatLocalYmd(date)),
+                        stayApproved: (date) =>
+                          Boolean(selectedRoomId) && approvedNightSet.has(formatLocalYmd(date)),
+                        stayPending: (date) =>
+                          Boolean(selectedRoomId) && pendingNightSet.has(formatLocalYmd(date)),
                       }}
                       modifiersClassNames={{
                         stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
-                        stayReserved: "fd-cal-cell fd-cal-cell--reserved",
+                        stayApproved: "fd-cal-cell fd-cal-cell--approved",
+                        stayPending: "fd-cal-cell fd-cal-cell--pending",
                       }}
                       className="booking-day-picker"
                       id="wi-checkin-calendar"
@@ -2344,12 +2355,15 @@ function WalkinModal({ open, onClose, onSubmit }) {
                       modifiers={{
                         stayOccupied: (date) =>
                           Boolean(selectedRoomId) && occupiedNightSet.has(formatLocalYmd(date)),
-                        stayReserved: (date) =>
-                          Boolean(selectedRoomId) && reservedNightSet.has(formatLocalYmd(date)),
+                        stayApproved: (date) =>
+                          Boolean(selectedRoomId) && approvedNightSet.has(formatLocalYmd(date)),
+                        stayPending: (date) =>
+                          Boolean(selectedRoomId) && pendingNightSet.has(formatLocalYmd(date)),
                       }}
                       modifiersClassNames={{
                         stayOccupied: "fd-cal-cell fd-cal-cell--occupied",
-                        stayReserved: "fd-cal-cell fd-cal-cell--reserved",
+                        stayApproved: "fd-cal-cell fd-cal-cell--approved",
+                        stayPending: "fd-cal-cell fd-cal-cell--pending",
                       }}
                       className="booking-day-picker"
                       id="wi-checkout-calendar"
@@ -2373,19 +2387,22 @@ function WalkinModal({ open, onClose, onSubmit }) {
                     <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
                   </span>
                   <span className="fd-cal-legend-item">
-                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--reserved" aria-hidden /> Reserved / Pending
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--pending" aria-hidden /> Pending
+                  </span>
+                  <span className="fd-cal-legend-item">
+                    <span className="fd-cal-legend-swatch fd-cal-legend-swatch--approved" aria-hidden /> Approved
                   </span>
                   <span className="fd-cal-legend-item">
                     <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
                   </span>
                 </div>
                 <p className="booking-cal-legend-help">
-                  Each night shows this room&apos;s status. <strong>Gold</strong> covers pending and approved stays not yet checked in.{" "}
-                  <strong>Red</strong> means a guest is currently in-house. Open dates are available for your stay.
+                  Each night shows this room&apos;s status. <strong>Gold</strong> is a pending request awaiting review.{" "}
+                  <strong>Green</strong> is an approved stay not yet checked in. <strong>Red</strong> means a guest is currently in-house. Open dates are available for walk-in booking.
                 </p>
               </div>
               <p className="booking-schedule-note" role="note">
-                <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk calendar: <strong>Occupied</strong> (red) and <strong>Reserved</strong> (gold) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
+                <strong>Note:</strong> Check-in time is 2:00 PM and check-out time is 12:00 PM. Colors match the front desk dashboard: <strong>Pending</strong> (gold), <strong>Approved</strong> (green), and <strong>Occupied</strong> (red) nights cannot be used as check-in. The next guest may check in from 2:00 PM on the departure date of an existing stay.
               </p>
 
               {walkinStayNightsCount >= 1 && form.checkin && form.checkout ? (

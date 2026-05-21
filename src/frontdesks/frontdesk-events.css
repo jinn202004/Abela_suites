@@ -557,30 +557,51 @@
   .btn-add-charges:hover { border-color: var(--gold); }
   
   /* ── ADD CHARGES MODAL ── */
-  .charges-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .charges-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
   .charges-form { display: flex; flex-direction: column; gap: 12px; }
+  .charges-form .form-group { flex: 0 0 auto; }
   .charges-input { width: 100%; height: 38px; padding: 0 12px; border: 1.5px solid #d4c4a8; border-radius: 6px; font-family: 'Roboto', sans-serif; font-size: 13px; color: var(--text-dark); background: #fff; outline: none; transition: border-color 0.2s; }
   .charges-input:focus { border-color: var(--gold); }
   .charges-input::placeholder { color: #bbb; font-size: 12px; }
   .charges-list-wrap { background: #fdf8f0; border: 1.5px solid #d4c4a8; border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
-  .charges-list-header { font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; color: var(--text-dark); padding-bottom: 6px; border-bottom: 1px solid #e8dcc8; }
-  .charges-list { display: flex; flex-direction: column; gap: 8px; flex: 1; }
-  .charge-item-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid #f0e8d8; }
+  .charges-list-header {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 700; color: var(--text-dark);
+    padding-bottom: 6px; border-bottom: 1px solid #e8dcc8;
+  }
+  .charges-list { display: flex; flex-direction: column; gap: 0; flex: 1; min-height: 52px; }
+  .charge-item-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid #f0e8d8;
+  }
+  .charge-summary-empty { color: var(--text-light); font-size: 12.5px; }
+  .charge-summary-empty span:last-child { text-align: right; font-weight: 600; color: var(--text-mid); }
+  .charge-item-hours { font-size: 12.5px; font-weight: 600; color: var(--text-dark); }
+  .charge-item-amount-wrap { display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-width: 0; }
+  .charge-item-amount { font-size: 12.5px; font-weight: 600; color: var(--text-dark); text-align: right; }
+  .charge-item-amount--muted { color: var(--text-light); font-weight: 500; }
+  .charges-list-header span:last-child { text-align: right; }
   .charge-item-row:last-child { border-bottom: none; }
   .charge-item-name { font-size: 12.5px; color: var(--text-dark); flex: 1; line-height: 1.4; }
   .charge-item-name small { color: var(--text-light); font-size: 11px; }
-  .charge-qty-ctrl { display: flex; align-items: center; gap: 5px; }
-  .charge-qty-ctrl button { width: 22px; height: 22px; border-radius: 4px; border: 1px solid #d4c4a8; background: #fff; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s; }
-  .charge-qty-ctrl button:hover { background: #f0e8d8; }
-  .charge-qty-ctrl span { font-size: 13px; font-weight: 600; min-width: 16px; text-align: center; }
-  .charge-remove { background: #fde8e8 !important; border-color: #e74c3c !important; color: #e74c3c; font-size: 10px !important; }
+  .charge-remove { background: #fde8e8 !important; border-color: #e74c3c !important; color: #e74c3c; font-size: 10px !important; width: 22px; height: 22px; flex-shrink: 0; }
   .charge-remove:hover { background: #f9c9c9 !important; }
   .charges-total-row { display: flex; justify-content: space-between; align-items: center; font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700; color: var(--text-dark); padding-top: 8px; border-top: 1px solid #e8dcc8; margin-top: auto; }
   .charges-balance-hint { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e8dcc8; font-family: 'Montserrat', sans-serif; font-size: 12px; color: var(--text-dark); }
   .charges-balance-hint > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .charges-balance-hint-label { color: var(--text-mid); font-weight: 600; }
   .charges-balance-hint-value { font-weight: 700; text-align: right; }
-  .charge-preview-row { border-bottom: 1px dashed #e8dcc8 !important; background: #fdf8f0; }
+  .charges-balance-hint-value--changed { color: var(--gold); }
+  .charges-balance-hint--stack .charges-balance-hint__caption {
+    font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-light); margin: 4px 0 2px;
+  }
+  .charges-balance-hint--stack .charges-balance-hint__caption--after {
+    margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e8dcc8;
+  }
+  .charge-preview-row { border-bottom: 1px dashed #e8dcc8 !important; background: rgba(184, 146, 42, 0.06); opacity: 0.85; }
+  .charge-preview-row .charge-item-hours,
+  .charge-preview-row .charge-item-amount { color: var(--text-mid); }
   
   /* ── EDIT FORM INPUTS ── */
   .form-group { display: flex; flex-direction: column; gap: 5px; flex: 1; }

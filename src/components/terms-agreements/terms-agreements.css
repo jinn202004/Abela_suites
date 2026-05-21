@@ -5,11 +5,188 @@
   gap: 14px;
 }
 
+.ta-terms-agreements--stacked {
+  gap: 16px;
+}
+
+/* Unified section headings */
+.ta-terms-agreements .ta-section-title,
+.ta-terms-agreements .ev-terms-title,
+.ta-terms-agreements .ev-agreements-title,
+.ta-terms-agreements .terms-title,
+.ta-terms-agreements .agreements-title {
+  margin: 0 0 12px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--gold, #b8922a);
+  letter-spacing: 0.01em;
+}
+
+/* Full inline terms (no modal) */
+.ta-terms-read-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ta-terms-inline-body {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-dark, #3d3832);
+  line-height: 1.65;
+  max-height: min(220px, 38vh);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  border: 1px solid #e8dcc8;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #fff;
+  scrollbar-width: thin;
+  scrollbar-color: #b8922a #f5f0e6;
+}
+
+.ta-terms-inline-body::-webkit-scrollbar {
+  width: 8px;
+}
+
+.ta-terms-inline-body::-webkit-scrollbar-track {
+  background: #f5f0e6;
+  border-radius: 8px;
+}
+
+.ta-terms-inline-body::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #c9a84c 0%, #b8922a 100%);
+  border-radius: 8px;
+  border: 2px solid #f5f0e6;
+}
+
+.ta-terms-inline-body ol {
+  padding-left: 1.2rem;
+  margin: 0;
+}
+
+.ta-terms-inline-body ol li {
+  margin-bottom: 0.65rem;
+}
+
+.ta-terms-inline-body ul {
+  padding-left: 1.1rem;
+  margin: 0.35rem 0 0;
+}
+
+.ta-terms-inline-body ul li {
+  margin-bottom: 0.3rem;
+}
+
+.ta-terms-inline-body strong {
+  font-size: inherit;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+}
+
+/* Agreement checkboxes block */
+.ta-agreements-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ta-agreements-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ta-agreement-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.ta-agreement-item .ta-agreement-line {
+  width: 100%;
+}
+
+.ta-agreement-text,
+.ta-terms-agreements .checkbox-label,
+.ta-terms-agreements .ev-checkbox-label {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text-dark, #3d3832);
+}
+
+.ta-agreement-item > .checkbox-label,
+.ta-agreement-item > .ev-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  width: 100%;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ta-agreement-item input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin-top: 2px;
+  accent-color: var(--gold, #b8922a);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+/* Non-clickable policy name (terms shown above) */
+.ta-policy-label {
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 700;
+  line-height: inherit;
+  color: var(--gold, #b8922a);
+}
+
+.ta-terms-agreements .ta-policy-link {
+  font-family: "Roboto", sans-serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  vertical-align: baseline;
+}
+
+.ta-terms-agreements .field-error,
+.ta-terms-agreements .ev-field-err {
+  font-family: "Roboto", sans-serif;
+  font-size: 11.5px;
+  margin: 0;
+  padding-left: 24px;
+}
+
 .ta-terms-agreements .terms-block,
 .ta-terms-agreements .agreements-block,
+.ta-terms-agreements .ev-terms-block,
+.ta-terms-agreements .ev-agreements-block,
 .walkin-room-booking-root .ta-terms-agreements .terms-block,
-.walkin-room-booking-root .ta-terms-agreements .agreements-block {
+.walkin-room-booking-root .ta-terms-agreements .agreements-block,
+.walkin-event-booking-root .ta-terms-agreements .ev-terms-block,
+.walkin-event-booking-root .ta-terms-agreements .ev-agreements-block,
+.guest-portal-layout .ta-terms-agreements .terms-block,
+.guest-portal-layout .ta-terms-agreements .agreements-block,
+.guest-portal-layout .ta-terms-agreements .ev-terms-block,
+.guest-portal-layout .ta-terms-agreements .ev-agreements-block {
   box-shadow: 0 4px 18px rgba(92, 72, 38, 0.06);
+}
+
+.ta-terms-agreements .ev-terms-body {
+  scrollbar-width: thin;
+  scrollbar-color: #b8922a #f5f0e6;
 }
 
 /* Smooth custom scrollbar — inline preview + modal body */
@@ -69,35 +246,46 @@
   opacity: 0.85;
 }
 
-.ta-checkbox-label--locked input[type="checkbox"] {
-  cursor: not-allowed;
-  opacity: 0.72;
+/* Checkbox + policy link on one row — link click must not toggle the box */
+.ta-agreement-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
 }
 
-.ta-terms-hint {
+.ta-agreement-line .checkbox-label,
+.ta-agreement-line .ev-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   margin: 0;
-  font-family: "Roboto", sans-serif;
-  font-size: 12px;
-  color: #9a7a28;
-  background: #faf6ee;
-  border: 1px solid #e8dcc8;
-  border-radius: 6px;
-  padding: 8px 12px;
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.25s ease, transform 0.25s ease;
 }
 
-.ta-terms-hint--visible {
-  opacity: 1;
-  transform: translateY(0);
+.ta-agreement-line .ta-policy-link {
+  flex-shrink: 0;
+}
+
+@media (max-width: 480px) {
+  .ta-terms-inline-body {
+    max-height: min(200px, 42vh);
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .ta-agreement-line {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
 }
 
 /* ─── Policy modal ─── */
 .ta-policy-modal {
   position: fixed;
   inset: 0;
-  z-index: 12000;
+  /* Above walk-in / staff modals (10050) */
+  z-index: 11000;
   display: flex;
   align-items: center;
   justify-content: center;

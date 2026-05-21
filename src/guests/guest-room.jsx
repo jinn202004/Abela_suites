@@ -57,6 +57,8 @@ import { DayPicker, labelDayButton as defaultLabelDayButton } from "react-day-pi
 import "react-day-picker/style.css";
 import "./guest-room.css";
 import { RoomDetailModal } from "../components/RoomDetailModal";
+import TermsAgreementsSection from "../components/terms-agreements/TermsAgreementsSection";
+import "../components/terms-agreements/terms-agreements.css";
 
 /** GCash mark for payment card: `public/Gcash.png`. Scan-to-pay QR: `public/gcash-payment-qr.png`. */
 const GCASH_CARD_ICON = "/Gcash.png";
@@ -315,6 +317,10 @@ export default function Rooms() {
   const [occupancyErr, setOccupancyErr] = useState("");
   /** Bumped when front desk approves/rejects (or other tabs) so calendars refetch server occupancy. */
   const [guestBookingsPing, setGuestBookingsPing] = useState(0);
+  const setAgreement = (field) => (e) => {
+    setForm((f) => ({ ...f, [field]: e.target.checked }));
+    setFormErrors((fe) => ({ ...fe, [field]: false }));
+  };
 
   // Payment modal
   const [payOpen, setPayOpen]   = useState(false);
@@ -1411,46 +1417,20 @@ export default function Rooms() {
                 </div>
               </div>
 
-              {/* Terms */}
-              <div className="terms-block">
-                <h3 className="terms-title">Terms and Conditions</h3>
-                <div className="terms-body">
-                  <ol>
-                    <li><strong>Valid ID Requirement</strong>
-                      <ul>
-                        <li>A clear photo or scanned copy of a valid government-issued ID must be uploaded with your reservation request.</li>
-                        <li>The reservation name must match the name on the ID.</li>
-                      </ul>
-                    </li>
-                    <li><strong>Verification &amp; Confirmation</strong>
-                      <ul><li>All reservation requests are subject to approval after ID verification.</li></ul>
-                    </li>
-                  </ol>
-                </div>
-                <label className={`checkbox-label${formErrors.termsCheck ? " check-error" : ""}`}>
-                  <input type="checkbox" checked={!!form.termsCheck}
-                    onChange={e => { setForm(f => ({ ...f, termsCheck: e.target.checked })); setFormErrors(fe => ({ ...fe, termsCheck: false })); }} />
-                  I have read and accept the <a href="#">Terms and Conditions</a>
-                </label>
-                {formErrors.termsCheck && <span className="field-error">{formErrors.termsCheck}</span>}
-              </div>
-
-              {/* Agreements */}
-              <div className="agreements-block">
-                <h3 className="agreements-title">Required Agreements</h3>
-                <label className={`checkbox-label${formErrors.privacyCheck ? " check-error" : ""}`}>
-                  <input type="checkbox" checked={!!form.privacyCheck}
-                    onChange={e => { setForm(f => ({ ...f, privacyCheck: e.target.checked })); setFormErrors(fe => ({ ...fe, privacyCheck: false })); }} />
-                  I have read and agree to the <a href="#">Data Privacy &amp; Policy</a>
-                </label>
-                {formErrors.privacyCheck && <span className="field-error">{formErrors.privacyCheck}</span>}
-                <label className={`checkbox-label${formErrors.stayCheck ? " check-error" : ""}`}>
-                  <input type="checkbox" checked={!!form.stayCheck}
-                    onChange={e => { setForm(f => ({ ...f, stayCheck: e.target.checked })); setFormErrors(fe => ({ ...fe, stayCheck: false })); }} />
-                  I have read and agree to the <a href="#">Terms &amp; Conditions of Stay</a>
-                </label>
-                {formErrors.stayCheck && <span className="field-error">{formErrors.stayCheck}</span>}
-              </div>
+              <TermsAgreementsSection
+                variant="room"
+                termsChecked={form.termsCheck}
+                privacyChecked={form.privacyCheck}
+                stayChecked={form.stayCheck}
+                onTermsChange={setAgreement("termsCheck")}
+                onPrivacyChange={setAgreement("privacyCheck")}
+                onStayChange={setAgreement("stayCheck")}
+                errors={{
+                  termsCheck: formErrors.termsCheck,
+                  privacyCheck: formErrors.privacyCheck,
+                  stayCheck: formErrors.stayCheck,
+                }}
+              />
 
               {resRoom && (form.checkInDate || form.checkOutDate || form.customerName.trim()) ? (
                 <div className="booking-review-summary" aria-labelledby="booking-review-summary-title">

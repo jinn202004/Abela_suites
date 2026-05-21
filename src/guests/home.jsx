@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import TopbarAvatar from "../topbar/TopbarAvatar";
 import { TOPBAR } from "../topbar/roleTopbarData";
@@ -404,6 +404,14 @@ function filterGuestHomeApiBookings(bookings, roomIdSet, venueIdSet) {
   return out;
 }
 
+function visibleGuestBookingsPageNumbers(currentPage, totalPages) {
+  const t = Math.max(1, Math.min(5000, Number(totalPages) || 1));
+  const c = Math.min(Math.max(1, Number(currentPage) || 1), t);
+  if (t <= 9) return Array.from({ length: t }, (_, i) => i + 1);
+  const set = new Set([1, t, c, c - 1, c + 1]);
+  return [...set].filter((p) => p >= 1 && p <= t).sort((a, b) => a - b);
+}
+
 // ============================================================
 export default function Home() {
   const location = useLocation();
@@ -428,6 +436,9 @@ export default function Home() {
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
   const [unifiedRows, setUnifiedRows] = useState([]);
+  /** Client-side table pagination only; same booking fetch as before (no API or DB change). */
+  const [bookingsTablePage, setBookingsTablePage] = useState(1);
+  const [bookingsTablePageSize, setBookingsTablePageSize] = useState(10);
   const [hasGuestEmail, setHasGuestEmail] = useState(false);
   /** Map room catalog id → roomNumber for matching booking.roomId */
   const [roomIdToNumber, setRoomIdToNumber] = useState(() => new Map());
@@ -451,6 +462,23 @@ export default function Home() {
           return id != null && String(id).trim() !== "" ? id : null;
         })()
       : null;
+
+  const bookingsPageSizeSafe = Math.min(100, Math.max(5, Number(bookingsTablePageSize) || 10));
+  const bookingsTotalPages = Math.max(1, Math.ceil(unifiedRows.length / bookingsPageSizeSafe));
+  const bookingsPageSafe = Math.min(Math.max(1, bookingsTablePage), bookingsTotalPages);
+
+  const bookingsPagedRows = useMemo(() => {
+    const start = (bookingsPageSafe - 1) * bookingsPageSizeSafe;
+    return unifiedRows.slice(start, start + bookingsPageSizeSafe);
+  }, [unifiedRows, bookingsPageSafe, bookingsPageSizeSafe]);
+
+  useEffect(() => {
+    setBookingsTablePage(1);
+  }, [unifiedRows.length]);
+
+  useEffect(() => {
+    setBookingsTablePage((p) => Math.min(Math.max(1, p), bookingsTotalPages));
+  }, [bookingsTotalPages]);
 
   const loadBookings = useCallback(async () => {
     setBookingsLoading(true);
@@ -909,6 +937,7 @@ export default function Home() {
               )}
 
               {!bookingsLoading && !bookingsError && unifiedRows.length > 0 && (
+                <>
                 <div className="bookings-table-wrap">
                   <table className="bookings-table">
                     <thead>
@@ -924,7 +953,7 @@ export default function Home() {
                       </tr>
                     </thead>
                     <tbody>
-                      {unifiedRows.map((row) => (
+                      {bookingsPagedRows.map((row) => (
                         <tr key={row.key}>
                           <td>{row.number}</td>
                           <td>{row.venue}</td>
@@ -947,6 +976,91 @@ export default function Home() {
                     </tbody>
                   </table>
                 </div>
+                <div
+                  className="guest-bookings-pagination"
+                  role="navigation"
+                  aria-label="Your bookings table pages"
+                >
+                  <div className="guest-bookings-pagination-meta">
+                    <span className="guest-bookings-pagination-info">
+                      Showing{" "}
+                      <strong>
+                        {unifiedRows.length === 0 ? 0 : (bookingsPageSafe - 1) * bookingsPageSizeSafe + 1}
+                      </strong>
+                      –
+                      <strong>{Math.min(bookingsPageSafe * bookingsPageSizeSafe, unifiedRows.length)}</strong> of{" "}
+                      <strong>{unifiedRows.length}</strong> bookings
+                    </span>
+                    <label className="guest-bookings-pagination-per">
+                      <span>Rows per page</span>
+                      <select
+                        className="guest-bookings-pagination-select"
+                        value={bookingsPageSizeSafe}
+                        onChange={(e) => {
+                          setBookingsTablePageSize(Number(e.target.value));
+                          setBookingsTablePage(1);
+                        }}
+                      >
+                        {[5, 10, 15, 25, 50].map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="guest-bookings-pagination-btns">
+                    <button
+                      type="button"
+                      className="guest-bookings-pg-btn"
+                      disabled={bookingsPageSafe <= 1}
+                      onClick={() =>
+                        setBookingsTablePage((p) => {
+                          const cur = Math.min(Math.max(1, p), bookingsTotalPages);
+                          return Math.max(1, cur - 1);
+                        })
+                      }
+                    >
+                      Prev
+                    </button>
+                    {visibleGuestBookingsPageNumbers(bookingsPageSafe, bookingsTotalPages).map((pNum, idx, arr) => {
+                      const prev = arr[idx - 1];
+                      const showEllipsis = prev != null && pNum - prev > 1;
+                      return (
+                        <span key={pNum} className="guest-bookings-pg-num-wrap">
+                          {showEllipsis ? (
+                            <span className="guest-bookings-pg-ellipsis" aria-hidden>
+                              …
+                            </span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={`guest-bookings-pg-num${pNum === bookingsPageSafe ? " guest-bookings-pg-num--active" : ""}`}
+                            aria-label={`Page ${pNum}`}
+                            {...(pNum === bookingsPageSafe ? { "aria-current": "page" } : {})}
+                            onClick={() => setBookingsTablePage(pNum)}
+                          >
+                            {pNum}
+                          </button>
+                        </span>
+                      );
+                    })}
+                    <button
+                      type="button"
+                      className="guest-bookings-pg-btn"
+                      disabled={bookingsPageSafe >= bookingsTotalPages}
+                      onClick={() =>
+                        setBookingsTablePage((p) => {
+                          const cur = Math.min(Math.max(1, p), bookingsTotalPages);
+                          return Math.min(bookingsTotalPages, cur + 1);
+                        })
+                      }
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+                </>
               )}
             </section>
           </div>

@@ -10,6 +10,7 @@ import {
   dispatchFrontdeskNotificationsRefresh,
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
   HOUSEKEEPING_TASKS_STORAGE_PING_KEY,
+  GUEST_BOOKINGS_STORAGE_PING_KEY,
 } from "../api/guestApi";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT, getSessionRole } from "../api/authApi";
 import StaffTopbarActions from "../topbar/StaffTopbarActions";
@@ -26,8 +27,18 @@ import {
   formatPeso,
   getFrontdeskBookingDetails,
 } from "./dashboard.service";
-import { bookingCustomerDisplayName } from "../guests/bookingRoomDisplay";
 import { Modal } from "../components/Modal";
+import {
+  isBookingActiveForFdCalendar,
+  calendarDayState,
+  bookingsActiveOnDay,
+  formatCalendarHeading,
+  bookingCalendarTypeLabel,
+  bookingCalendarGuestName,
+  bookingCalendarResourceLabel,
+  bookingCalendarScheduleLine,
+  bookingCalendarStatusDisplay,
+} from "./frontdeskDashboardCalendar";
 import "./frontdesk-dashboard.css";
 import "./dashboard.css";
 
@@ -109,26 +120,6 @@ const MoneyIcon = () => (
 );
 const WEEKDAY_LABELS = ["Mon", "Tues", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function normBkStatus(s) {
-  return String(s || "")
-    .trim()
-    .toLowerCase();
-}
-
-function isBookingExcludedFromCalendar(b) {
-  const k = normBkStatus(b?.status);
-  return k === "cancelled" || k === "rejected" || k === "declined";
-}
-
-function parseBookingCalDay(s) {
-  if (s == null || s === "") return null;
-  const t = String(s).trim();
-  if (!t) return null;
-  const iso = t.includes("T") ? t : `${t.slice(0, 10)}T12:00:00`;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
 function dateKeyFromCalDate(d) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -138,98 +129,6 @@ function dateKeyFromCalDate(d) {
 
 function todayCalKey() {
   return dateKeyFromCalDate(new Date());
-}
-
-function iterCalDateKeysInclusive(startD, endD) {
-  const keys = [];
-  const cur = new Date(startD.getFullYear(), startD.getMonth(), startD.getDate(), 12, 0, 0, 0);
-  const end = new Date(endD.getFullYear(), endD.getMonth(), endD.getDate(), 12, 0, 0, 0);
-  while (cur <= end) {
-    keys.push(dateKeyFromCalDate(cur));
-    cur.setDate(cur.getDate() + 1);
-  }
-  return keys;
-}
-
-function bookingCalendarDateKeys(b) {
-  if (!b || isBookingExcludedFromCalendar(b)) return [];
-  const t = String(b.type || "").toLowerCase();
-  if (t === "room") {
-    const ci = parseBookingCalDay(b.checkIn);
-    const co = parseBookingCalDay(b.checkOut);
-    if (!ci) return [];
-    const end = co && co >= ci ? co : ci;
-    return iterCalDateKeysInclusive(ci, end);
-  }
-  if (t === "event") {
-    const ed = parseBookingCalDay(b.eventDate);
-    const ee = parseBookingCalDay(b.eventEndDate);
-    if (!ed) return [];
-    const end = ee && ee >= ed ? ee : ed;
-    return iterCalDateKeysInclusive(ed, end);
-  }
-  return [];
-}
-
-function bookingCalendarTone(statusRaw) {
-  const k = normBkStatus(statusRaw);
-  if (k === "occupied" || k === "completed") return "occupied";
-  if (k === "approved" || k === "confirmed") return "approved";
-  if (k === "pending") return "pending";
-  return null;
-}
-
-function calendarToneForDay(dayKey, bookingsList) {
-  let occ = false;
-  let appr = false;
-  let pend = false;
-  for (const b of bookingsList) {
-    if (isBookingExcludedFromCalendar(b)) continue;
-    if (!bookingCalendarDateKeys(b).includes(dayKey)) continue;
-    const tone = bookingCalendarTone(b.status);
-    if (tone === "occupied") occ = true;
-    else if (tone === "approved") appr = true;
-    else if (tone === "pending") pend = true;
-  }
-  if (occ) return "occupied";
-  if (appr) return "approved";
-  if (pend) return "pending";
-  return null;
-}
-
-function bookingsActiveOnDay(dayKey, bookingsList) {
-  return bookingsList.filter((b) => {
-    if (isBookingExcludedFromCalendar(b)) return false;
-    return bookingCalendarDateKeys(b).includes(dayKey);
-  });
-}
-
-function formatCalendarHeading(dayKey) {
-  const d = parseBookingCalDay(dayKey);
-  if (!d) return dayKey;
-  return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-}
-
-function bookingCalendarSummaryLine(b) {
-  const name = bookingCustomerDisplayName(b);
-  const t = String(b.type || "").toLowerCase();
-  if (t === "room") {
-    const num = String(b.roomNumber ?? "").trim() || String(b.roomId ?? "").trim().slice(-6) || "?";
-    return `Room ${num} — ${name}`;
-  }
-  const venue = String(b.venueName ?? b.eventTitle ?? "Event").trim() || "Event";
-  return `${venue} — ${name}`;
-}
-
-function bookingCalendarStatusDisplay(statusRaw) {
-  const k = normBkStatus(statusRaw);
-  if (k === "occupied") return "Occupied";
-  if (k === "completed") return "Completed";
-  if (k === "pending") return "Pending";
-  if (k === "approved" || k === "confirmed") return "Approved";
-  if (k === "cancelled") return "Cancelled";
-  if (k === "rejected" || k === "declined") return "Declined";
-  return String(statusRaw || "—").trim() || "—";
 }
 
 function buildCalendarGridCells(year, monthIndex) {
@@ -448,7 +347,9 @@ export default function FrontdeskDashboard() {
       if (document.visibilityState === "visible") void refreshDashboard({ silent: true });
     };
     const onStorage = (e) => {
-      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) void refreshDashboard({ silent: true });
+      if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY || e.key === GUEST_BOOKINGS_STORAGE_PING_KEY) {
+        void refreshDashboard({ silent: true });
+      }
     };
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, hk);
     window.addEventListener("storage", onStorage);
@@ -524,10 +425,15 @@ export default function FrontdeskDashboard() {
     [calView.year, calView.monthIndex],
   );
 
+  const activeBookings = useMemo(
+    () => (Array.isArray(bookings) ? bookings : []).filter(isBookingActiveForFdCalendar),
+    [bookings],
+  );
+
   const selectedDayBookings = useMemo(() => {
     if (!authenticated) return [];
-    return bookingsActiveOnDay(selectedDayKey, bookings);
-  }, [authenticated, selectedDayKey, bookings]);
+    return bookingsActiveOnDay(selectedDayKey, activeBookings);
+  }, [authenticated, selectedDayKey, activeBookings]);
 
   function shiftCalMonth(delta) {
     setCalView((v) => {
@@ -729,15 +635,15 @@ export default function FrontdeskDashboard() {
                   <div className="fd-cal-cells" role="grid" aria-label={`Calendar ${calendarMonthLabel}`}>
                     {calendarCells.map((cell) => {
                       const isSel = cell.key === selectedDayKey;
-                      const tone =
-                        authenticated && cell.inMonth && !isSel ? calendarToneForDay(cell.key, bookings) : null;
+                      const { dots } =
+                        authenticated && cell.inMonth
+                          ? calendarDayState(cell.key, activeBookings)
+                          : { dots: { pending: false, approved: false, occupied: false } };
+                      const hasDots = dots.pending || dots.approved || dots.occupied;
                       const cls = [
                         "fd-cal-cell",
                         cell.inMonth ? "" : "fd-cal-cell--muted",
                         isSel ? "fd-cal-cell--selected" : "",
-                        !isSel && tone === "occupied" ? "fd-cal-cell--occupied" : "",
-                        !isSel && tone === "approved" ? "fd-cal-cell--approved" : "",
-                        !isSel && tone === "pending" ? "fd-cal-cell--pending" : "",
                       ]
                         .filter(Boolean)
                         .join(" ");
@@ -748,28 +654,43 @@ export default function FrontdeskDashboard() {
                           role="gridcell"
                           className={cls}
                           disabled={!cell.inMonth}
+                          aria-label={
+                            cell.inMonth && hasDots
+                              ? `${cell.label}, ${[
+                                  dots.pending ? "pending" : "",
+                                  dots.approved ? "approved" : "",
+                                  dots.occupied ? "occupied" : "",
+                                ]
+                                  .filter(Boolean)
+                                  .join(", ")}`
+                              : undefined
+                          }
                           onClick={() => {
                             if (!cell.inMonth) return;
                             setSelectedDayKey(cell.key);
                           }}
                         >
-                          {cell.label}
+                          <span className="fd-cal-cell-num">{cell.label}</span>
+                          {hasDots ? (
+                            <span className="fd-cal-cell-dots" aria-hidden>
+                              {dots.pending ? <span className="fd-cal-dot fd-cal-dot--pending" /> : null}
+                              {dots.approved ? <span className="fd-cal-dot fd-cal-dot--approved" /> : null}
+                              {dots.occupied ? <span className="fd-cal-dot fd-cal-dot--occupied" /> : null}
+                            </span>
+                          ) : null}
                         </button>
                       );
                     })}
                   </div>
                   <div className="fd-cal-legend">
                     <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--available" aria-hidden /> Available
+                      <span className="fd-cal-legend-dot fd-cal-legend-dot--pending" aria-hidden /> Pending
                     </span>
                     <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--pending" aria-hidden /> Pending
+                      <span className="fd-cal-legend-dot fd-cal-legend-dot--approved" aria-hidden /> Approved / Reserved
                     </span>
                     <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--approved" aria-hidden /> Approved
-                    </span>
-                    <span className="fd-cal-legend-item">
-                      <span className="fd-cal-legend-swatch fd-cal-legend-swatch--occupied" aria-hidden /> Occupied
+                      <span className="fd-cal-legend-dot fd-cal-legend-dot--occupied" aria-hidden /> Occupied
                     </span>
                   </div>
                 </>
@@ -782,10 +703,10 @@ export default function FrontdeskDashboard() {
                 <p className="fd-cal-signin-hint">Sign in to view bookings by date.</p>
               ) : (
                 <>
-                  <p className="fd-cal-detail-sub">Bookings for {formatCalendarHeading(selectedDayKey)}.</p>
+                  <p className="fd-cal-detail-sub">Active bookings for {formatCalendarHeading(selectedDayKey)}.</p>
                   <div className="fd-cal-detail-list">
                     {selectedDayBookings.length === 0 ? (
-                      <p className="fd-cal-detail-empty">No bookings on this date.</p>
+                      <p className="fd-cal-detail-empty">No active bookings on this date.</p>
                     ) : (
                       selectedDayBookings.map((b, idx) => {
                         const bid = String(b.id ?? "").trim();
@@ -796,9 +717,16 @@ export default function FrontdeskDashboard() {
                             className="fd-cal-detail-card"
                             onClick={() => bid && void openFrontdeskBookingDetails(bid)}
                           >
-                            <div className="fd-cal-detail-line">{bookingCalendarSummaryLine(b)}</div>
-                            <div className="fd-cal-detail-status">
-                              Status: {bookingCalendarStatusDisplay(b.status)}
+                            <div className="fd-cal-detail-meta">
+                              <span className="fd-cal-detail-type">{bookingCalendarTypeLabel(b)}</span>
+                              <span className="fd-cal-detail-status-pill">
+                                {bookingCalendarStatusDisplay(b.status)}
+                              </span>
+                            </div>
+                            <div className="fd-cal-detail-line">{bookingCalendarGuestName(b)}</div>
+                            <div className="fd-cal-detail-row">{bookingCalendarResourceLabel(b)}</div>
+                            <div className="fd-cal-detail-row">
+                              Schedule: {bookingCalendarScheduleLine(b)}
                             </div>
                           </button>
                         );

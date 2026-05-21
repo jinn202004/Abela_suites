@@ -75,6 +75,8 @@ import "../guests/idUploadedCard.css";
 import "./frontdesk-rooms.css";
 import "./frontdesk-events.css";
 import "./walkin-event-booking-parity.css";
+import TermsAgreementsSection from "../components/terms-agreements/TermsAgreementsSection";
+import "../components/terms-agreements/terms-agreements.css";
 
 /** Files in `public/` — served at `/…` (see `fe/abela-fe/public/`). */
 const IMAGES = {
@@ -1645,6 +1647,10 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
   const [payForm, setPayForm] = useState({ amountpaid: "", paydate: "", transid: "", proof: null });
   const [payErrors, setPayErrors] = useState({});
   const [proofPreview, setProofPreview] = useState(null);
+  const setAgreement = (field) => (e) => {
+    set(field, e.target.checked);
+    setErrors((fe) => ({ ...fe, [field]: "" }));
+  };
 
   const set = (k, v) => {
     setShowBanner(false);
@@ -2547,68 +2553,20 @@ function WalkinModal({ open, onClose, onSubmit, onBookingCreated, venuesCatalog 
                   </div>
                 </div>
 
-                <div className="ev-terms-block">
-                  <h3 className="ev-terms-title">Terms and Conditions</h3>
-                  <div className="ev-terms-body">
-                    <ol>
-                      <li>
-                        <strong>Valid Identification Required</strong>
-                        <ul>
-                          <li>All guests are required to present a valid government-issued ID upon check-in.</li>
-                          <li>Failure to provide valid identification may result in denial of entry.</li>
-                        </ul>
-                      </li>
-                      <li>
-                        <strong>Verification &amp; Confirmation</strong>
-                        <ul>
-                          <li>The management reserves the right to verify the authenticity of submitted identification documents.</li>
-                        </ul>
-                      </li>
-                    </ol>
-                  </div>
-                  <label className={`ev-checkbox-label${errors.chkTerms ? " ev-check-error" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={!!form.chkTerms}
-                      onChange={(e) => {
-                        set("chkTerms", e.target.checked);
-                        setErrors((fe) => ({ ...fe, chkTerms: "" }));
-                      }}
-                    />
-                    I have read and accept the <a href="#">Terms and Conditions</a>
-                  </label>
-                  <span className={`ev-field-err${errors.chkTerms ? " visible" : ""}`}>You must accept the Terms and Conditions.</span>
-                </div>
-
-                <div className="ev-agreements-block">
-                  <h3 className="ev-agreements-title">Required Agreements</h3>
-                  <label className={`ev-checkbox-label${errors.chkPrivacy ? " ev-check-error" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={!!form.chkPrivacy}
-                      onChange={(e) => {
-                        set("chkPrivacy", e.target.checked);
-                        setErrors((fe) => ({ ...fe, chkPrivacy: "" }));
-                      }}
-                    />
-                    I have read and agree to the <a href="#">Data Privacy &amp; Policy</a>
-                  </label>
-                  <span className={`ev-field-err${errors.chkPrivacy ? " visible" : ""}`}>Please agree to the Data Privacy Policy.</span>
-                  <label className={`ev-checkbox-label${errors.chkTOS ? " ev-check-error" : ""}`}>
-                    <input
-                      type="checkbox"
-                      checked={!!form.chkTOS}
-                      onChange={(e) => {
-                        set("chkTOS", e.target.checked);
-                        setErrors((fe) => ({ ...fe, chkTOS: "" }));
-                      }}
-                    />
-                    I have read and agree to the <a href="#">Terms &amp; Conditions of Stay</a>
-                  </label>
-                  <span className={`ev-field-err${errors.chkTOS ? " visible" : ""}`}>
-                    Please agree to the Terms &amp; Conditions of Stay.
-                  </span>
-                </div>
+                <TermsAgreementsSection
+                  variant="event"
+                  termsChecked={form.chkTerms}
+                  privacyChecked={form.chkPrivacy}
+                  stayChecked={form.chkTOS}
+                  onTermsChange={setAgreement("chkTerms")}
+                  onPrivacyChange={setAgreement("chkPrivacy")}
+                  onStayChange={setAgreement("chkTOS")}
+                  errors={{
+                    chkTerms: errors.chkTerms,
+                    chkPrivacy: errors.chkPrivacy,
+                    chkTOS: errors.chkTOS,
+                  }}
+                />
 
                 {form.package && (form.date || form.eventName.trim() || form.customerName.trim()) ? (
                   <div className="ev-booking-review-summary" aria-labelledby="ev-wi-booking-review-title">

@@ -4,6 +4,7 @@ import {
   billsDetailColumnsForVariant,
   billsReportEmptyMessage,
   billsReportTitle,
+  assignLedgerBillNumbers,
   computeBillsSummary,
   displayLedgerDate,
   downloadBillsReportPdf,
@@ -18,11 +19,10 @@ import {
 import BillsPrintLogo from "./BillsPrintLogo";
 
 function billRowToTableCells(r) {
-  const detailed = r?.displayBillNum != null || r?.checkIn != null;
+  const detailed = r?.checkIn != null || r?.checkOut != null;
   if (detailed) {
     return [
-      String(r.displayBillNum ?? r.id ?? LEDGER_EMPTY),
-      String(r.bookingId || r.id || LEDGER_EMPTY).slice(0, 20),
+      String(r.displayBillNum ?? LEDGER_EMPTY),
       r.guestName || LEDGER_EMPTY,
       r.bookingType === "event" ? "Event" : "Room",
       ledgerCellText(r.roomOrVenue),
@@ -64,8 +64,9 @@ export default function BillsPrintModal({
   note = "Totals and transaction list for this period. Use per-row print on the table for a single guest bill.",
   rootClass = "bills-page",
 }) {
-  const summary = useMemo(() => computeBillsSummary(rows), [rows]);
-  const detailed = rows.some((r) => r?.displayBillNum != null || r?.checkIn != null);
+  const tableRows = useMemo(() => assignLedgerBillNumbers(rows), [rows]);
+  const summary = useMemo(() => computeBillsSummary(tableRows), [tableRows]);
+  const detailed = tableRows.some((r) => r?.checkIn != null);
   const tableCols = detailed ? billsDetailColumnsForVariant(variant) : BILLS_SUMMARY_COLS;
 
   if (!open) return null;
@@ -105,7 +106,7 @@ export default function BillsPrintModal({
               <div className="bm-print-empty bm-print-empty--card">Loading billing records…</div>
             ) : error ? (
               <div className="bm-print-empty bm-print-empty--card">{error}</div>
-            ) : rows.length === 0 ? (
+            ) : tableRows.length === 0 ? (
               <div className="bm-print-empty bm-print-empty--card">{billsReportEmptyMessage(variant)}</div>
             ) : (
               <div className="bm-print-cards-wrap bm-print-summary-wrap">
@@ -148,7 +149,7 @@ export default function BillsPrintModal({
                       </tr>
                     </thead>
                     <tbody>
-                      {rows.map((r) => (
+                      {tableRows.map((r) => (
                         <tr key={String(r.id || r.bookingId || r.displayBillNum)}>
                           {billRowToTableCells(r).map((cell, i) => (
                             <td key={i}>{cell}</td>
@@ -170,16 +171,16 @@ export default function BillsPrintModal({
           <button
             type="button"
             className="bm-print-footer-btn pdf"
-            onClick={() => downloadBillsReportPdf({ variant, monthLabel, rows, printMonthKey })}
-            disabled={loading || !!error || rows.length === 0}
+            onClick={() => downloadBillsReportPdf({ variant, monthLabel, rows: tableRows, printMonthKey })}
+            disabled={loading || !!error || tableRows.length === 0}
           >
             Download PDF
           </button>
           <button
             type="button"
             className="bm-print-footer-btn primary"
-            onClick={() => printBillsReportPdf({ variant, monthLabel, rows, printMonthKey })}
-            disabled={loading || !!error || rows.length === 0}
+            onClick={() => printBillsReportPdf({ variant, monthLabel, rows: tableRows, printMonthKey })}
+            disabled={loading || !!error || tableRows.length === 0}
           >
             Print
           </button>

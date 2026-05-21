@@ -24,6 +24,7 @@ import {
   bookingTypeLabel,
   displayLedgerDate,
   formatPrintMonthLabel,
+  assignLedgerBillNumbers,
   frontdeskBillRowToLedgerRow,
   paymentMethodLabel,
   paymentStatusLabel,
@@ -635,7 +636,8 @@ export default function BillsPage() {
 
   const printRowsFiltered = useMemo(() => {
     const ledger = filtered.map(frontdeskBillRowToLedgerRow);
-    return ledger.filter((r) => rowInSelectedMonthFrontdesk(r, reportMonth));
+    const monthFiltered = ledger.filter((r) => rowInSelectedMonthFrontdesk(r, reportMonth));
+    return assignLedgerBillNumbers(monthFiltered);
   }, [filtered, reportMonth]);
 
   const openBillsPrint = useCallback(() => {

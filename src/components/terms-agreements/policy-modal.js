@@ -18,6 +18,9 @@ export class PolicyModal {
     this.activePolicyId = null;
     this.onCloseCallback = null;
     this.previousFocus = null;
+    /** Ignore backdrop / root dismiss until after the opening click finishes. */
+    this.ignoreDismissUntil = 0;
+    this.openGeneration = 0;
     this.#build();
     this.#bind();
   }
@@ -53,11 +56,16 @@ export class PolicyModal {
 
   #bind() {
     this.closeBtn.addEventListener("click", () => this.close());
-    this.overlay.addEventListener("click", () => this.close());
+    this.overlay.addEventListener("click", () => this.#dismissIfAllowed());
     this.root.addEventListener("click", (e) => {
-      if (e.target === this.root) this.close();
+      if (e.target === this.root) this.#dismissIfAllowed();
     });
     document.addEventListener("keydown", this.#onKeydown);
+  }
+
+  #dismissIfAllowed() {
+    if (Date.now() < this.ignoreDismissUntil) return;
+    this.close();
   }
 
   #onKeydown = (e) => {
@@ -99,20 +107,27 @@ export class PolicyModal {
     this.titleEl.textContent = title;
     this.bodyEl.innerHTML = html;
     this.bodyEl.scrollTop = 0;
-
-    this.root.classList.add("ta-policy-modal--open");
-    this.root.setAttribute("aria-hidden", "false");
-    document.body.classList.add("ta-policy-modal-open");
     this.isOpen = true;
+    const generation = ++this.openGeneration;
 
-    requestAnimationFrame(() => {
-      this.root.classList.add("ta-policy-modal--visible");
-      this.closeBtn.focus();
-    });
+    // Defer paint so the opening click does not hit the overlay and instantly close.
+    this.ignoreDismissUntil = Date.now() + 450;
+    window.setTimeout(() => {
+      if (!this.isOpen || generation !== this.openGeneration) return;
+      this.root.classList.add("ta-policy-modal--open");
+      this.root.setAttribute("aria-hidden", "false");
+      document.body.classList.add("ta-policy-modal-open");
+      requestAnimationFrame(() => {
+        if (!this.isOpen || generation !== this.openGeneration) return;
+        this.root.classList.add("ta-policy-modal--visible");
+        this.closeBtn.focus();
+      });
+    }, 0);
   }
 
   close() {
     if (!this.isOpen) return;
+    this.openGeneration += 1;
     const closedId = this.activePolicyId;
     this.root.classList.remove("ta-policy-modal--visible");
     this.isOpen = false;

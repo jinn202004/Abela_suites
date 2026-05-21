@@ -56,6 +56,8 @@ import "./billing-summary.css";
 import "./guest-room.css";
 import "./guest-events.css";
 import { ImagePreviewModal } from "../components/ImagePreviewModal";
+import TermsAgreementsSection from "../components/terms-agreements/TermsAgreementsSection";
+import "../components/terms-agreements/terms-agreements.css";
 
 /** GCash mark: `public/Gcash.png`. Scan-to-pay QR: `public/QR.png`. */
 const GCASH_CARD_ICON = "/Gcash.png";
@@ -455,6 +457,10 @@ export default function EventVenues() {
   const [guestBookingsPing, setGuestBookingsPing] = useState(0);
   const [eventCalLoading, setEventCalLoading] = useState(false);
   const [eventCalErr, setEventCalErr] = useState("");
+  const setAgreement = (field) => (e) => {
+    setForm((f) => ({ ...f, [field]: e.target.checked }));
+    setFormErrors((fe) => ({ ...fe, [field]: false }));
+  };
 
   // Payment modal
   const [payOpen, setPayOpen]   = useState(false);
@@ -1588,46 +1594,20 @@ export default function EventVenues() {
                 </div>
               </div>
 
-              {/* Terms */}
-              <div className="ev-terms-block">
-                <h3 className="ev-terms-title">Terms and Conditions</h3>
-                <div className="ev-terms-body">
-                  <ol>
-                    <li><strong>Valid Identification Required</strong>
-                      <ul>
-                        <li>All guests are required to present a valid government-issued ID upon check-in.</li>
-                        <li>Failure to provide valid identification may result in denial of entry.</li>
-                      </ul>
-                    </li>
-                    <li><strong>Verification &amp; Confirmation</strong>
-                      <ul><li>The management reserves the right to verify the authenticity of submitted identification documents.</li></ul>
-                    </li>
-                  </ol>
-                </div>
-                <label className={`ev-checkbox-label${formErrors.chkTerms ? " ev-check-error" : ""}`}>
-                  <input type="checkbox" checked={!!form.chkTerms}
-                    onChange={e => { setForm(f => ({ ...f, chkTerms: e.target.checked })); setFormErrors(fe => ({ ...fe, chkTerms: false })); }} />
-                  I have read and accept the <a href="#">Terms and Conditions</a>
-                </label>
-                <span className={`ev-field-err${formErrors.chkTerms ? " visible" : ""}`}>You must accept the Terms and Conditions.</span>
-              </div>
-
-              {/* Agreements */}
-              <div className="ev-agreements-block">
-                <h3 className="ev-agreements-title">Required Agreements</h3>
-                <label className={`ev-checkbox-label${formErrors.chkPrivacy ? " ev-check-error" : ""}`}>
-                  <input type="checkbox" checked={!!form.chkPrivacy}
-                    onChange={e => { setForm(f => ({ ...f, chkPrivacy: e.target.checked })); setFormErrors(fe => ({ ...fe, chkPrivacy: false })); }} />
-                  I have read and agree to the <a href="#">Data Privacy &amp; Policy</a>
-                </label>
-                <span className={`ev-field-err${formErrors.chkPrivacy ? " visible" : ""}`}>Please agree to the Data Privacy Policy.</span>
-                <label className={`ev-checkbox-label${formErrors.chkTOS ? " ev-check-error" : ""}`}>
-                  <input type="checkbox" checked={!!form.chkTOS}
-                    onChange={e => { setForm(f => ({ ...f, chkTOS: e.target.checked })); setFormErrors(fe => ({ ...fe, chkTOS: false })); }} />
-                  I have read and agree to the <a href="#">Terms &amp; Conditions of Stay</a>
-                </label>
-                <span className={`ev-field-err${formErrors.chkTOS ? " visible" : ""}`}>Please agree to the Terms &amp; Conditions of Stay.</span>
-              </div>
+              <TermsAgreementsSection
+                variant="event"
+                termsChecked={form.chkTerms}
+                privacyChecked={form.chkPrivacy}
+                stayChecked={form.chkTOS}
+                onTermsChange={setAgreement("chkTerms")}
+                onPrivacyChange={setAgreement("chkPrivacy")}
+                onStayChange={setAgreement("chkTOS")}
+                errors={{
+                  chkTerms: formErrors.chkTerms,
+                  chkPrivacy: formErrors.chkPrivacy,
+                  chkTOS: formErrors.chkTOS,
+                }}
+              />
 
               {resPick && (form.date || form.eventName.trim() || form.customerName.trim()) ? (
                 <div className="ev-booking-review-summary" aria-labelledby="ev-booking-review-title">

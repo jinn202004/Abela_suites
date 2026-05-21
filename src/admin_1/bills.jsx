@@ -14,6 +14,7 @@ import BillsPrintModal from "../components/BillsPrintModal";
 import {
   billCreatedSortKey,
   bookingTypeLabel,
+  assignLedgerBillNumbers,
   cashierBillingRowToLedgerRow,
   displayLedgerDate,
   fetchAllBillingForExport,
@@ -346,9 +347,11 @@ export default function Bills() {
 
   const printRowsFiltered = useMemo(
     () =>
-      printRawRows
-        .filter((r) => rowInSelectedMonth(billCreatedSortKey(r), printMonth))
-        .map(cashierBillingRowToLedgerRow),
+      assignLedgerBillNumbers(
+        printRawRows
+          .filter((r) => rowInSelectedMonth(billCreatedSortKey(r), printMonth))
+          .map(cashierBillingRowToLedgerRow),
+      ),
     [printRawRows, printMonth],
   );
 
@@ -418,16 +421,12 @@ export default function Bills() {
         }, { signal: ac.signal });
         if (cancelled || fetchGen !== billingFetchGenRef.current) return;
         const list = Array.isArray(result?.data) ? result.data : [];
-        if (list.length === 0 && (Number(result?.totalItems) || 0) > 0 && page > 1) {
-          setPage((p) => Math.max(1, p - 1));
-          return;
-        }
         const tp = Number(result?.totalPages);
         const ti = Number(result?.totalItems);
+        const cp = Math.max(1, parseInt(String(result?.currentPage), 10) || page);
         setTotalPages(Number.isFinite(tp) && tp >= 1 ? Math.min(9999, tp) : 1);
         setTotalItems(Number.isFinite(ti) && ti >= 0 ? ti : list.length);
         setRows(list);
-        const cp = Math.max(1, parseInt(String(result?.currentPage), 10) || page);
         if (cp !== page) setPage(cp);
       } catch (e) {
         if (cancelled || fetchGen !== billingFetchGenRef.current) return;

@@ -5,7 +5,7 @@ import { getBilling } from "../api/cashier.service";
 
 const BILLS_SUMMARY_COLS = ["Ref", "Guest", "Type", "Booking", "Total", "Paid", "Balance", "Status", "Billed"];
 
-const BILLS_DETAIL_COLS_BASE = ["Bill #", "Txn ref", "Guest", "Type", "Room / Venue", "Package"];
+const BILLS_DETAIL_COLS_BASE = ["Bill #", "Guest", "Type", "Room / Venue", "Package"];
 
 const BILLS_DETAIL_COLS_TAIL = ["Pay method", "Total", "Paid", "Balance", "Status"];
 
@@ -268,10 +268,24 @@ function billRowToSummaryCells(r) {
   ];
 }
 
+/** Sequential 1-based bill numbers for print / PDF tables (row order in the report). */
+export function assignLedgerBillNumbers(rows) {
+  if (!Array.isArray(rows)) return [];
+  return rows.map((row, index) => ({
+    ...row,
+    displayBillNum: index + 1,
+  }));
+}
+
+function ledgerBillNumberCell(r) {
+  const n = r?.displayBillNum;
+  if (n != null && n !== "") return String(n);
+  return LEDGER_EMPTY;
+}
+
 function billRowToDetailCells(r) {
   return [
-    String(r.displayBillNum ?? r.id ?? LEDGER_EMPTY),
-    shortBillId(r.bookingId || r.id),
+    ledgerBillNumberCell(r),
     sanitizeBillsPrintCell(r.guestName),
     bookingTypeLabel(r.bookingType),
     sanitizeBillsPrintCell(ledgerCellText(r.roomOrVenue)),
@@ -317,7 +331,6 @@ export function cashierBillingRowToLedgerRow(r) {
     balance: Number(r?.balance) || 0,
     paymentStatus: r?.paymentStatus || "unpaid",
     createdAt: r?.createdAt,
-    displayBillNum: String(r?.id || "").trim(),
     checkIn: stay.checkIn || "",
     checkOut: stay.checkOut || "",
     packageLabel: contextLabel,
@@ -349,7 +362,6 @@ export function frontdeskBillRowToLedgerRow(r) {
     balance: Number(r?.balance) || 0,
     paymentStatus: r?.paymentStatus || "unpaid",
     createdAt: stay.checkIn || r?.date,
-    displayBillNum: r?.id,
     checkIn: stay.checkIn || "",
     checkOut: stay.checkOut || "",
     packageLabel,
@@ -360,17 +372,18 @@ export function frontdeskBillRowToLedgerRow(r) {
 }
 
 function useDetailColumns(rows) {
-  return rows.some((r) => r?.displayBillNum != null || r?.checkIn != null);
+  return rows.some((r) => r?.checkIn != null || r?.checkOut != null);
 }
 
 function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
+  const numberedRows = assignLedgerBillNumbers(rows);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const margin = 12;
   const pageW = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
   const contentW = pageW - 2 * margin;
   let y = margin + 4;
-  const detailed = useDetailColumns(rows);
+  const detailed = useDetailColumns(numberedRows);
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
@@ -389,12 +402,12 @@ function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
   doc.line(margin, y, margin + contentW, y);
   y += 6;
 
-  if (rows.length === 0) {
+  if (numberedRows.length === 0) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.text(billsReportEmptyMessage(variant), margin, y);
   } else {
-    const sum = computeBillsSummary(rows);
+    const sum = computeBillsSummary(numberedRows);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text("Billing summary", margin, y);
@@ -427,8 +440,8 @@ function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
 
     const cols = detailed ? billsDetailColumnsForVariant(variant) : BILLS_SUMMARY_COLS;
     const body = detailed
-      ? rows.map((r) => billRowToDetailCells(r).map(summaryCellPdf))
-      : rows.map((r) => billRowToSummaryCells(r).map(summaryCellPdf));
+      ? numberedRows.map((r) => billRowToDetailCells(r).map(summaryCellPdf))
+      : numberedRows.map((r) => billRowToSummaryCells(r).map(summaryCellPdf));
 
     autoTable(doc, {
       startY: y,
@@ -447,9 +460,9 @@ function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
       margin: { left: margin, right: margin },
       columnStyles: detailed
         ? {
+            8: { halign: "right" },
             9: { halign: "right" },
             10: { halign: "right" },
-            11: { halign: "right" },
           }
         : {
             4: { halign: "right" },

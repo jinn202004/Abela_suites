@@ -75,10 +75,7 @@ import { fetchRoomBookedRangesMerged } from "../guests/roomBookingOccupancy";
 import "../guests/idUploadedCard.css";
 import "./frontdesk-rooms.css";
 import "./walkin-room-booking-parity.css";
-import {
-  initTermsAgreements,
-  destroyTermsAgreements,
-} from "../components/terms-agreements/terms-agreements";
+import TermsAgreementsSection from "../components/terms-agreements/TermsAgreementsSection";
 import "../components/terms-agreements/terms-agreements.css";
 
 /** Files in `public/` — served at `/…` (see `fe/abela-fe/public/`). */
@@ -1724,10 +1721,6 @@ function WalkinModal({ open, onClose, onSubmit }) {
   const [occErr, setOccErr] = useState("");
   /** Bumps merged occupancy refetch when bookings change elsewhere or tab regains focus. */
   const [walkinOccPing, setWalkinOccPing] = useState(0);
-  const termsAgreementsRef = useRef(null);
-  const termsAgreementsCtrlRef = useRef(null);
-  const policyViewedRef = useRef({ terms: false, privacy: false, stay: false });
-
   const wiToday = useMemo(() => formatLocalTodayYmd(), [open]);
   const occupancyWindowTo = useMemo(() => addLocalDays(wiToday, 540), [wiToday]);
 
@@ -1740,32 +1733,10 @@ function WalkinModal({ open, onClose, onSubmit }) {
     setForm((f) => ({ ...f, room, checkin: "", checkout: "" }));
     setErrors((er) => ({ ...er, room: "", checkin: "", checkout: "" }));
   };
-  const POLICY_BY_CHECKBOX = {
-    termsCheck: "terms",
-    privacyCheck: "privacy",
-    stayCheck: "stay",
-  };
   const setBool = (k) => (e) => {
-    const policyId = POLICY_BY_CHECKBOX[k];
-    if (e.target.checked && policyId && !policyViewedRef.current[policyId]) {
-      return;
-    }
     setForm((f) => ({ ...f, [k]: e.target.checked }));
     setErrors((er) => ({ ...er, [k]: "" }));
   };
-
-  useEffect(() => {
-    if (!open || !termsAgreementsRef.current) return undefined;
-    termsAgreementsCtrlRef.current = initTermsAgreements(termsAgreementsRef.current, {
-      onViewed: (policyId) => {
-        policyViewedRef.current[policyId] = true;
-      },
-    });
-    return () => {
-      destroyTermsAgreements(termsAgreementsCtrlRef.current);
-      termsAgreementsCtrlRef.current = null;
-    };
-  }, [open]);
   const setP = (k, v) => {
     setPayForm((f) => ({ ...f, [k]: v }));
     setPayErrors((er) => ({ ...er, [k]: "" }));
@@ -2192,7 +2163,6 @@ function WalkinModal({ open, onClose, onSubmit }) {
     setRoomOccupancyRanges([]);
     setOccErr("");
     setOccLoading(false);
-    policyViewedRef.current = { terms: false, privacy: false, stay: false };
   };
 
   if (!open) return null;
@@ -2568,73 +2538,20 @@ function WalkinModal({ open, onClose, onSubmit }) {
                 </div>
               </div>
 
-              <div ref={termsAgreementsRef} className="ta-terms-agreements" data-ta-root>
-                <p className="ta-terms-hint" data-ta-hint hidden />
-
-                <div className="terms-block">
-                  <h3 className="terms-title">Terms and Conditions</h3>
-                  <div className="terms-body" tabIndex={0} aria-label="Terms and conditions preview">
-                    <ol>
-                      <li><strong>Valid ID Requirement</strong>
-                        <ul>
-                          <li>A clear photo or scanned copy of a valid government-issued ID must be uploaded with your reservation request.</li>
-                          <li>The reservation name must match the name on the ID.</li>
-                        </ul>
-                      </li>
-                      <li><strong>Verification &amp; Confirmation</strong>
-                        <ul>
-                          <li>All guests are required to present a valid government-issued ID upon check-in.</li>
-                          <li>Failure to provide valid identification may result in denial of entry.</li>
-                          <li>The management reserves the right to verify the authenticity of submitted identification documents.</li>
-                        </ul>
-                      </li>
-                    </ol>
-                  </div>
-                  <label className={`checkbox-label${errors.termsCheck ? " check-error" : ""}`}>
-                    <input
-                      type="checkbox"
-                      data-ta-agreement="termsCheck"
-                      checked={!!form.termsCheck}
-                      onChange={setBool("termsCheck")}
-                    />
-                    I have read and accept the{" "}
-                    <button type="button" className="ta-policy-link" data-ta-policy="terms">
-                      Terms and Conditions
-                    </button>
-                  </label>
-                  {errors.termsCheck ? <span className="field-error">{errors.termsCheck}</span> : null}
-                </div>
-
-                <div className="agreements-block">
-                  <h3 className="agreements-title">Required Agreements</h3>
-                  <label className={`checkbox-label${errors.privacyCheck ? " check-error" : ""}`}>
-                    <input
-                      type="checkbox"
-                      data-ta-agreement="privacyCheck"
-                      checked={!!form.privacyCheck}
-                      onChange={setBool("privacyCheck")}
-                    />
-                    I have read and agree to the{" "}
-                    <button type="button" className="ta-policy-link" data-ta-policy="privacy">
-                      Data Privacy &amp; Policy
-                    </button>
-                  </label>
-                  {errors.privacyCheck ? <span className="field-error">{errors.privacyCheck}</span> : null}
-                  <label className={`checkbox-label${errors.stayCheck ? " check-error" : ""}`}>
-                    <input
-                      type="checkbox"
-                      data-ta-agreement="stayCheck"
-                      checked={!!form.stayCheck}
-                      onChange={setBool("stayCheck")}
-                    />
-                    I have read and agree to the{" "}
-                    <button type="button" className="ta-policy-link" data-ta-policy="stay">
-                      Terms &amp; Conditions of Stay
-                    </button>
-                  </label>
-                  {errors.stayCheck ? <span className="field-error">{errors.stayCheck}</span> : null}
-                </div>
-              </div>
+              <TermsAgreementsSection
+                variant="room"
+                termsChecked={form.termsCheck}
+                privacyChecked={form.privacyCheck}
+                stayChecked={form.stayCheck}
+                onTermsChange={setBool("termsCheck")}
+                onPrivacyChange={setBool("privacyCheck")}
+                onStayChange={setBool("stayCheck")}
+                errors={{
+                  termsCheck: errors.termsCheck,
+                  privacyCheck: errors.privacyCheck,
+                  stayCheck: errors.stayCheck,
+                }}
+              />
 
               {form.room || form.checkin || form.checkout || form.name.trim() ? (
                 <div className="booking-review-summary" aria-labelledby="wi-room-booking-summary-title">

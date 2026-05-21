@@ -75,8 +75,6 @@
     <h1>Terms &amp; Agreements</h1>
 
     <div class="ta-terms-agreements" data-ta-root>
-      <p class="ta-terms-hint" data-ta-hint hidden></p>
-
       <section class="terms-block">
         <h2 class="terms-title">Terms and Conditions</h2>
         <div class="terms-body">
@@ -94,25 +92,31 @@
             </li>
           </ol>
         </div>
-        <label class="checkbox-label">
-          <input type="checkbox" data-ta-agreement="termsCheck" />
-          I have read and accept the
+        <div class="ta-agreement-line">
+          <label class="checkbox-label">
+            <input type="checkbox" />
+            <span>I have read and accept the</span>
+          </label>
           <button type="button" class="ta-policy-link" data-ta-policy="terms">Terms and Conditions</button>
-        </label>
+        </div>
       </section>
 
       <section class="agreements-block">
         <h2 class="agreements-title">Required Agreements</h2>
-        <label class="checkbox-label">
-          <input type="checkbox" data-ta-agreement="privacyCheck" />
-          I have read and agree to the
+        <div class="ta-agreement-line">
+          <label class="checkbox-label">
+            <input type="checkbox" />
+            <span>I have read and agree to the</span>
+          </label>
           <button type="button" class="ta-policy-link" data-ta-policy="privacy">Data Privacy &amp; Policy</button>
-        </label>
-        <label class="checkbox-label">
-          <input type="checkbox" data-ta-agreement="stayCheck" />
-          I have read and agree to the
+        </div>
+        <div class="ta-agreement-line">
+          <label class="checkbox-label">
+            <input type="checkbox" />
+            <span>I have read and agree to the</span>
+          </label>
           <button type="button" class="ta-policy-link" data-ta-policy="stay">Terms &amp; Conditions of Stay</button>
-        </label>
+        </div>
       </section>
     </div>
   </div>

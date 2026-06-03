@@ -29,7 +29,7 @@ export function formatCleaningTaskMessage(t) {
 }
 
 /**
- * Polls cleaning tasks + persisted “new task” inbox for the top bar.
+ * Loads cleaning tasks + persisted “new task” inbox for the top bar (once on mount; refreshes on events).
  */
 export function useHousekeepingCleaningNotifications() {
   const [tasks, setTasks] = useState([]);
@@ -73,18 +73,6 @@ export function useHousekeepingCleaningNotifications() {
   }, [load]);
 
   useEffect(() => {
-    const id = window.setInterval(() => load(), 6000);
-    let lastFocusLoad = 0;
-    const onVis = () => {
-      if (document.visibilityState === "visible") load();
-    };
-    const onFocus = () => {
-      if (!getStoredAuthToken()) return;
-      const now = Date.now();
-      if (now - lastFocusLoad < 600) return;
-      lastFocusLoad = now;
-      load();
-    };
     const onRefresh = () => load({ reconcile: false });
     const onInboxRefresh = () => load({ reconcile: false });
     const onStorage = (e) => {
@@ -94,16 +82,11 @@ export function useHousekeepingCleaningNotifications() {
     window.addEventListener(HOUSEKEEPING_INBOX_REFRESH_EVENT, onInboxRefresh);
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onRefresh);
     window.addEventListener("storage", onStorage);
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onVis);
     return () => {
-      window.clearInterval(id);
       window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onRefresh);
       window.removeEventListener(HOUSEKEEPING_INBOX_REFRESH_EVENT, onInboxRefresh);
       window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onRefresh);
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onVis);
     };
   }, [load]);
 

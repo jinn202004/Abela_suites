@@ -135,33 +135,224 @@ export function ledgerCellText(v) {
   return s;
 }
 
+/** Strip leading zeros from numeric room numbers (007 → 7); keep codes like RM01. */
+export function normalizeLedgerRoomNumber(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s || s === "—" || s === LEDGER_EMPTY) return "";
+  if (/^RM/i.test(s)) return s;
+  if (/^\d+$/.test(s)) {
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? String(n) : s;
+  }
+  const paren = /^\(\s*([^)]+?)\s*\)$/.exec(s);
+  if (paren) return normalizeLedgerRoomNumber(paren[1]);
+  return s;
+}
+
+/** Title-case guest names for print (janah fe cultura → Janah Fe Cultura). */
+export function normalizeLedgerGuestName(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return "Guest";
+  return s
+    .split(/\s+/)
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : ""))
+    .join(" ");
+}
+
+function roomNumberFromCombinedLabel(label) {
+  const s = String(label || "").trim();
+  const m = s.match(/\(\s*([^)]+?)\s*\)\s*$/);
+  return m ? String(m[1]).trim() : "";
+}
+
+/** Room # or venue name from cashier/API billing list row. */
+export function ledgerRoomOrVenueFromBillingRow(r) {
+  const t = String(r?.bookingType || "").toLowerCase();
+  if (t === "event") {
+    const v = ledgerCellText(r?.venueName || r?.eventTitle);
+    if (v !== LEDGER_EMPTY) return v;
+    const fromCtx = roomNumberFromCombinedLabel(r?.contextLabel);
+    return fromCtx ? ledgerCellText(fromCtx) : ledgerCellText(r?.contextLabel);
+  }
+  const num = normalizeLedgerRoomNumber(r?.roomNumber);
+  if (num) return num;
+  const fromParen = normalizeLedgerRoomNumber(roomNumberFromCombinedLabel(r?.contextLabel));
+  if (fromParen) return fromParen;
+  const title = ledgerCellText(r?.roomTitle);
+  return title !== LEDGER_EMPTY ? title : ledgerCellText(r?.contextLabel);
+}
+
+/** Package / event title from cashier/API billing list row. */
+export function ledgerPackageFromBillingRow(r) {
+  const t = String(r?.bookingType || "").toLowerCase();
+  if (t === "event") {
+    const ev = ledgerCellText(r?.eventTitle);
+    if (ev !== LEDGER_EMPTY) return ev;
+    const vn = ledgerCellText(r?.venueName);
+    return vn !== LEDGER_EMPTY ? vn : "Event Booking";
+  }
+  const title = ledgerCellText(r?.roomTitle);
+  if (title !== LEDGER_EMPTY) return title;
+  const combined = String(r?.contextLabel || "").trim();
+  return combined.replace(/\s*\([^)]*\)\s*$/, "").trim() || combined || "Room Booking";
+}
+
+/** Sort rank for PDF/print: unpaid first (action needed), then partial, then paid. */
+function ledgerPaymentStatusRank(r) {
+  const st = String(r?.paymentStatus || "").toLowerCase();
+  if (st === "unpaid") return 0;
+  if (st === "partial") return 1;
+  if (st === "paid") return 2;
+  return 3;
+}
+
+function ledgerRowFingerprint(r) {
+  const guest = String(r?.guestName || "")
+    .trim()
+    .toLowerCase();
+  const type = String(r?.bookingType || "").toLowerCase();
+  const room = String(r?.roomOrVenue || "")
+    .trim()
+    .toLowerCase();
+  const pkg = String(r?.packageLabel || "")
+    .trim()
+    .toLowerCase();
+  const ci = parseLedgerDateInput(r?.checkIn) || "";
+  const co = parseLedgerDateInput(r?.checkOut) || "";
+  const total = Math.round((Number(r?.totalAmount) || 0) * 100);
+  return `${guest}|${type}|${room}|${pkg}|${ci}|${co}|${total}`;
+}
+
+function pickBetterLedgerRow(a, b) {
+  const paidA = Number(a?.amountPaid) || 0;
+  const paidB = Number(b?.amountPaid) || 0;
+  if (paidA !== paidB) return paidA > paidB ? a : b;
+  const balA = Number(a?.balance) || 0;
+  const balB = Number(b?.balance) || 0;
+  if (balA !== balB) return balA < balB ? a : b;
+  const bidA = String(a?.bookingId || "").trim();
+  const bidB = String(b?.bookingId || "").trim();
+  if (bidA && !bidB) return a;
+  if (bidB && !bidA) return b;
+  const ca = billCreatedSortKey(a);
+  const cb = billCreatedSortKey(b);
+  return cb > ca ? b : a;
+}
+
+/** Collapse duplicate bookings (same guest, room, dates, total) — keeps the row with most payment recorded. */
+export function dedupeLedgerRows(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  const map = new Map();
+  for (const row of rows) {
+    const fp = ledgerRowFingerprint(row);
+    const prev = map.get(fp);
+    map.set(fp, prev ? pickBetterLedgerRow(prev, row) : row);
+  }
+  return [...map.values()];
+}
+
+/**
+ * PDF / print row order: payment status (unpaid → partial → paid), then balance due
+ * (highest first), then total, check-in, guest name.
+ */
+export function sortLedgerRowsForReport(rows) {
+  if (!Array.isArray(rows)) return [];
+  return [...rows].sort((a, b) => {
+    const statusCmp = ledgerPaymentStatusRank(a) - ledgerPaymentStatusRank(b);
+    if (statusCmp !== 0) return statusCmp;
+
+    const balA = Number(a?.balance) || 0;
+    const balB = Number(b?.balance) || 0;
+    if (balB !== balA) return balB - balA;
+
+    const totA = Number(a?.totalAmount) || 0;
+    const totB = Number(b?.totalAmount) || 0;
+    if (totB !== totA) return totB - totA;
+
+    const ci = (parseLedgerDateInput(a?.checkIn) || "").localeCompare(parseLedgerDateInput(b?.checkIn) || "");
+    if (ci !== 0) return ci;
+
+    const guestCmp = String(a?.guestName || "").localeCompare(String(b?.guestName || ""), undefined, {
+      sensitivity: "base",
+    });
+    if (guestCmp !== 0) return guestCmp;
+
+    return String(a?.roomOrVenue || "").localeCompare(String(b?.roomOrVenue || ""), undefined, {
+      sensitivity: "base",
+    });
+  });
+}
+
+function normalizeLedgerRowFields(row) {
+  const isEvent = String(row?.bookingType || "").toLowerCase() === "event";
+  const roomOrVenue = isEvent
+    ? ledgerCellText(row?.roomOrVenue)
+    : normalizeLedgerRoomNumber(row?.roomOrVenue) || ledgerCellText(row?.roomOrVenue);
+  return {
+    ...row,
+    guestName: normalizeLedgerGuestName(row?.guestName),
+    roomOrVenue: roomOrVenue === LEDGER_EMPTY ? LEDGER_EMPTY : roomOrVenue,
+    packageLabel: ledgerCellText(row?.packageLabel || row?.contextLabel),
+  };
+}
+
+/** Dedupe, normalize display fields, sort, and assign sequential bill # for print/PDF. */
+export function prepareLedgerRowsForReport(rows) {
+  if (!Array.isArray(rows)) return [];
+  const normalized = rows.map((r) => normalizeLedgerRowFields(r));
+  const deduped = dedupeLedgerRows(normalized);
+  const sorted = sortLedgerRowsForReport(deduped);
+  return assignLedgerBillNumbers(sorted);
+}
+
 function parseDateForMonthFilter(d) {
   if (d == null || d === "" || d === "—") return null;
-  const s = String(d);
-  const dt = s.includes("T") ? new Date(s) : new Date(`${s.slice(0, 10)}T12:00:00`);
+  const ymd = parseLedgerDateInput(d);
+  if (ymd) {
+    const [y, mo, da] = ymd.split("-").map(Number);
+    const dt = new Date(y, mo - 1, da, 12, 0, 0);
+    return Number.isNaN(dt.getTime()) ? null : dt;
+  }
+  const dt = new Date(String(d));
   return Number.isNaN(dt.getTime()) ? null : dt;
 }
 
-/** When month is "" (YYYY-MM), include all rows; otherwise filter by billing `createdAt`. */
+function monthKeyFromYmd(ymd, monthYyyyMm) {
+  if (!ymd || !monthYyyyMm) return false;
+  return ymd.slice(0, 7) === monthYyyyMm;
+}
+
+/** Room check-in or event start date used to assign a billing row to a calendar month. */
+export function billingRowTransactionYmd(source) {
+  const bk = source?.booking && typeof source.booking === "object" ? source.booking : source;
+  const t = String(bk?.bookingType ?? bk?.type ?? source?.bookingType ?? "").toLowerCase();
+  const raw =
+    t === "event"
+      ? bk?.eventDate ?? bk?.checkIn ?? bk?.checkin ?? source?.eventDate
+      : bk?.checkIn ?? bk?.checkin ?? bk?.eventDate ?? source?.checkIn ?? source?.checkin;
+  return parseLedgerDateInput(raw);
+}
+
+/** When month is "" (YYYY-MM), include all rows; otherwise filter by calendar date. */
 export function rowInSelectedMonth(sortDate, monthYyyyMm) {
   if (!monthYyyyMm) return true;
+  const ymd = parseLedgerDateInput(sortDate);
+  if (ymd) return monthKeyFromYmd(ymd, monthYyyyMm);
   const dt = parseDateForMonthFilter(sortDate);
   if (!dt) return false;
   const [y, m] = monthYyyyMm.split("-").map(Number);
   return dt.getFullYear() === y && dt.getMonth() + 1 === m;
 }
 
-/** Front desk: match month against check-in, check-out, or bill activity date. */
-export function rowInSelectedMonthFrontdesk(row, monthYyyyMm) {
+/** Billing print: include rows whose check-in / event date falls in the selected month. */
+export function rowInSelectedMonthForBillingPrint(source, monthYyyyMm) {
   if (!monthYyyyMm) return true;
-  const candidates = [row?.checkIn, row?.checkOut, row?.createdAt, row?.billedAt].filter(Boolean);
-  for (const c of candidates) {
-    const dt = parseDateForMonthFilter(c);
-    if (!dt) continue;
-    const ym = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}`;
-    if (ym === monthYyyyMm) return true;
-  }
-  return false;
+  return monthKeyFromYmd(billingRowTransactionYmd(source), monthYyyyMm);
+}
+
+/** @deprecated Use rowInSelectedMonthForBillingPrint — kept for existing imports. */
+export function rowInSelectedMonthFrontdesk(row, monthYyyyMm) {
+  return rowInSelectedMonthForBillingPrint(row, monthYyyyMm);
 }
 
 export function billCreatedSortKey(r) {
@@ -318,7 +509,14 @@ export function billsReportEmptyMessage(variant) {
 
 /** Map GET /api/cashier/billing list row to ledger export shape (admin bills print). */
 export function cashierBillingRowToLedgerRow(r) {
-  const contextLabel = ledgerCellText(r?.contextLabel);
+  const roomOrVenue = ledgerRoomOrVenueFromBillingRow(r);
+  const packageLabel = ledgerPackageFromBillingRow(r);
+  const isEvent = String(r?.bookingType || "").toLowerCase() === "event";
+  const contextLabel = isEvent
+    ? `${packageLabel} · ${roomOrVenue}`
+    : packageLabel && roomOrVenue && roomOrVenue !== LEDGER_EMPTY
+      ? `${packageLabel} (${roomOrVenue})`
+      : packageLabel || roomOrVenue || LEDGER_EMPTY;
   const stay = resolveStayDatesForLedger(r);
   return {
     id: String(r?.id || "").trim(),
@@ -333,8 +531,8 @@ export function cashierBillingRowToLedgerRow(r) {
     createdAt: r?.createdAt,
     checkIn: stay.checkIn || "",
     checkOut: stay.checkOut || "",
-    packageLabel: contextLabel,
-    roomOrVenue: contextLabel,
+    packageLabel,
+    roomOrVenue,
     paymentMethod: String(r?.paymentMethod || "").trim(),
   };
 }
@@ -342,7 +540,9 @@ export function cashierBillingRowToLedgerRow(r) {
 /** Map a front desk table row to the ledger export shape (client-side only). */
 export function frontdeskBillRowToLedgerRow(r) {
   const isEvent = String(r?.bookingType || "").toLowerCase() === "event";
-  const roomOrVenue = ledgerCellText(r?.room);
+  const roomOrVenue = isEvent
+    ? ledgerCellText(r?.room)
+    : normalizeLedgerRoomNumber(r?.room) || ledgerCellText(r?.room);
   const packageLabel = ledgerCellText(r?.package);
   const contextLabel = isEvent
     ? `${packageLabel} · ${roomOrVenue}`
@@ -376,7 +576,7 @@ function useDetailColumns(rows) {
 }
 
 function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
-  const numberedRows = assignLedgerBillNumbers(rows);
+  const numberedRows = prepareLedgerRowsForReport(rows);
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
   const margin = 12;
   const pageW = doc.internal.pageSize.getWidth();
@@ -416,8 +616,9 @@ function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
     doc.setFontSize(9.5);
     doc.text(`Total transactions: ${sum.count}`, margin, y);
     y += 5;
+    const statusOrder = { Unpaid: 0, Partial: 1, Paid: 2 };
     const statusParts = Object.entries(sum.byStatus)
-      .sort((a, b) => b[1] - a[1])
+      .sort((a, b) => (statusOrder[a[0]] ?? 9) - (statusOrder[b[0]] ?? 9))
       .map(([k, v]) => `${billsPdfSafe(k, 120)}: ${v}`);
     const statusBlob = statusParts.join("   ");
     const statusLines = doc.splitTextToSize(statusBlob, contentW);
@@ -463,11 +664,13 @@ function buildBillsReportPdf({ variant, monthLabel, rows, printMonthKey }) {
             8: { halign: "right" },
             9: { halign: "right" },
             10: { halign: "right" },
+            11: { halign: "center" },
           }
         : {
             4: { halign: "right" },
             5: { halign: "right" },
             6: { halign: "right" },
+            7: { halign: "center" },
           },
     });
   }

@@ -23,7 +23,6 @@ import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import "./pos.css";
 import "./cashier-sidebar-shared.css";
 import { useCashierUnifiedBell } from "./useCashierUnifiedBell";
-import { getPosWalkInGuestEmail } from "./posWalkInGuest";
 
 /** Preferred tab order (matches admin seed categories); extras are appended alphabetically. */
 const DEFAULT_CATEGORY_ORDER = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
@@ -814,7 +813,6 @@ export default function POS() {
     }
 
     const roundedTotal = Math.round(total * 100) / 100;
-    const guestEmail = getPosWalkInGuestEmail();
     const items = orderedItems.map((i) => ({
       menuItemId: String(i.dish.id),
       quantity: i.qty,
@@ -823,7 +821,6 @@ export default function POS() {
     setCheckoutBusy(true);
     try {
       const created = await createRestaurantOrderBackend({
-        guestEmail,
         items,
         totalAmount: roundedTotal,
       });
@@ -857,7 +854,7 @@ export default function POS() {
       setAmountGiven("");
       setShowBill(true);
     } catch (e) {
-      openPrompt(e?.message || "Could not save this order. Check that a guest user exists for walk-in sales.");
+      openPrompt(e?.message || "Could not save this order. Please try again.");
     } finally {
       setCheckoutBusy(false);
     }

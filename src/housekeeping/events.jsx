@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import StaffTopbarActions from "../topbar/StaffTopbarActions";
-import { Modal } from "../components/Modal";
 import { StaffSuccessModal } from "../components/StaffSuccessModal";
 import { StaffNoticeToast } from "../components/StaffNoticeToast";
 import "../components/StaffSuccessModal.css";
@@ -60,27 +59,6 @@ const SettingsIcon = () => (
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
   </svg>
 );
-const UploadIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-    <polyline points="17 8 12 3 7 8" />
-    <line x1="12" y1="3" x2="12" y2="15" />
-  </svg>
-);
-
-const DAMAGE_STORAGE_KEY = "abela_hk_event_damage_reports";
-
-function readDamageMap() {
-  try {
-    const raw = sessionStorage.getItem(DAMAGE_STORAGE_KEY);
-    if (!raw) return {};
-    const o = JSON.parse(raw);
-    return o && typeof o === "object" ? o : {};
-  } catch {
-    return {};
-  }
-}
-
 function formatDateLabel(s) {
   if (s == null || s === "") return "—";
   const str = String(s);
@@ -132,13 +110,6 @@ export default function EventCleaning() {
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState(null);
   const [successModal, setSuccessModal] = useState(null);
-  const [damageModalOpen, setDamageModalOpen] = useState(false);
-  const [damageTaskId, setDamageTaskId] = useState("");
-  const [damageDesc, setDamageDesc] = useState("");
-  const [damageImg, setDamageImg] = useState(null);
-  const [damageImgPreview, setDamageImgPreview] = useState("");
-  const [viewReport, setViewReport] = useState(null);
-  const [damageByTaskId, setDamageByTaskId] = useState(() => readDamageMap());
 
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const { role } = useAuthRole();
@@ -204,38 +175,13 @@ export default function EventCleaning() {
   }, [loadTasks]);
 
   useEffect(() => {
-    try {
-      sessionStorage.setItem(DAMAGE_STORAGE_KEY, JSON.stringify(damageByTaskId));
-    } catch {
-      /* ignore */
-    }
-  }, [damageByTaskId]);
-
-  useEffect(() => {
-    let lastFocusLoad = 0;
-    const id = window.setInterval(() => loadTasks(), 6000);
-    const onVis = () => {
-      if (document.visibilityState === "visible") loadTasks();
-    };
-    const onFocus = () => {
-      if (!getStoredAuthToken()) return;
-      const now = Date.now();
-      if (now - lastFocusLoad < 500) return;
-      lastFocusLoad = now;
-      loadTasks();
-    };
     const onHK = () => loadTasks({ silent: true });
     const onStorage = (e) => {
       if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadTasks({ silent: true });
     };
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", onFocus);
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHK);
     window.addEventListener("storage", onStorage);
     return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", onFocus);
       window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHK);
       window.removeEventListener("storage", onStorage);
     };
@@ -368,35 +314,32 @@ export default function EventCleaning() {
     return <span className={`rc-badge ${getBadgeClass(s)}`}>{s}</span>;
   }
 
-  function openDamageModal(taskId) {
-    setDamageTaskId(taskId);
-    setDamageDesc("");
-    setDamageImg(null);
-    setDamageImgPreview("");
-    setDamageModalOpen(true);
-  }
-
-  function onDamageFileChange(e) {
-    const f = e.target.files?.[0];
-    if (!f) {
-      setDamageImg(null);
-      setDamageImgPreview("");
-      return;
+  function taskActionButton(r) {
+    if (r.taskStatus === "pending") {
+      return (
+        <button
+          type="button"
+          className="rc-action-btn btn-start"
+          disabled={busyId === r.taskId}
+          onClick={() => handleStart(r.taskId)}
+        >
+          Start
+        </button>
+      );
     }
-    setDamageImg(f);
-    const reader = new FileReader();
-    reader.onload = () => setDamageImgPreview(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(f);
-  }
-
-  function submitDamageReport() {
-    const desc = damageDesc.trim() || "—";
-    setDamageByTaskId((prev) => ({
-      ...prev,
-      [damageTaskId]: { desc, imgDataUrl: damageImgPreview || "" },
-    }));
-    setDamageModalOpen(false);
-    showToast("Report submitted", "Damage report saved for this venue.");
+    if (r.taskStatus === "in_progress") {
+      return (
+        <button
+          type="button"
+          className="rc-action-btn btn-completed"
+          disabled={busyId === r.taskId}
+          onClick={() => handleComplete(r.taskId)}
+        >
+          Mark complete
+        </button>
+      );
+    }
+    return null;
   }
 
   return (
@@ -496,19 +439,18 @@ export default function EventCleaning() {
                     <th>Package</th>
                     <th>Type</th>
                     <th>Status</th>
-                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="rc-empty">
+                      <td colSpan={4} className="rc-empty">
                         Loading…
                       </td>
                     </tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="rc-empty" style={{ textAlign: "center", padding: "28px 20px", verticalAlign: "top" }}>
+                      <td colSpan={4} className="rc-empty" style={{ textAlign: "center", padding: "28px 20px", verticalAlign: "top" }}>
                         {loadError ? (
                           <span style={{ fontSize: 13, color: "#9a8060" }}>See the message above.</span>
                         ) : (
@@ -525,44 +467,10 @@ export default function EventCleaning() {
                         <td>{r.number}</td>
                         <td>{r.package}</td>
                         <td>{r.typeLabel}</td>
-                        <td>{taskStatusCell(r.displayStatus)}</td>
-                        <td>
-                          <div className="rc-action-cell">
-                          {r.taskStatus === "pending" ? (
-                            <button
-                              type="button"
-                              className="rc-action-btn btn-start"
-                              disabled={busyId === r.taskId}
-                              onClick={() => handleStart(r.taskId)}
-                            >
-                              Start
-                            </button>
-                          ) : null}
-                          {r.taskStatus === "in_progress" ? (
-                            <button
-                              type="button"
-                              className="rc-action-btn btn-completed"
-                              disabled={busyId === r.taskId}
-                              onClick={() => handleComplete(r.taskId)}
-                            >
-                              Mark complete
-                            </button>
-                          ) : null}
-                          {r.taskStatus === "completed" ? (
-                            damageByTaskId[r.taskId] ? (
-                              <button
-                                type="button"
-                                className="rc-action-btn btn-reportdmg"
-                                onClick={() => setViewReport({ taskId: r.taskId, ...damageByTaskId[r.taskId] })}
-                              >
-                                View Report
-                              </button>
-                            ) : (
-                              <button type="button" className="rc-action-btn btn-reportdmg" onClick={() => openDamageModal(r.taskId)}>
-                                Report Damage
-                              </button>
-                            )
-                          ) : null}
+                        <td className="rc-td-status">
+                          <div className="rc-status-cell">
+                            {taskStatusCell(r.displayStatus)}
+                            {taskActionButton(r)}
                           </div>
                         </td>
                       </tr>
@@ -585,83 +493,6 @@ export default function EventCleaning() {
       <StaffNoticeToast open={Boolean(toast)} title={toast?.title} message={toast?.sub} />
 
       <LogoutConfirmModal open={logoutModalOpen} onClose={closeLogoutModal} onConfirm={confirmLogout} />
-
-      <Modal
-        open={damageModalOpen}
-        onClose={() => setDamageModalOpen(false)}
-        title="Report Damage"
-        size="md"
-        placement="center"
-        panelClassName="rc-modal"
-        bodyClassName="rc-modal-body"
-        footer={
-          <div className="rc-modal-actions">
-            <button type="button" className="rc-action-btn btn-start" onClick={() => setDamageModalOpen(false)}>
-              Cancel
-            </button>
-            <button type="button" className="rc-action-btn btn-reportdmg" onClick={submitDamageReport}>
-              Submit
-            </button>
-          </div>
-        }
-      >
-        <label style={{ fontSize: 13, color: "#5c4d3a" }}>
-          Description
-          <textarea
-            className="rc-search-input"
-            style={{ width: "100%", minHeight: 88, marginTop: 6, resize: "vertical" }}
-            value={damageDesc}
-            onChange={(e) => setDamageDesc(e.target.value)}
-            placeholder="Describe the issue…"
-          />
-        </label>
-        <div>
-          <span style={{ fontSize: 13, color: "#5c4d3a", display: "block", marginBottom: 6 }}>Photo (optional)</span>
-          <label
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 8,
-              cursor: "pointer",
-              fontSize: 13,
-              color: "var(--gold-dark)",
-            }}
-          >
-            <UploadIcon />
-            <span>Choose image</span>
-            <input type="file" accept="image/*" style={{ display: "none" }} onChange={onDamageFileChange} />
-          </label>
-          {damageImgPreview ? (
-            <img src={damageImgPreview} alt="" style={{ maxWidth: "100%", maxHeight: 160, marginTop: 10, borderRadius: 8 }} />
-          ) : null}
-        </div>
-      </Modal>
-
-      <Modal
-        open={!!viewReport}
-        onClose={() => setViewReport(null)}
-        title="Damage report"
-        size="md"
-        placement="center"
-        panelClassName="rc-modal"
-        bodyClassName="rc-modal-body"
-        footer={
-          <div className="rc-modal-actions">
-            <button type="button" className="rc-action-btn btn-reportdmg" onClick={() => setViewReport(null)}>
-              Close
-            </button>
-          </div>
-        }
-      >
-        {viewReport ? (
-          <>
-            <p style={{ margin: 0, fontSize: 14, color: "#4a3f2e", whiteSpace: "pre-wrap" }}>{viewReport.desc}</p>
-            {viewReport.imgDataUrl ? (
-              <img src={viewReport.imgDataUrl} alt="" style={{ maxWidth: "100%", borderRadius: 8, marginTop: 12 }} />
-            ) : null}
-          </>
-        ) : null}
-      </Modal>
     </>
   );
 }

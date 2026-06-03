@@ -86,13 +86,6 @@
     flex: 1 1 auto;
   }
   .breadcrumb-arrow  { font-size: 22px; font-weight: 700; color: var(--gold); line-height: 1; flex-shrink: 0; }
-  .breadcrumb-chevron {
-    font-size: 22px;
-    font-weight: 700;
-    color: var(--gold);
-    line-height: 1;
-    flex-shrink: 0;
-  }
   .breadcrumb-title  {
     font-family: 'Montserrat', sans-serif; font-size: 17px; font-weight: 700; color: var(--gold);
     overflow: hidden;
@@ -319,6 +312,13 @@
   .rh-table tbody tr { border-bottom: 1px solid #f0e8d8; transition: background 0.15s; }
   .rh-table tbody tr:last-child { border-bottom: none; }
   .rh-table tbody tr:hover { background: #fdf8f0; }
+  .rh-table tbody tr.admin-clickable-row {
+    cursor: pointer;
+  }
+  .rh-table tbody tr.admin-clickable-row:hover {
+    background: #fdf8f0;
+    box-shadow: inset 3px 0 0 var(--gold, #b8922a);
+  }
   .rh-table tbody td { padding: 11px 16px; color: var(--text-dark); }
   
   /* ── ACTION ── */

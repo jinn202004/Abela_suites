@@ -1,83 +1,66 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useLocation } from "react-router-dom";
 import {
   fetchNotificationsBackend,
   markAllNotificationsReadBackend,
   GUEST_NOTIFICATIONS_REFRESH_EVENT,
-  GUEST_NOTIFS_STORAGE_PING_KEY,
 } from "../api/guestApi";
-import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { getStoredAuthToken } from "../api/authApi";
 import { buildGuestNotificationDetailLines } from "./guestNotificationDisplay";
 
 /**
- * Loads approve/reject alerts from GET /api/users/me/notifications and keeps the bell in sync.
+ * Loads approve/reject alerts from GET /api/notifications for the guest topbar bell.
+ * Fetches once when the hook mounts (per page visit); use `loadGuestNotifications({ force: true })` to refresh manually.
  */
 export function useGuestTopbarNotifications() {
-  const location = useLocation();
   const notifRef = useRef(null);
   const [notifOpen, setNotifOpen] = useState(false);
   const [guestNotifRows, setGuestNotifRows] = useState([]);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const initialLoadDoneRef = useRef(false);
+  const loadInFlightRef = useRef(null);
 
-  const loadGuestNotifications = useCallback(async () => {
+  const loadGuestNotifications = useCallback(async (opts = {}) => {
+    const force = opts.force === true;
+    if (!force && initialLoadDoneRef.current) return;
+
     if (!getStoredAuthToken()) {
       setGuestNotifRows([]);
       setUnreadNotifCount(0);
+      initialLoadDoneRef.current = true;
       return;
     }
-    try {
-      const { notifications, unreadCount } = await fetchNotificationsBackend();
-      setGuestNotifRows(notifications);
-      setUnreadNotifCount(unreadCount);
-    } catch {
-      setGuestNotifRows([]);
-      setUnreadNotifCount(0);
+
+    if (loadInFlightRef.current) {
+      return loadInFlightRef.current;
     }
+
+    const run = (async () => {
+      try {
+        const { notifications, unreadCount } = await fetchNotificationsBackend();
+        setGuestNotifRows(notifications);
+        setUnreadNotifCount(unreadCount);
+      } catch {
+        setGuestNotifRows([]);
+        setUnreadNotifCount(0);
+      } finally {
+        initialLoadDoneRef.current = true;
+        loadInFlightRef.current = null;
+      }
+    })();
+
+    loadInFlightRef.current = run;
+    return run;
   }, []);
 
   useEffect(() => {
-    loadGuestNotifications();
-  }, [loadGuestNotifications, location.pathname, location.key]);
-
-  useEffect(() => {
-    function onAuthChanged() {
-      loadGuestNotifications();
-    }
-    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChanged);
-    return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChanged);
+    void loadGuestNotifications();
   }, [loadGuestNotifications]);
 
-  /** Same-tab refresh (e.g. after booking history load dispatches). */
+  /** Same-tab refresh after staff approve/reject (explicit dispatch only). */
   useEffect(() => {
-    const onRefresh = () => loadGuestNotifications();
+    const onRefresh = () => void loadGuestNotifications({ force: true });
     window.addEventListener(GUEST_NOTIFICATIONS_REFRESH_EVENT, onRefresh);
     return () => window.removeEventListener(GUEST_NOTIFICATIONS_REFRESH_EVENT, onRefresh);
-  }, [loadGuestNotifications]);
-
-  /** Other tabs: front desk approved/rejects → localStorage ping from `dispatchGuestBookingsRefreshPing`. */
-  useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === GUEST_NOTIFS_STORAGE_PING_KEY) loadGuestNotifications();
-    };
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, [loadGuestNotifications]);
-
-  /** Poll and refetch when the tab is focused so approve/reject from front desk shows without a full reload. */
-  useEffect(() => {
-    const intervalMs = 15_000;
-    const tick = () => {
-      if (getStoredAuthToken()) loadGuestNotifications();
-    };
-    const id = window.setInterval(tick, intervalMs);
-    function onVisible() {
-      if (document.visibilityState === "visible") tick();
-    }
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
   }, [loadGuestNotifications]);
 
   const derivedUnreadCount = useMemo(

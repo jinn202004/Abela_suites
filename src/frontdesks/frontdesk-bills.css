@@ -338,6 +338,15 @@
   .bills-table tbody tr { border-bottom: 1px solid #f0e8d8; transition: background 0.15s; }
   .bills-table tbody tr:last-child { border-bottom: none; }
   .bills-table tbody tr:hover { background: #fdf8f0; }
+
+  .bills-table tbody tr.admin-clickable-row {
+    cursor: pointer;
+  }
+
+  .bills-table tbody tr.admin-clickable-row:hover {
+    background: #fdf8f0;
+    box-shadow: inset 3px 0 0 var(--gold, #b8922a);
+  }
   .bills-table tbody td { padding: 10px 12px; color: var(--text-dark); vertical-align: middle; word-break: break-word; }
   
   /* ── ACTION BUTTONS ── */

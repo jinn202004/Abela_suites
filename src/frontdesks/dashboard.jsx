@@ -182,7 +182,6 @@ export default function FrontdeskDashboard() {
   });
   const [currentTab, setCurrentTab] = useState("room");
   const [search, setSearch] = useState("");
-  const [refreshing, setRefreshing] = useState(false);
   const [dashboardLoading, setDashboardLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(!!getStoredAuthToken());
   const [summary, setSummary] = useState(null);
@@ -208,9 +207,7 @@ export default function FrontdeskDashboard() {
   /** Ignore stale booking-detail responses when the user closes the modal or opens another row. */
   const bookingDetailsFetchGenRef = useRef(0);
 
-  const refreshDashboard = useCallback(async (opts = {}) => {
-    const silent = opts.silent === true;
-    if (!silent) setRefreshing(true);
+  const refreshDashboard = useCallback(async () => {
     try {
       const d = await loadDashboardBundle();
       setDashboardLoading(false);
@@ -229,7 +226,6 @@ export default function FrontdeskDashboard() {
         setBookingsError(null);
       }
     } finally {
-      if (!silent) setRefreshing(false);
       setDashboardLoading(false);
     }
   }, []);
@@ -342,19 +338,19 @@ export default function FrontdeskDashboard() {
   /** Room / event status on the dashboard follows the same Mongo fields as housekeeping; keep in sync when HK updates. */
   useEffect(() => {
     if (!isDashboardPath || !authenticated) return undefined;
-    const hk = () => void refreshDashboard({ silent: true });
+    const hk = () => void refreshDashboard();
     const onVis = () => {
-      if (document.visibilityState === "visible") void refreshDashboard({ silent: true });
+      if (document.visibilityState === "visible") void refreshDashboard();
     };
     const onStorage = (e) => {
       if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY || e.key === GUEST_BOOKINGS_STORAGE_PING_KEY) {
-        void refreshDashboard({ silent: true });
+        void refreshDashboard();
       }
     };
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, hk);
     window.addEventListener("storage", onStorage);
     document.addEventListener("visibilitychange", onVis);
-    const poll = window.setInterval(() => void refreshDashboard({ silent: true }), 8000);
+    const poll = window.setInterval(() => void refreshDashboard(), 8000);
     return () => {
       window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, hk);
       window.removeEventListener("storage", onStorage);
@@ -365,7 +361,7 @@ export default function FrontdeskDashboard() {
 
   const anySectionError = summaryError || roomCatalogError || eventCatalogError || bookingsError;
 
-  const statPending = dashboardLoading || (refreshing && !summary) ? "…" : "—";
+  const statPending = dashboardLoading && !summary ? "…" : "—";
   const statCards = [
     {
       icon: <CalIcon />,
@@ -495,18 +491,13 @@ export default function FrontdeskDashboard() {
             <p className="fd-sub">Manage your hotel rooms, reservations, and availability</p>
           </div>
 
-          <div className="fd-dash-toolbar">
-            {anySectionError ? (
+          {anySectionError ? (
+            <div className="fd-dash-toolbar">
               <span className="fd-dash-banner" title={anySectionError}>
                 Could not refresh some data.
               </span>
-            ) : (
-              <span />
-            )}
-            <button type="button" className="fd-dash-refresh" disabled={refreshing} onClick={() => void refreshDashboard()}>
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </button>
-          </div>
+            </div>
+          ) : null}
 
           {!authenticated ? (
             <p className="fd-dash-signin">

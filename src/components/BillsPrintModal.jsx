@@ -4,7 +4,7 @@ import {
   billsDetailColumnsForVariant,
   billsReportEmptyMessage,
   billsReportTitle,
-  assignLedgerBillNumbers,
+  prepareLedgerRowsForReport,
   computeBillsSummary,
   displayLedgerDate,
   downloadBillsReportPdf,
@@ -64,7 +64,11 @@ export default function BillsPrintModal({
   note = "Totals and transaction list for this period. Use per-row print on the table for a single guest bill.",
   rootClass = "bills-page",
 }) {
-  const tableRows = useMemo(() => assignLedgerBillNumbers(rows), [rows]);
+  const tableRows = useMemo(() => {
+    if (!Array.isArray(rows) || rows.length === 0) return [];
+    if (rows.every((r) => r?.displayBillNum != null)) return rows;
+    return prepareLedgerRowsForReport(rows);
+  }, [rows]);
   const summary = useMemo(() => computeBillsSummary(tableRows), [tableRows]);
   const detailed = tableRows.some((r) => r?.checkIn != null);
   const tableCols = detailed ? billsDetailColumnsForVariant(variant) : BILLS_SUMMARY_COLS;
@@ -131,7 +135,10 @@ export default function BillsPrintModal({
                   </div>
                   <div className="bm-print-summary-pills" aria-label="By payment status">
                     {Object.entries(summary.byStatus)
-                      .sort((a, b) => b[1] - a[1])
+                      .sort((a, b) => {
+                        const order = { Unpaid: 0, Partial: 1, Paid: 2 };
+                        return (order[a[0]] ?? 9) - (order[b[0]] ?? 9);
+                      })
                       .map(([label, n]) => (
                         <span key={label} className="bm-print-summary-pill">
                           {label}: {n}

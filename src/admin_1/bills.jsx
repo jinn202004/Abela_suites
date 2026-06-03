@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import AdminSidebarNav from "./AdminSidebarNav";
 import AdminSidebarToggle from "./AdminSidebarToggle";
 import { useAdminShell } from "./AdminShellContext";
@@ -12,18 +12,19 @@ import autoTable from "jspdf-autotable";
 import { pdfSafeText, openPdfPrintOrDownload } from "../utils/pdfClientExport";
 import BillsPrintModal from "../components/BillsPrintModal";
 import {
-  billCreatedSortKey,
   bookingTypeLabel,
-  assignLedgerBillNumbers,
+  prepareLedgerRowsForReport,
   cashierBillingRowToLedgerRow,
   displayLedgerDate,
   fetchAllBillingForExport,
   formatPrintMonthLabel,
   paymentMethodLabel,
   paymentStatusLabel,
-  rowInSelectedMonth,
+  rowInSelectedMonthForBillingPrint,
 } from "../utils/billingLedgerReport";
 import "./bills.css";
+import "./adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 
 function visiblePageNumbers(currentPage, totalPages) {
@@ -120,12 +121,6 @@ const Icons = {
   Room: () => (
     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden>
       <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-    </svg>
-  ),
-  Eye: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
     </svg>
   ),
   Print: () => (
@@ -347,9 +342,9 @@ export default function Bills() {
 
   const printRowsFiltered = useMemo(
     () =>
-      assignLedgerBillNumbers(
+      prepareLedgerRowsForReport(
         printRawRows
-          .filter((r) => rowInSelectedMonth(billCreatedSortKey(r), printMonth))
+          .filter((r) => rowInSelectedMonthForBillingPrint(r, printMonth))
           .map(cashierBillingRowToLedgerRow),
       ),
     [printRawRows, printMonth],
@@ -564,7 +559,7 @@ export default function Bills() {
           </div>
           <div className="bm-toolbar-subrow bills-toolbar-subrow">
             <p className="bm-toolbar-hint">
-              Leave empty to include all billing rows. Month filter uses the billing record created date.
+              Leave empty to include all billing rows. Month filter uses check-in or event date.
             </p>
           </div>
 
@@ -602,7 +597,15 @@ export default function Bills() {
                     </tr>
                   ) : (
                     rows.map((r) => (
-                      <tr key={r.id}>
+                      <tr
+                        key={r.id}
+                        className="admin-clickable-row"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View billing details for ${String(r.guestName || "").trim() || "guest"}`}
+                        onClick={(e) => handleAdminRowActivate(e, () => setDetailId(r.id))}
+                        onKeyDown={(e) => handleAdminRowKeyDown(e, () => setDetailId(r.id))}
+                      >
                         <td>{String(r.guestName || "").trim() || "—"}</td>
                         <td>{bookingTypeLabel(r.bookingType)}</td>
                         <td>{String(r.contextLabel || "").trim() || "—"}</td>
@@ -615,10 +618,12 @@ export default function Bills() {
                           </span>
                         </td>
                         <td className="action-cell">
-                          <button type="button" className="icon-action view-btn" title="View details" onClick={() => setDetailId(r.id)}>
-                            <Icons.Eye />
-                          </button>
-                          <button type="button" className="icon-action print-btn" title="Open bill PDF (read-only)" onClick={() => printRowSummary(r)}>
+                          <button
+                            type="button"
+                            className="icon-action print-btn"
+                            title="Open bill PDF (read-only)"
+                            onClick={() => printRowSummary(r)}
+                          >
                             <Icons.Print />
                           </button>
                         </td>

@@ -141,7 +141,9 @@ export function getNotificationRedirectPath(n, role = "guest") {
 
   if (roleKey === "frontdesk") {
     if (hay.includes("bill") || hay.includes("billing")) return "/frontdesk-bills";
-    if (hay.includes("history")) return "/frontdesk-history";
+    if (/\breservation\s+history\b/i.test(hay) || hay.includes("/frontdesk-history")) {
+      return "/frontdesk-history";
+    }
     if (hay.includes("housekeeping") || hay.includes("cleaning")) return "/frontdesk-housekeeping";
     if (hay.includes("venue") || hay.includes("event")) return "/frontdesk-events";
     if (hay.includes("room")) return "/frontdesk-rooms";

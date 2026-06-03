@@ -354,6 +354,13 @@
     align-items: center;
   }
 
+  .rc-status-cell {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
   .rc-td-room,
   .rc-td-guest {
     vertical-align: top;

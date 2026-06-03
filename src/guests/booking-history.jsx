@@ -14,8 +14,6 @@ import {
   fetchBookingsBackend,
   fetchRoomsCatalog,
   fetchEventVenuesBackend,
-  dispatchGuestNotificationsRefresh,
-  GUEST_BOOKINGS_STORAGE_PING_KEY,
   fetchMyReviewsBackend,
   submitGuestReviewBackend,
 } from "../api/guestApi";
@@ -30,7 +28,7 @@ import {
   bookingEmailDisplay,
   bookingPhoneDisplay,
 } from "./bookingRoomDisplay";
-import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { getStoredAuthToken } from "../api/authApi";
 import { resolveGovernmentIdUrl } from "./guestBookingIdPhoto";
 import "./idUploadedCard.css";
 import "./booking-history.css";
@@ -349,6 +347,7 @@ export default function BookingHistory() {
 
   const fileInputRef = useRef(null);
   const userRef = useRef(null);
+  const bookingsLoadedRef = useRef(false);
   const [userOpen, setUserOpen] = useState(false);
   const {
     sidebarCollapsed,
@@ -373,6 +372,7 @@ export default function BookingHistory() {
   }, [notifRef, setNotifOpen]);
 
   const loadBookings = useCallback(async () => {
+    if (bookingsLoadedRef.current) return;
     if (!getStoredAuthToken()) {
       setRoomBookings([]);
       setEventBookings([]);
@@ -405,7 +405,6 @@ export default function BookingHistory() {
       } catch {
         setReviewedIds(new Set());
       }
-      dispatchGuestNotificationsRefresh();
     } catch (e) {
       setListError(e.message || "Could not load bookings.");
       setRoomBookings([]);
@@ -415,11 +414,12 @@ export default function BookingHistory() {
       setEventVenueNameMap(new Map());
     } finally {
       setListLoading(false);
+      bookingsLoadedRef.current = true;
     }
   }, []);
 
   useEffect(() => {
-    loadBookings();
+    void loadBookings();
   }, [loadBookings]);
 
   useEffect(() => {
@@ -431,28 +431,6 @@ export default function BookingHistory() {
     setActiveTab(row.type === "event" ? "event" : "room");
     setBookingDetailRow(row);
   }, [eventBookings, roomBookings, routeBookingId]);
-
-  useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === GUEST_BOOKINGS_STORAGE_PING_KEY) loadBookings();
-    };
-    const onVis = () => {
-      if (document.visibilityState === "visible") loadBookings();
-    };
-    const onAuth = () => loadBookings();
-    window.addEventListener("storage", onStorage);
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
-    const poll = window.setInterval(() => {
-      if (document.visibilityState === "visible" && getStoredAuthToken()) loadBookings();
-    }, 45_000);
-    return () => {
-      window.removeEventListener("storage", onStorage);
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
-      window.clearInterval(poll);
-    };
-  }, [loadBookings]);
 
   const detailIdPhotoSrc = bookingDetailRow ? resolveGovernmentIdUrl(bookingDetailRow) : null;
 

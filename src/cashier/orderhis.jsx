@@ -10,6 +10,8 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import CashierSidebarToggle from "./CashierSidebarToggle";
 import "./orderhis.css";
 import "./cashier-sidebar-shared.css";
+import "../admin_1/adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "../admin_1/adminClickUtils";
 import { useCashierUnifiedBell } from "./useCashierUnifiedBell";
 
 const HOTEL = {
@@ -41,13 +43,6 @@ const SettingsNavIcon = () => (
     <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
   </svg>
 );
-const EyeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="17" height="17">
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
-    <circle cx="12" cy="12" r="3"/>
-  </svg>
-);
-
 // ── Receipt Modal ──────────────────────────────────────────────────────
 function ReceiptModal({ order, onClose }) {
   // Close on Escape key
@@ -368,23 +363,34 @@ export default function OrderHistory() {
                       <th>Total</th>
                       <th>Received</th>
                       <th>Payment</th>
-                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {ordersLoading ? (
                       <tr>
-                        <td colSpan={6} className="oh-empty">
+                        <td colSpan={5} className="oh-empty">
                           Loading orders…
                         </td>
                       </tr>
                     ) : paged.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="oh-empty">No orders found.</td>
+                        <td colSpan={5} className="oh-empty">No orders found.</td>
                       </tr>
                     ) : (
                       paged.map((order) => (
-                        <tr key={order.id}>
+                        <tr
+                          key={order.id}
+                          className="admin-clickable-row"
+                          tabIndex={0}
+                          role="button"
+                          aria-label={`View receipt for order ${order.number}`}
+                          onClick={(e) =>
+                            handleAdminRowActivate(e, () => setSelectedOrder(order))
+                          }
+                          onKeyDown={(e) =>
+                            handleAdminRowKeyDown(e, () => setSelectedOrder(order))
+                          }
+                        >
                           <td>{order.number}</td>
                           <td>{order.date}</td>
                           <td>₱{order.total.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
@@ -393,16 +399,6 @@ export default function OrderHistory() {
                             <span className={`oh-pay-badge oh-pay-${order.paymentKey}`}>
                               {order.payment}
                             </span>
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              className="oh-eye-btn"
-                              title="View Receipt"
-                              onClick={() => setSelectedOrder(order)}
-                            >
-                              <EyeIcon />
-                            </button>
                           </td>
                         </tr>
                       ))

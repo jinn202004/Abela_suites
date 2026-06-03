@@ -225,13 +225,10 @@ export default function AdminDashboard() {
   });
   const [loadError, setLoadError] = useState("");
   const [dashboardLoading, setDashboardLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [overviewDays, setOverviewDays] = useState(7);
   const [recentDays, setRecentDays] = useState(7);
 
-  const refreshDashboard = useCallback(async (opts = {}) => {
-    const silent = opts.silent === true;
-    if (!silent) setRefreshing(true);
+  const refreshDashboard = useCallback(async () => {
     try {
       const data = await loadStaffDashboardBundle();
       const s = data.summary;
@@ -265,7 +262,6 @@ export default function AdminDashboard() {
           "Dashboard could not be loaded. Sign in as admin or front desk and ensure the API is running.",
       );
     } finally {
-      if (!silent) setRefreshing(false);
       setDashboardLoading(false);
     }
   }, []);
@@ -276,7 +272,7 @@ export default function AdminDashboard() {
   }, []);
 
   useEffect(() => {
-    const onAuth = () => void refreshDashboard({ silent: true });
+    const onAuth = () => void refreshDashboard();
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuth);
   }, [refreshDashboard]);
@@ -478,18 +474,8 @@ export default function AdminDashboard() {
         <main className="content">
 
           <div className="db-heading-row">
-            <div>
-              <h2 className="db-title">Abela&rsquo;s Dashboard</h2>
-              <p className="db-sub">Overview of key metrics and performance indicators</p>
-            </div>
-            <button
-              type="button"
-              className="db-refresh-btn"
-              disabled={refreshing}
-              onClick={() => void refreshDashboard()}
-            >
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </button>
+            <h2 className="db-title">Abela&rsquo;s Dashboard</h2>
+            <p className="db-sub">Overview of key metrics and performance indicators</p>
           </div>
 
           {loadError ? (

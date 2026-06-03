@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AUTH_TOKEN_CHANGED_EVENT,
   getStoredAuthToken,
@@ -67,60 +67,76 @@ export function useTopbarUserProfile(roleKey) {
   const [topbarProfile, setTopbarProfile] = useState(() =>
     mergeSnapshot(defaults, readTopbarMeSnapshot()),
   );
+  const initialLoadDoneRef = useRef(false);
+  const loadInFlightRef = useRef(null);
 
-  const refreshTopbarProfile = useCallback(async () => {
+  const refreshTopbarProfile = useCallback(async (opts = {}) => {
+    const force = opts.force === true;
+    if (!force && initialLoadDoneRef.current) return;
+
     const base = TOPBAR[roleKey]?.profile ?? TOPBAR.guest.profile;
     const token = getStoredAuthToken();
     const snap = readTopbarMeSnapshot();
     if (!token) {
       setTopbarProfile(mergeSnapshot(base, snap));
+      initialLoadDoneRef.current = true;
       return;
     }
-    let profile = mergeSnapshot(base, snap);
-    try {
-      const data = await fetchCurrentUserMeBackend();
-      const user = data?.user;
-      if (user) {
-        profile = mapUserToProfile(mergeSnapshot(base, snap), user);
-      }
-    } catch {
-      /* keep snapshot merge */
+
+    if (loadInFlightRef.current) {
+      return loadInFlightRef.current;
     }
-    if (roleKey === "guest") {
+
+    const run = (async () => {
+      let profile = mergeSnapshot(base, snap);
       try {
-        const guestData = await fetchGuestMeBackend();
-        const g = guestData?.guest;
-        if (g) {
-          const guestName = String(g.displayName || g.name || "").trim();
-          const guestEmail = String(g.email || "").trim();
-          const guestPhone = String(g.phone || g.contactNumber || "").trim();
-          const guestPhoto = photoToAvatarUrl(g.profilePhotoData);
-          profile = {
-            ...profile,
-            ...(guestName ? { name: guestName } : {}),
-            ...(guestEmail ? { email: guestEmail } : {}),
-            ...(guestPhone ? { contact: guestPhone } : {}),
-            ...(guestPhoto ? { avatarUrl: guestPhoto } : {}),
-          };
+        const data = await fetchCurrentUserMeBackend();
+        const user = data?.user;
+        if (user) {
+          profile = mapUserToProfile(mergeSnapshot(base, snap), user);
         }
       } catch {
-        /* guest profile optional */
+        /* keep snapshot merge */
       }
-    }
-    setTopbarProfile(profile);
+      if (roleKey === "guest") {
+        try {
+          const guestData = await fetchGuestMeBackend();
+          const g = guestData?.guest;
+          if (g) {
+            const guestName = String(g.displayName || g.name || "").trim();
+            const guestEmail = String(g.email || "").trim();
+            const guestPhone = String(g.phone || g.contactNumber || "").trim();
+            const guestPhoto = photoToAvatarUrl(g.profilePhotoData);
+            profile = {
+              ...profile,
+              ...(guestName ? { name: guestName } : {}),
+              ...(guestEmail ? { email: guestEmail } : {}),
+              ...(guestPhone ? { contact: guestPhone } : {}),
+              ...(guestPhoto ? { avatarUrl: guestPhoto } : {}),
+            };
+          }
+        } catch {
+          /* guest profile optional */
+        }
+      }
+      setTopbarProfile(profile);
+      initialLoadDoneRef.current = true;
+      loadInFlightRef.current = null;
+    })();
+
+    loadInFlightRef.current = run;
+    return run;
   }, [roleKey]);
 
   useEffect(() => {
-    queueMicrotask(() => {
-      void refreshTopbarProfile();
-    });
+    void refreshTopbarProfile();
   }, [refreshTopbarProfile]);
 
   useEffect(() => {
-    const onTok = () => void refreshTopbarProfile();
+    const onTok = () => void refreshTopbarProfile({ force: true });
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);
     if (roleKey === "guest") {
-      const onGuest = () => void refreshTopbarProfile();
+      const onGuest = () => void refreshTopbarProfile({ force: true });
       window.addEventListener(GUEST_PROFILE_UPDATED_EVENT, onGuest);
       return () => {
         window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onTok);

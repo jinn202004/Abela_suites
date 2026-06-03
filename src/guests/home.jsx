@@ -32,6 +32,7 @@ import { getBackendBaseURL, backendUrl } from "../api/config";
 import { getStoredAuthToken, clearStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import { resolveGovernmentIdUrl } from "./guestBookingIdPhoto";
+import GovernmentIdPreview from "../components/GovernmentIdPreview";
 import GuestSidebar from "./GuestSidebar";
 import { GuestArchiveIcon } from "./guestArchiveIcon";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
@@ -584,7 +585,7 @@ export default function Home() {
   useEffect(() => {
     function onAuthChanged() {
       loadBookings();
-      loadGuestNotifications();
+      loadGuestNotifications({ force: true });
     }
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChanged);
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChanged);
@@ -756,7 +757,7 @@ export default function Home() {
       }
       await patchBookingBackend(selectedRow.id, { status: "cancelled", cancellationReason: reason });
       setUnifiedRows((rows) => rows.filter((r) => r.key !== selectedRow.key));
-      loadGuestNotifications();
+      loadGuestNotifications({ force: true });
       setConfirmOpen(false);
       setCancelOpen(false);
       setSelectedRow(null);
@@ -798,8 +799,6 @@ export default function Home() {
     roomRawBase && detailMatches ? { ...roomRawBase, ...detailBooking } : roomRawBase;
   const eventRaw =
     eventRawBase && detailMatches ? { ...eventRawBase, ...detailBooking } : eventRawBase;
-  const roomIdPhotoSrc = roomRaw ? resolveGovernmentIdUrl(roomRaw) : null;
-  const eventIdPhotoSrc = eventRaw ? resolveGovernmentIdUrl(eventRaw) : null;
   const {
     sidebarCollapsed,
     isMobile,
@@ -1248,26 +1247,16 @@ export default function Home() {
                     </dl>
                   </section>
                   <ReservationProofPreview booking={roomRaw} proofSrc={proofSrc} />
-                  <section className="rdm-card">
-                    <h4 className="rdm-card__title">Government ID</h4>
-                    <div className="rdm-media-frame rdm-media-frame--tall">
-                      {roomIdPhotoSrc ? (
-                        <img
-                          src={roomIdPhotoSrc}
-                          alt="Government ID"
-                          className="rdm-media-img"
-                          decoding="async"
-                          onError={(e) => {
-                            const el = e.currentTarget;
-                            el.style.background = "#e8dcc8";
-                            el.style.minHeight = "100px";
-                          }}
-                        />
-                      ) : (
-                        <div className="rdm-media-placeholder">No government ID on file</div>
-                      )}
-                    </div>
-                  </section>
+                  {detailLoading && !resolveGovernmentIdUrl(roomRaw) ? (
+                    <section className="rdm-card">
+                      <h4 className="rdm-card__title">Government ID</h4>
+                      <div className="rdm-media-frame rdm-media-frame--tall">
+                        <div className="rdm-media-placeholder">Loading government ID…</div>
+                      </div>
+                    </section>
+                  ) : (
+                    <GovernmentIdPreview booking={roomRaw} />
+                  )}
                 </div>
               </div>
             );
@@ -1391,26 +1380,16 @@ export default function Home() {
                     </dl>
                   </section>
                   <ReservationProofPreview booking={eventRaw} proofSrc={proofSrc} />
-                  <section className="rdm-card">
-                    <h4 className="rdm-card__title">Government ID</h4>
-                    <div className="rdm-media-frame rdm-media-frame--tall">
-                      {eventIdPhotoSrc ? (
-                        <img
-                          src={eventIdPhotoSrc}
-                          alt="Government ID"
-                          className="rdm-media-img"
-                          decoding="async"
-                          onError={(e) => {
-                            const el = e.currentTarget;
-                            el.style.background = "#e8dcc8";
-                            el.style.minHeight = "100px";
-                          }}
-                        />
-                      ) : (
-                        <div className="rdm-media-placeholder">No government ID on file</div>
-                      )}
-                    </div>
-                  </section>
+                  {detailLoading && !resolveGovernmentIdUrl(eventRaw) ? (
+                    <section className="rdm-card">
+                      <h4 className="rdm-card__title">Government ID</h4>
+                      <div className="rdm-media-frame rdm-media-frame--tall">
+                        <div className="rdm-media-placeholder">Loading government ID…</div>
+                      </div>
+                    </section>
+                  ) : (
+                    <GovernmentIdPreview booking={eventRaw} />
+                  )}
                 </div>
               </div>
             );

@@ -713,13 +713,12 @@ export default function AttendanceManagement() {
                     <th>Night Diff.</th>
                     <th>Status</th>
                     <th>Remarks</th>
-                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {recordsPaginated.rows.length === 0 ? (
                     <tr>
-                      <td colSpan="13" className="sm-empty">
+                      <td colSpan="12" className="sm-empty">
                         No attendance records match your filters.
                       </td>
                     </tr>
@@ -747,22 +746,6 @@ export default function AttendanceManagement() {
                         </td>
                         <td className="att-remarks-cell" title={r.remarks}>
                           {r.remarks}
-                        </td>
-                        <td className="action-cell">
-                          <button
-                            className="icon-action edit-btn"
-                            type="button"
-                            title="View details"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openViewRecord(r);
-                            }}
-                          >
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
-                              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                              <circle cx="12" cy="12" r="3" />
-                            </svg>
-                          </button>
                         </td>
                       </tr>
                     ))

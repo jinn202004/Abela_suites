@@ -12,6 +12,7 @@ import {
   fetchRoomsCatalog,
   fetchEventVenuesBackend,
   HOUSEKEEPING_TASKS_REFRESH_EVENT,
+  patchEventVenueHousekeepingStatusBackend,
   patchRoomHousekeepingStatusBackend,
   dispatchHousekeepingTasksRefresh,
   dispatchHousekeepingInboxRefresh,
@@ -227,18 +228,26 @@ export default function HousekeepingRooms() {
   }, [search]);
 
   useEffect(() => {
+    setStatusDraft({});
+    setRowActionError({});
+  }, [viewMode]);
+
+  useEffect(() => {
     setHkListPage((p) => Math.min(Math.max(1, p), hkTotalPages));
   }, [hkTotalPages]);
 
   async function handleHousekeepingStatusUpdate(r) {
-    if (viewMode === "venues") return;
     const selected = statusDraft[r.key] ?? frontDeskSelectValueFromRaw(r.rawStatus);
     const baseline = frontDeskSelectValueFromRaw(r.rawStatus);
     if (selected === baseline) return;
     setSavingRoomKey(r.key);
     setRowActionError((prev) => ({ ...prev, [r.key]: "" }));
     try {
-      await patchRoomHousekeepingStatusBackend(r.key, selected);
+      if (viewMode === "venues") {
+        await patchEventVenueHousekeepingStatusBackend(r.key, selected);
+      } else {
+        await patchRoomHousekeepingStatusBackend(r.key, selected);
+      }
       dispatchHousekeepingTasksRefresh();
       dispatchHousekeepingInboxRefresh();
       setStatusDraft((d) => {
@@ -263,10 +272,71 @@ export default function HousekeepingRooms() {
     return selectValueForRow(r) !== frontDeskSelectValueFromRaw(r.rawStatus);
   }
 
+  const hkPaginationBar = !loading && filtered.length > 0 && (
+    <>
+      <div className="rm-pagination-info">
+        <span>
+          Showing{" "}
+          <strong>{filtered.length === 0 ? 0 : (hkPageSafe - 1) * hkPageSizeSafe + 1}</strong>–
+          <strong>{Math.min(hkPageSafe * hkPageSizeSafe, filtered.length)}</strong> of{" "}
+          <strong>{filtered.length}</strong>
+        </span>
+        <label className="fd-hk-pagination-per">
+          <span>Rows per page</span>
+          <select
+            className="fd-hk-pagination-select"
+            value={hkPageSizeSafe}
+            onChange={(e) => {
+              setHkListPageSize(Number(e.target.value));
+              setHkListPage(1);
+            }}
+          >
+            {[5, 10, 15, 25, 50].map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="rm-pagination-btns">
+        <button
+          type="button"
+          className="rm-page-btn"
+          disabled={hkPageSafe <= 1}
+          onClick={() =>
+            setHkListPage((p) => {
+              const cur = Math.min(Math.max(1, p), hkTotalPages);
+              return Math.max(1, cur - 1);
+            })
+          }
+        >
+          Previous
+        </button>
+        <span className="rm-pagination-pages">
+          Page {hkPageSafe} of {hkTotalPages}
+        </span>
+        <button
+          type="button"
+          className="rm-page-btn"
+          disabled={hkPageSafe >= hkTotalPages}
+          onClick={() =>
+            setHkListPage((p) => {
+              const cur = Math.min(Math.max(1, p), hkTotalPages);
+              return Math.min(hkTotalPages, cur + 1);
+            })
+          }
+        >
+          Next
+        </button>
+      </div>
+    </>
+  );
+
   return (
     <>
       <RailPortalShell
-        rootClassName="frontdesk-app"
+        rootClassName="frontdesk-app fd-hk-app"
         rootStyle={{ display: "flex", width: "100%", height: "100vh", overflow: "hidden" }}
         mainStyle={mainStyle}
         sidebar={<FrontdeskSidebar navItems={sidebarNav.map(({ to, label, icon }) => ({ href: to, label, icon }))} />}
@@ -291,21 +361,51 @@ export default function HousekeepingRooms() {
         {/* ── PAGE CONTENT ── */}
         <main className="content">
 
-          {/* PAGE HEADING */}
-          <div className="page-heading">
-            <h1 className="page-title">Housekeeping Management</h1>
-            <p className="page-sub">
+          <div className="rm-dashboard-header">
+            <div className="rm-dashboard-title">Housekeeping Management Dashboard</div>
+            <div className="rm-dashboard-sub">
               View cleaning status for rooms and event venues. Override room status when needed — changes sync with
               Housekeeping in real time.
-            </p>
+            </div>
+            {loadError ? <p className="hk-inline-error">{loadError}</p> : null}
           </div>
 
-          <div className="fd-hk-view-tabs" role="tablist" aria-label="Housekeeping areas">
+          <div className="rm-stats-row">
+            <div className="rm-stat-card">
+              <div className="rm-stat-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
+                  <path d="M3 12h18" /><path d="M3 6h18" /><path d="M3 18h18" />
+                </svg>
+                Needs Cleaning
+              </div>
+              <div className="rm-stat-value">{countNeedClean}</div>
+            </div>
+            <div className="rm-stat-card">
+              <div className="rm-stat-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Available
+              </div>
+              <div className="rm-stat-value">{countAvailable}</div>
+            </div>
+            <div className="rm-stat-card">
+              <div className="rm-stat-label">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
+                  <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
+                </svg>
+                {viewMode === "venues" ? "Total venues" : "Total rooms"}
+              </div>
+              <div className="rm-stat-value">{countTotal}</div>
+            </div>
+          </div>
+
+          <div className="rm-room-switch" role="tablist" aria-label="Housekeeping areas">
             <button
               type="button"
               role="tab"
               aria-selected={viewMode === "rooms"}
-              className={`fd-hk-view-tab${viewMode === "rooms" ? " fd-hk-view-tab--active" : ""}`}
+              className={`rm-room-switch__btn${viewMode === "rooms" ? " rm-room-switch__btn--active" : ""}`}
               onClick={() => {
                 setViewMode("rooms");
                 setHkListPage(1);
@@ -317,75 +417,46 @@ export default function HousekeepingRooms() {
               type="button"
               role="tab"
               aria-selected={viewMode === "venues"}
-              className={`fd-hk-view-tab${viewMode === "venues" ? " fd-hk-view-tab--active" : ""}`}
+              className={`rm-room-switch__btn${viewMode === "venues" ? " rm-room-switch__btn--active" : ""}`}
               onClick={() => {
                 setViewMode("venues");
                 setHkListPage(1);
               }}
             >
-              Event venues
+              Event Venues
             </button>
           </div>
 
-          {/* STAT CARDS — fd-hk-stat-grid: scoped to avoid .stat-cards repeat(3) from bills CSS in bundle */}
-          <div className="fd-hk-stat-grid">
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <div className="stat-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-                    <path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/>
-                  </svg>
-                </div>
-                <span className="stat-label">Needs Cleaning</span>
-              </div>
-              <p className="stat-value">{countNeedClean}</p>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <div className="stat-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-                    <polyline points="20 6 9 17 4 12"/>
-                  </svg>
-                </div>
-                <span className="stat-label">Available</span>
-              </div>
-              <p className="stat-value">{countAvailable}</p>
-            </div>
-
-            <div className="stat-card">
-              <div className="stat-card-top">
-                <div className="stat-icon">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
-                    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z"/>
-                  </svg>
-                </div>
-                <span className="stat-label">Total Rooms</span>
-              </div>
-              <p className="stat-value">{countTotal}</p>
-            </div>
-          </div>
-
-          {/* SEARCH */}
-          <div className="hk-toolbar">
-            <div className="search-wrap">
-              <span className="search-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-                  <circle cx="11" cy="11" r="8"/>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          <div className="rm-panel">
+            <div className="rm-top-row">
+              <div className="rm-search-wrap">
+                <svg
+                  className="rm-search-icon"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#9a8060"
+                  strokeWidth="2"
+                  width="16"
+                  height="16"
+                  aria-hidden
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
-              </span>
-              <input
-                type="text"
-                className="search-input"
-                placeholder="Search room number, type, or status..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+                <input
+                  type="text"
+                  className="rm-search-input"
+                  placeholder={
+                    viewMode === "venues"
+                      ? "Search venue number, type, or status…"
+                      : "Search room number, type, or status…"
+                  }
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          {loadError ? <p className="hk-inline-error">{loadError}</p> : null}
           <p className="hk-inline-hint">
             {viewMode === "rooms" ? (
               <>
@@ -395,11 +466,16 @@ export default function HousekeepingRooms() {
               </>
             ) : (
               <>
-                Event venue status is updated by the Housekeeping team in Event Cleaning. This view refreshes
-                automatically when housekeeping completes a task.
+                Set status to <strong>Needs Cleaning</strong> or <strong>Available</strong>, then click Update.
+                <strong>Needs Cleaning</strong> notifies housekeeping. You cannot set <strong>Available</strong> while
+                the venue is occupied or reserved — complete check-out first.
               </>
             )}
           </p>
+
+          <div className="rm-section-label">
+            {viewMode === "venues" ? "Event venue housekeeping" : "Room housekeeping status"}
+          </div>
 
           {isMobile ? (
             <div className="fd-hk-mobile" aria-label="Room list">
@@ -423,9 +499,9 @@ export default function HousekeepingRooms() {
                             <dd>{r.type}</dd>
                           </div>
                           <div className="fd-hk-card__row fd-hk-card__row--full">
-                            <dt>Housekeeping</dt>
+                            <dt>Cleaning status</dt>
                             <dd className="fd-hk-card__hk-actions">
-                              {viewMode === "rooms" && !frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
+                              {!frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
                                 <span className="fd-hk-readonly-status">{r.displayStatus}</span>
                               ) : (
                               <select
@@ -433,7 +509,6 @@ export default function HousekeepingRooms() {
                                 aria-label={`Housekeeping status for ${viewMode === "venues" ? "venue" : "room"} ${r.number}`}
                                 value={selectValueForRow(r)}
                                 disabled={
-                                  viewMode !== "rooms" ||
                                   savingRoomKey === r.key ||
                                   !frontDeskHousekeepingStatusEditable(r.rawStatus)
                                 }
@@ -448,23 +523,28 @@ export default function HousekeepingRooms() {
                                 ))}
                               </select>
                               )}
-                              {viewMode === "rooms" && frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
-                              <button
-                                type="button"
-                                className="hk-update-btn"
-                                disabled={
-                                  savingRoomKey === r.key || !isDirtyRow(r)
-                                }
-                                onClick={() => void handleHousekeepingStatusUpdate(r)}
-                              >
-                                {savingRoomKey === r.key ? "Saving…" : "Update"}
-                              </button>
-                              ) : null}
                               {rowActionError[r.key] ? (
                                 <span className="hk-row-error" role="alert">
                                   {rowActionError[r.key]}
                                 </span>
                               ) : null}
+                            </dd>
+                          </div>
+                          <div className="fd-hk-card__row fd-hk-card__row--full">
+                            <dt>Action</dt>
+                            <dd className="fd-hk-card__hk-actions">
+                              {frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
+                                <button
+                                  type="button"
+                                  className="hk-update-btn"
+                                  disabled={savingRoomKey === r.key || !isDirtyRow(r)}
+                                  onClick={() => void handleHousekeepingStatusUpdate(r)}
+                                >
+                                  {savingRoomKey === r.key ? "Saving…" : "Update"}
+                                </button>
+                              ) : (
+                                <span className="fd-hk-venues-readonly">—</span>
+                              )}
                             </dd>
                           </div>
                         </dl>
@@ -475,8 +555,8 @@ export default function HousekeepingRooms() {
               )}
             </div>
           ) : (
-            <div className="hk-table-wrap">
-              <table className="hk-table">
+            <div className="rm-table-wrap fd-hk-table-wrap">
+              <table className="rm-table hk-table">
                 <colgroup>
                   <col className="hk-col-num" />
                   <col className="hk-col-type" />
@@ -488,7 +568,7 @@ export default function HousekeepingRooms() {
                     <th>{viewMode === "venues" ? "Venue" : "Room"} #</th>
                     <th>Type</th>
                     <th>Cleaning status</th>
-                    <th className="hk-th-actions">{viewMode === "rooms" ? "Override" : ""}</th>
+                    <th className="hk-th-actions">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -511,7 +591,7 @@ export default function HousekeepingRooms() {
                         <td>{r.type}</td>
                         <td>
                           <div className="hk-status-cell">
-                            {viewMode === "rooms" && !frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
+                            {!frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
                               <span className="fd-hk-readonly-status">{r.displayStatus}</span>
                             ) : (
                             <select
@@ -519,7 +599,6 @@ export default function HousekeepingRooms() {
                               aria-label={`Housekeeping status for ${viewMode === "venues" ? "venue" : "room"} ${r.number}`}
                               value={selectValueForRow(r)}
                               disabled={
-                                viewMode !== "rooms" ||
                                 savingRoomKey === r.key ||
                                 !frontDeskHousekeepingStatusEditable(r.rawStatus)
                               }
@@ -542,7 +621,7 @@ export default function HousekeepingRooms() {
                           </div>
                         </td>
                         <td className="hk-td-actions">
-                          {viewMode === "rooms" && frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
+                          {frontDeskHousekeepingStatusEditable(r.rawStatus) ? (
                             <button
                               type="button"
                               className="hk-update-btn"
@@ -551,8 +630,6 @@ export default function HousekeepingRooms() {
                             >
                               {savingRoomKey === r.key ? "Saving…" : "Update"}
                             </button>
-                          ) : viewMode === "venues" ? (
-                            <span className="fd-hk-venues-readonly">—</span>
                           ) : (
                             <span className="fd-hk-venues-readonly">—</span>
                           )}
@@ -562,72 +639,23 @@ export default function HousekeepingRooms() {
                   )}
                 </tbody>
               </table>
+              {hkPaginationBar ? (
+                <div className="rm-pagination-bar" role="navigation" aria-label="Housekeeping list pages">
+                  {hkPaginationBar}
+                </div>
+              ) : null}
             </div>
           )}
 
-          {!loading && filtered.length > 0 ? (
-            <div className="fd-hk-pagination" role="navigation" aria-label="Housekeeping room list pages">
-              <div className="fd-hk-pagination-meta">
-                <span>
-                  Showing{" "}
-                  <strong>
-                    {filtered.length === 0 ? 0 : (hkPageSafe - 1) * hkPageSizeSafe + 1}
-                  </strong>
-                  –
-                  <strong>{Math.min(hkPageSafe * hkPageSizeSafe, filtered.length)}</strong> of{" "}
-                  <strong>{filtered.length}</strong>
-                </span>
-                <label className="fd-hk-pagination-per">
-                  <span>Rows per page</span>
-                  <select
-                    className="fd-hk-pagination-select"
-                    value={hkPageSizeSafe}
-                    onChange={(e) => {
-                      setHkListPageSize(Number(e.target.value));
-                      setHkListPage(1);
-                    }}
-                  >
-                    {[5, 10, 15, 25, 50].map((n) => (
-                      <option key={n} value={n}>
-                        {n}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <div className="fd-hk-pagination-btns">
-                <button
-                  type="button"
-                  className="fd-hk-page-btn"
-                  disabled={hkPageSafe <= 1}
-                  onClick={() =>
-                    setHkListPage((p) => {
-                      const cur = Math.min(Math.max(1, p), hkTotalPages);
-                      return Math.max(1, cur - 1);
-                    })
-                  }
-                >
-                  Previous
-                </button>
-                <span className="fd-hk-page-indicator">
-                  Page {hkPageSafe} of {hkTotalPages}
-                </span>
-                <button
-                  type="button"
-                  className="fd-hk-page-btn"
-                  disabled={hkPageSafe >= hkTotalPages}
-                  onClick={() =>
-                    setHkListPage((p) => {
-                      const cur = Math.min(Math.max(1, p), hkTotalPages);
-                      return Math.min(hkTotalPages, cur + 1);
-                    })
-                  }
-                >
-                  Next
-                </button>
+          {isMobile && hkPaginationBar ? (
+            <div className="rm-table-wrap fd-hk-pagination-wrap">
+              <div className="rm-pagination-bar" role="navigation" aria-label="Housekeeping list pages">
+                {hkPaginationBar}
               </div>
             </div>
           ) : null}
+
+          </div>
 
         </main>
       </RailPortalShell>

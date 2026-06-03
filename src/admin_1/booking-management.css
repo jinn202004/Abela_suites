@@ -655,6 +655,13 @@
   .res-table tbody tr { border-bottom: 1px solid #f0e8d8; transition: background 0.15s; }
   .res-table tbody tr:last-child { border-bottom: none; }
   .res-table tbody tr:hover { background: #fdf8f0; }
+  .res-table tbody tr.admin-clickable-row {
+    cursor: pointer;
+  }
+  .res-table tbody tr.admin-clickable-row:hover {
+    background: #fdf8f0;
+    box-shadow: inset 3px 0 0 var(--gold, #b8922a);
+  }
   .res-table tbody td { padding: 10px 14px; color: var(--text-dark); }
   
   /* Badges */

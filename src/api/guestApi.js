@@ -350,6 +350,29 @@ export async function patchRoomHousekeepingStatusBackend(roomId, status) {
   return data.room
 }
 
+/**
+ * PATCH /api/event-venues/:id/housekeeping-status — front desk or admin only.
+ * @param {string} venueId
+ * @param {'needs_cleaning'|'ready'|'available'} status
+ */
+export async function patchEventVenueHousekeepingStatusBackend(venueId, status) {
+  const res = await fetch(
+    backendUrl(`/api/event-venues/${encodeURIComponent(venueId)}/housekeeping-status`),
+    {
+      method: 'PATCH',
+      headers: authJsonHeaders(),
+      body: JSON.stringify({ status }),
+    },
+  )
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return data.eventVenue
+}
+
 /** DELETE /api/rooms/:id */
 export async function deleteRoomBackend(id) {
   const res = await fetch(backendUrl(`/api/rooms/${encodeURIComponent(id)}`), {

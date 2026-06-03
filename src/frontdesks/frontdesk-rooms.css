@@ -684,6 +684,16 @@
   color: var(--text-dark);
   vertical-align: middle;
 }
+
+.rooms-page .rooms-table tbody tr.admin-clickable-row {
+  cursor: pointer;
+  transition: background-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.rooms-page .rooms-table tbody tr.admin-clickable-row:hover {
+  background: #fdf8f0;
+  box-shadow: inset 3px 0 0 var(--gold, #b8922a);
+}
 /* Reserved Guest: amount columns left-aligned */
 .rooms-page .rooms-table--guest .rooms-th-num,
 .rooms-page .rooms-table--guest .rooms-td-num {

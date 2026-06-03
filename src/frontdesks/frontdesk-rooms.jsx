@@ -74,6 +74,8 @@ import "../guests/billing-summary.css";
 import { fetchRoomBookedRangesMerged } from "../guests/roomBookingOccupancy";
 import "../guests/idUploadedCard.css";
 import "./frontdesk-rooms.css";
+import "../admin_1/adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "../admin_1/adminClickUtils";
 import "./walkin-room-booking-parity.css";
 import TermsAgreementsSection from "../components/terms-agreements/TermsAgreementsSection";
 import "../components/terms-agreements/terms-agreements.css";
@@ -3153,11 +3155,13 @@ export default function RoomReservation() {
         rs.map((r) => (rowMatchKey(r) === key ? { ...r, status: "checked-out" } : r)),
       );
     }
+    staffTopbarRef.current?.hideMenusOnly?.();
     setCheckoutConfirm(false);
     setAddChargesOpen(false);
     setCheckRow(null);
-    showToast("Guest Checked Out!");
-    navigate("/frontdesk-history");
+    setTab("guest");
+    navigate("/frontdesk-rooms", { replace: true });
+    showToast("Guest checked out. You are still on Rooms — open Reservation History anytime to view past stays.");
   };
 
   const handleRoomAddItem = async (items) => {
@@ -3418,7 +3422,7 @@ export default function RoomReservation() {
           <div className="rooms-res-toolbar">
             <div className="rooms-tab-bar">
               <button type="button" className={`rooms-tab-btn${tab === "reservation" ? " active" : ""}`} onClick={() => setTab("reservation")}>Reservation</button>
-              <button type="button" className={`rooms-tab-btn${tab === "guest" ? " active" : ""}`} onClick={() => setTab("guest")}>Reserved Guest</button>
+              <button type="button" className={`rooms-tab-btn${tab === "guest" ? " active" : ""}`} onClick={() => setTab("guest")}>Approved Bookings</button>
             </div>
             <button className="rooms-walkin-btn" onClick={() => setWalkinOpen(true)}>
               <PlusUserIcon/> Walk-in Reservation
@@ -3500,7 +3504,6 @@ export default function RoomReservation() {
                   <col className="rooms-col-fdr-amount" />
                   <col className="rooms-col-fdr-amount" />
                   <col className="rooms-col-fdr-status" />
-                  <col className="rooms-col-fdr-action" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -3518,17 +3521,24 @@ export default function RoomReservation() {
                       <span className="rooms-money-align">Balance</span>
                     </th>
                     <th className="rooms-th-status">Status</th>
-                    <th className="rooms-th-action">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRes.length === 0 ? (
                     <tr>
-                      <td colSpan="9" style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>No reservations found.</td>
+                      <td colSpan="8" style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>No reservations found.</td>
                     </tr>
                   ) : (
                     roomsPagedRows.map((r) => (
-                      <tr key={String(r.id)}>
+                      <tr
+                        key={String(r.id)}
+                        className="admin-clickable-row"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`Review reservation for ${String(r.customer ?? "").trim() || "guest"}`}
+                        onClick={(e) => handleAdminRowActivate(e, () => setDetailsRow(r))}
+                        onKeyDown={(e) => handleAdminRowKeyDown(e, () => setDetailsRow(r))}
+                      >
                         <td className="rooms-td-nowrap">{formatStoredRoomNumberForDisplay(r.number)}</td>
                         <td>{r.type}</td>
                         <td className="rooms-td-customer" title={String(r.customer ?? "")}>{r.customer}</td>
@@ -3544,19 +3554,6 @@ export default function RoomReservation() {
                         </td>
                         <td className="rooms-td-status">
                           <Badge status={r.status} />
-                        </td>
-                        <td className="rooms-td-action">
-                          <div className="rooms-action-cell rooms-action-cell--trailing">
-                            <div className="rooms-action-lead rooms-action-lead--review">
-                              <button
-                                type="button"
-                                className="rooms-action-btn rooms-review-btn"
-                                onClick={() => setDetailsRow(r)}
-                              >
-                                Review
-                              </button>
-                            </div>
-                          </div>
                         </td>
                       </tr>
                     ))
@@ -3583,7 +3580,9 @@ export default function RoomReservation() {
                 <tbody>
                   {filteredGuestRows.length === 0 ? (
                     <tr>
-                      <td colSpan="7" style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>No guests found. Approve a reservation first, or use sample data while logged out.</td>
+                      <td colSpan="7" style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
+                        No confirmed reservations right now.
+                      </td>
                     </tr>
                   ) : (
                     roomsPagedRows.map((g) => (
@@ -3633,7 +3632,7 @@ export default function RoomReservation() {
           <div
             className="rooms-pagination-row rooms-pagination-row--below-table"
             role="navigation"
-            aria-label={tab === "reservation" ? "Reservation table pages" : "Reserved guest table pages"}
+            aria-label={tab === "reservation" ? "Reservation table pages" : "Approved bookings table pages"}
           >
             <div className="rooms-pagination-meta">
               <span className="rooms-pagination-info">
@@ -3644,7 +3643,7 @@ export default function RoomReservation() {
                 –
                 <strong>{Math.min(roomsPageSafe * roomsPageSizeSafe, roomsActiveFiltered.length)}</strong> of{" "}
                 <strong>{roomsActiveFiltered.length}</strong>
-                {tab === "reservation" ? " reservations" : " guests"}
+                {tab === "reservation" ? " reservations" : " approved bookings"}
               </span>
               <label className="rooms-pagination-per">
                 <span>Rows per page</span>

@@ -21,6 +21,8 @@ import {
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
 import { parseAdditionalRequestChargeLines } from "../components/reservationDetailsHelpers";
 import "./frontdesk-history.css";
+import "../admin_1/adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "../admin_1/adminClickUtils";
 
 /** From label e.g. "Single Suites - RM01" */
 function splitWalkinRoomSelection(roomSel) {
@@ -177,7 +179,6 @@ const Icons = {
   history: (<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>),
   settings: (<svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>),
   search: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>),
-  eye: (<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>),
 };
 
 export default function ReservationHistory() {
@@ -352,9 +353,6 @@ export default function ReservationHistory() {
         <header className="topbar">
           <div className="topbar-breadcrumb">
             <FrontdeskSidebarToggle />
-            <span className="breadcrumb-chevron" aria-hidden>
-              ›
-            </span>
             <span className="breadcrumb-title">Reservation History</span>
           </div>
           <StaffTopbarActions
@@ -430,25 +428,36 @@ export default function ReservationHistory() {
                           <th>Bill total</th>
                           <th>Add-ons</th>
                           <th>Balance due</th>
-                          <th className="th-action">Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {listLoading ? (
                           <tr>
-                            <td colSpan={8} className="td-empty">
+                            <td colSpan={7} className="td-empty">
                               Loading…
                             </td>
                           </tr>
                         ) : filteredRoom.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="td-empty">
+                            <td colSpan={7} className="td-empty">
                               No reservations found.
                             </td>
                           </tr>
                         ) : (
                           pagedRows.map((r) => (
-                            <tr key={r.bookingId}>
+                            <tr
+                              key={r.bookingId}
+                              className="admin-clickable-row"
+                              tabIndex={0}
+                              role="button"
+                              aria-label={`View reservation details for ${r.customer || "guest"}`}
+                              onClick={(e) =>
+                                handleAdminRowActivate(e, () => setModal({ type: "room", row: r }))
+                              }
+                              onKeyDown={(e) =>
+                                handleAdminRowKeyDown(e, () => setModal({ type: "room", row: r }))
+                              }
+                            >
                               <td>{r.customer}</td>
                               <td>{r.package}</td>
                               <td>{formatDateDDMMYYYY(r.checkin)}</td>
@@ -456,16 +465,6 @@ export default function ReservationHistory() {
                               <td>{r.total}</td>
                               <td>{r.addOnSubtotalDisplay}</td>
                               <td>{r.balanceDue}</td>
-                              <td className="action-cell">
-                                <button
-                                  type="button"
-                                  className="action-btn view-btn"
-                                  title="View details"
-                                  onClick={() => setModal({ type: "room", row: r })}
-                                >
-                                  {Icons.eye}
-                                </button>
-                              </td>
                             </tr>
                           ))
                         )}
@@ -486,25 +485,36 @@ export default function ReservationHistory() {
                           <th>Bill total</th>
                           <th>Add-ons</th>
                           <th>Balance due</th>
-                          <th className="th-action">Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {listLoading ? (
                           <tr>
-                            <td colSpan={8} className="td-empty">
+                            <td colSpan={7} className="td-empty">
                               Loading…
                             </td>
                           </tr>
                         ) : filteredEvent.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="td-empty">
+                            <td colSpan={7} className="td-empty">
                               No reservations found.
                             </td>
                           </tr>
                         ) : (
                           pagedRows.map((r) => (
-                            <tr key={r.bookingId}>
+                            <tr
+                              key={r.bookingId}
+                              className="admin-clickable-row"
+                              tabIndex={0}
+                              role="button"
+                              aria-label={`View reservation details for ${r.customer || "guest"}`}
+                              onClick={(e) =>
+                                handleAdminRowActivate(e, () => setModal({ type: "event", row: r }))
+                              }
+                              onKeyDown={(e) =>
+                                handleAdminRowKeyDown(e, () => setModal({ type: "event", row: r }))
+                              }
+                            >
                               <td>{r.customer}</td>
                               <td>{r.package}</td>
                               <td>{formatDateDDMMYYYY(r.checkin)}</td>
@@ -512,16 +522,6 @@ export default function ReservationHistory() {
                               <td>{r.total}</td>
                               <td>{r.addOnSubtotalDisplay}</td>
                               <td>{r.balanceDue}</td>
-                              <td className="action-cell">
-                                <button
-                                  type="button"
-                                  className="action-btn view-btn"
-                                  title="View details"
-                                  onClick={() => setModal({ type: "event", row: r })}
-                                >
-                                  {Icons.eye}
-                                </button>
-                              </td>
                             </tr>
                           ))
                         )}

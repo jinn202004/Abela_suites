@@ -84,3 +84,27 @@ export function frontDeskHousekeepingStatusEditable(raw) {
   const s = String(raw ?? "").trim().toLowerCase();
   return s !== HK_ASSET_STATUS.OCCUPIED && s !== HK_ASSET_STATUS.CLEANING_IN_PROGRESS;
 }
+
+/** Front desk may not mark Available while guest is in-house, reserved, or HK is mid-clean. */
+export function frontDeskCanMarkAvailableFromStatus(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  return (
+    s !== HK_ASSET_STATUS.OCCUPIED &&
+    s !== HK_ASSET_STATUS.RESERVED &&
+    s !== HK_ASSET_STATUS.CLEANING_IN_PROGRESS
+  );
+}
+
+export function frontDeskAvailableBlockedMessage(raw) {
+  const s = String(raw ?? "").trim().toLowerCase();
+  if (s === HK_ASSET_STATUS.OCCUPIED) {
+    return "This unit is still checked in. Complete check-out before marking it available.";
+  }
+  if (s === HK_ASSET_STATUS.RESERVED) {
+    return "This unit is reserved for an upcoming booking. It cannot be marked available until the event is finished and checked out.";
+  }
+  if (s === HK_ASSET_STATUS.CLEANING_IN_PROGRESS) {
+    return "Housekeeping is actively cleaning this unit. Wait until cleaning is complete.";
+  }
+  return "Cannot mark available from the current status.";
+}

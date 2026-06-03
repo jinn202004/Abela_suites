@@ -482,6 +482,14 @@
   
   .bills-page .bills-table tbody tr:last-child td { border-bottom: none; }
   .bills-page .bills-table tbody tr:hover td      { background: rgba(184,146,42,0.04); }
+
+  .bills-page .bills-table tbody tr.admin-clickable-row {
+    cursor: pointer;
+  }
+
+  .bills-page .bills-table tbody tr.admin-clickable-row:hover td {
+    background: transparent;
+  }
   
   .bills-page .bills-empty {
     text-align: center;

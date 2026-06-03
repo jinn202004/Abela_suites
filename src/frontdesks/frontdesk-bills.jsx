@@ -24,26 +24,23 @@ import {
   bookingTypeLabel,
   displayLedgerDate,
   formatPrintMonthLabel,
-  assignLedgerBillNumbers,
+  normalizeLedgerRoomNumber,
+  prepareLedgerRowsForReport,
   frontdeskBillRowToLedgerRow,
   paymentMethodLabel,
   paymentStatusLabel,
-  rowInSelectedMonthFrontdesk,
+  rowInSelectedMonthForBillingPrint,
 } from "../utils/billingLedgerReport";
 import BillsPrintModal from "../components/BillsPrintModal";
 import "../admin_1/bills.css";
+import "../admin_1/adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "../admin_1/adminClickUtils";
 import "./frontdesk-bills.css";
 
 const BillIcons = {
   Room: () => (
     <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" aria-hidden>
       <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-    </svg>
-  ),
-  Eye: () => (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="15" height="15">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-      <circle cx="12" cy="12" r="3" />
     </svg>
   ),
   Print: () => (
@@ -130,7 +127,7 @@ function billRoomColumnFromBooking(booking) {
     const v = String(bk.venueName || bk.eventTitle || combined || "").trim();
     return v || "—";
   }
-  const num = String(bk.roomNumber || "").trim();
+  const num = normalizeLedgerRoomNumber(bk.roomNumber);
   if (num) return num;
   const fromParen = roomNumberFromCombinedLabel(combined);
   if (fromParen) return fromParen;
@@ -159,7 +156,7 @@ function bookingFallbackRoomColumn(b) {
   if (t === "event") {
     return String(b?.venueName || b?.eventTitle || "").trim() || "—";
   }
-  const num = String(b?.roomNumber || "").trim();
+  const num = normalizeLedgerRoomNumber(b?.roomNumber);
   if (num) return num;
   const title = String(b?.roomTitle || "").trim();
   const synthetic = title && num ? `${title} (${num})` : title || num;
@@ -636,8 +633,8 @@ export default function BillsPage() {
 
   const printRowsFiltered = useMemo(() => {
     const ledger = filtered.map(frontdeskBillRowToLedgerRow);
-    const monthFiltered = ledger.filter((r) => rowInSelectedMonthFrontdesk(r, reportMonth));
-    return assignLedgerBillNumbers(monthFiltered);
+    const monthFiltered = ledger.filter((r) => rowInSelectedMonthForBillingPrint(r, reportMonth));
+    return prepareLedgerRowsForReport(monthFiltered);
   }, [filtered, reportMonth]);
 
   const openBillsPrint = useCallback(() => {
@@ -833,7 +830,7 @@ export default function BillsPage() {
               <span className="bills-role-hint">Front desk: view-only · Payments require cashier or admin</span>
             ) : null}
             <p className="bm-toolbar-hint">
-              Leave empty to include all billing rows. Month filter uses the billing record created date.
+              Leave empty to include all billing rows. Month filter uses check-in or event date.
             </p>
           </div>
 
@@ -892,7 +889,15 @@ export default function BillsPage() {
                   </tr>
                 ) : (
                   pagedBills.map((b) => (
-                    <tr key={String(b.bookingId || b.billId || b.id)}>
+                    <tr
+                      key={String(b.bookingId || b.billId || b.id)}
+                      className="admin-clickable-row"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`View billing details for ${String(b.customer || "").trim() || "guest"}`}
+                      onClick={(e) => handleAdminRowActivate(e, () => void openBillDetails(b))}
+                      onKeyDown={(e) => handleAdminRowKeyDown(e, () => void openBillDetails(b))}
+                    >
                       <td>{String(b.customer || "").trim() || "—"}</td>
                       <td>{bookingTypeLabel(b.bookingType)}</td>
                       <td>{billContextLabel(b)}</td>
@@ -907,14 +912,6 @@ export default function BillsPage() {
                         </span>
                       </td>
                       <td className="action-cell">
-                        <button
-                          type="button"
-                          className="icon-action view-btn"
-                          title="View details"
-                          onClick={() => void openBillDetails(b)}
-                        >
-                          <BillIcons.Eye />
-                        </button>
                         <button
                           type="button"
                           className="icon-action print-btn"

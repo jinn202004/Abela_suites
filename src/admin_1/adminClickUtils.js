@@ -1,6 +1,9 @@
 /** Selectors for controls that must not open admin row/card detail views. */
 const ADMIN_ACTION_TARGET_SELECTOR = [
   ".action-cell",
+  ".rooms-action-cell",
+  ".rooms-action-btn",
+  ".oh-action-cell",
   ".rm-action-btns",
   ".rm-dish-footer",
   ".rm-thumb-btn",

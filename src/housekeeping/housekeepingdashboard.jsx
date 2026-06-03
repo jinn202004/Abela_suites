@@ -250,31 +250,14 @@ export default function Dashboard() {
   }, [loadAll]);
 
   useEffect(() => {
-    let lastFocusLoad = 0;
-    const id = window.setInterval(() => loadAll(), 6000);
-    const onVis = () => {
-      if (document.visibilityState === "visible") loadAll();
-    };
-    const onFocus = () => {
-      if (!getStoredAuthToken()) return;
-      const now = Date.now();
-      if (now - lastFocusLoad < 500) return;
-      lastFocusLoad = now;
-      loadAll();
-    };
     const onHK = () => loadAll({ silent: true, reconcile: false });
     const onStorage = (e) => {
       if (e.key === HOUSEKEEPING_TASKS_STORAGE_PING_KEY) loadAll({ silent: true, reconcile: false });
       if (e.key === DAMAGE_STORAGE_KEY || e.key === null) syncDamageCount();
     };
-    document.addEventListener("visibilitychange", onVis);
-    window.addEventListener("focus", onFocus);
     window.addEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHK);
     window.addEventListener("storage", onStorage);
     return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVis);
-      window.removeEventListener("focus", onFocus);
       window.removeEventListener(HOUSEKEEPING_TASKS_REFRESH_EVENT, onHK);
       window.removeEventListener("storage", onStorage);
     };

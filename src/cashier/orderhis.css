@@ -325,6 +325,15 @@
   
   .oh-table tbody tr:last-child td { border-bottom: none; }
   .oh-table tbody tr:hover td { background: #fdf8f0; }
+  .oh-table tbody tr.admin-clickable-row {
+    cursor: pointer;
+  }
+  .oh-table tbody tr.admin-clickable-row:hover td {
+    background: #fdf8f0;
+  }
+  .oh-table tbody tr.admin-clickable-row:hover {
+    box-shadow: inset 3px 0 0 var(--gold, #b8922a);
+  }
   
   .oh-empty {
     text-align: center;

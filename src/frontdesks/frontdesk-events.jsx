@@ -74,6 +74,8 @@ import { useNotificationRedirect } from "../navigation/useNotificationRedirect";
 import "../guests/idUploadedCard.css";
 import "./frontdesk-rooms.css";
 import "./frontdesk-events.css";
+import "../admin_1/adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "../admin_1/adminClickUtils";
 import "./walkin-event-booking-parity.css";
 import TermsAgreementsSection from "../components/terms-agreements/TermsAgreementsSection";
 import "../components/terms-agreements/terms-agreements.css";
@@ -3212,11 +3214,12 @@ function EventReservation() {
         prev.map((r) => (eventRowMatchKey(r) === key ? { ...r, status: "checked-out" } : r)),
       );
     }
+    staffTopbarRef.current?.hideMenusOnly?.();
     setCheckoutConfirm(false);
     setAddChargesOpen(false);
     setCheckRow(null);
-    showToast("Guest Checked Out!", "approved");
-    navigate("/frontdesk-history");
+    navigate("/frontdesk-events", { replace: true });
+    showToast("Guest checked out. You are still on Events — open Reservation History anytime to view past stays.", "approved");
   };
 
   function mergeGuestModalFromRow(row) {
@@ -3460,7 +3463,7 @@ function EventReservation() {
                   setSearch("");
                 }}
               >
-                Reserved Guest
+                Approved Bookings
               </button>
             </div>
             <button type="button" className="rooms-walkin-btn" onClick={() => setWalkinOpen(true)}>
@@ -3548,7 +3551,6 @@ function EventReservation() {
                   <col className="rooms-col-fdr-amount" />
                   <col className="rooms-col-fdr-amount" />
                   <col className="rooms-col-fdr-status" />
-                  <col className="rooms-col-fdr-action" />
                 </colgroup>
                 <thead>
                   <tr>
@@ -3566,19 +3568,38 @@ function EventReservation() {
                       <span className="rooms-money-align">Balance</span>
                     </th>
                     <th className="rooms-th-status">Status</th>
-                    <th className="rooms-th-action">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredRes.length === 0 ? (
                     <tr>
-                      <td colSpan={9} style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
+                      <td colSpan={8} style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
                         No reservations found.
                       </td>
                     </tr>
                   ) : (
                   eventsPagedRows.map((r) => (
-                    <tr key={String(r.id)}>
+                    <tr
+                      key={String(r.id)}
+                      className="admin-clickable-row"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Review reservation for ${String(r.customer ?? "").trim() || "guest"}`}
+                      onClick={(e) =>
+                        handleAdminRowActivate(e, () => {
+                          setDetailsRow(r);
+                          setCurrentId(r.id);
+                          setDetailsOpen(true);
+                        })
+                      }
+                      onKeyDown={(e) =>
+                        handleAdminRowKeyDown(e, () => {
+                          setDetailsRow(r);
+                          setCurrentId(r.id);
+                          setDetailsOpen(true);
+                        })
+                      }
+                    >
                       <td className="rooms-td-nowrap">{formatStoredEventNumberForDisplay(r.number ?? r.refnum ?? r.id)}</td>
                       <td>{r.type}</td>
                       <td className="rooms-td-customer" title={String(r.customer ?? "")}>{r.customer}</td>
@@ -3593,23 +3614,6 @@ function EventReservation() {
                         <span className="rooms-money-align">{r.balance}</span>
                       </td>
                       <td className="rooms-td-status"><ReservationBadge status={r.status} /></td>
-                      <td className="rooms-td-action">
-                        <div className="rooms-action-cell rooms-action-cell--trailing">
-                          <div className="rooms-action-lead rooms-action-lead--review">
-                            <button
-                              type="button"
-                              className="rooms-action-btn rooms-review-btn"
-                              onClick={() => {
-                                setDetailsRow(r);
-                                setCurrentId(r.id);
-                                setDetailsOpen(true);
-                              }}
-                            >
-                              Review
-                            </button>
-                          </div>
-                        </div>
-                      </td>
                     </tr>
                   ))
                   )}
@@ -3637,13 +3641,21 @@ function EventReservation() {
                   {filteredGuestRows.length === 0 ? (
                     <tr>
                       <td colSpan={7} style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
-                        No guests found. Approve a reservation first, or use sample data while logged out.
+                        No confirmed reservations right now.
                       </td>
                     </tr>
                   ) : eventsPagedRows.map((g) => {
                     const isOccupied = String(g.status || "").toLowerCase() === "occupied";
                     return (
-                      <tr key={eventRowMatchKey(g)}>
+                      <tr
+                        key={eventRowMatchKey(g)}
+                        className="admin-clickable-row"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View guest details for ${String(g.customer || g.guest || "").trim() || "guest"}`}
+                        onClick={(e) => handleAdminRowActivate(e, () => setGuestViewRow(g))}
+                        onKeyDown={(e) => handleAdminRowKeyDown(e, () => setGuestViewRow(g))}
+                      >
                         <td className="rooms-td-customer" title={String(g.customer || g.guest || "").trim()}>
                           {String(g.customer || g.guest || "").trim() || "—"}
                         </td>
@@ -3673,13 +3685,6 @@ function EventReservation() {
                                 </button>
                               )}
                             </div>
-                            <button
-                              type="button"
-                              className="rooms-action-btn rooms-view-btn"
-                              onClick={() => setGuestViewRow(g)}
-                            >
-                              View
-                            </button>
                           </div>
                         </td>
                       </tr>
@@ -3694,7 +3699,7 @@ function EventReservation() {
           <div
             className="rooms-pagination-row rooms-pagination-row--below-table"
             role="navigation"
-            aria-label={tab === "reservation" ? "Event reservation table pages" : "Reserved guest table pages"}
+            aria-label={tab === "reservation" ? "Event reservation table pages" : "Approved bookings table pages"}
           >
             <div className="rooms-pagination-meta">
               <span className="rooms-pagination-info">
@@ -3705,7 +3710,7 @@ function EventReservation() {
                 –
                 <strong>{Math.min(eventsPageSafe * eventsPageSizeSafe, eventsActiveFiltered.length)}</strong> of{" "}
                 <strong>{eventsActiveFiltered.length}</strong>
-                {tab === "reservation" ? " reservations" : " guests"}
+                {tab === "reservation" ? " reservations" : " approved bookings"}
               </span>
               <label className="rooms-pagination-per">
                 <span>Rows per page</span>

@@ -10,7 +10,7 @@ import AdminTopbarActions from "./AdminTopbarActions";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { fetchBookingsBackend, fetchBookingByIdBackend, fetchRoomsCatalog, deleteBookingBackend } from "../api/guestApi";
+import { fetchBookingsBackend, fetchBookingByIdBackend, fetchRoomsCatalog } from "../api/guestApi";
 import { ReservationProofPreview } from "../components/ReservationProofPreview";
 import GovernmentIdPreview from "../components/GovernmentIdPreview";
 import {
@@ -30,6 +30,8 @@ import {
 } from "../guests/bookingRoomDisplay";
 import "../guests/idUploadedCard.css";
 import "./booking-management.css";
+import "./adminClickable.css";
+import { handleAdminRowActivate, handleAdminRowKeyDown } from "./adminClickUtils";
 
 /** Rows per page for reservation tables — UI-only; data still loads via `fetchBookingsBackend` (no API/DB changes). */
 const BOOKING_PAGE_SIZE = 10;
@@ -172,13 +174,6 @@ function mapEventBookingRow(b) {
   };
 }
 
-/** Short ref for dense layouts; full id still available on `title` in print cards. */
-function shortBookingRef(id) {
-  const s = String(id ?? "").trim();
-  if (s.length <= 14) return s;
-  return `${s.slice(0, 6)}…${s.slice(-6)}`;
-}
-
 const PDF_HEAD_RGB = [184, 146, 42];
 
 /** Line height in mm for a font size in pt (readable spacing). */
@@ -246,13 +241,12 @@ function computeBookingSummary(rows) {
   return { count: rows.length, byStatus, sumTotal, sumPaid, sumBal };
 }
 
-const ROOM_SUMMARY_COLS = ["Ref", "Room", "Package", "Customer", "In", "Out", "Status", "Total", "Paid", "Balance"];
+const ROOM_SUMMARY_COLS = ["Room", "Package", "Customer", "In", "Out", "Status", "Total", "Paid", "Balance"];
 
-const EVENT_SUMMARY_COLS = ["Ref", "Event", "Customer", "Start", "End", "Status", "Total", "Paid", "Balance"];
+const EVENT_SUMMARY_COLS = ["Event", "Customer", "Start", "End", "Status", "Total", "Paid", "Balance"];
 
 function roomRowToSummaryCells(r) {
   return [
-    shortBookingRef(r.refnum),
     sanitizeBookingPrintCell(r.number),
     sanitizeBookingPrintCell(r.type),
     sanitizeBookingPrintCell(r.customer),
@@ -267,7 +261,6 @@ function roomRowToSummaryCells(r) {
 
 function eventRowToSummaryCells(r) {
   return [
-    shortBookingRef(r.refnum),
     sanitizeBookingPrintCell(r.event),
     sanitizeBookingPrintCell(r.customer),
     sanitizeBookingPrintCell(r.checkin),
@@ -657,19 +650,6 @@ const icons = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
     </svg>
   ),
-  eye: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{display:'block'}}>
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-    </svg>
-  ),
-  trash: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" style={{ display: "block" }} aria-hidden>
-      <polyline points="3 6 5 6 21 6" />
-      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-      <line x1="10" y1="11" x2="10" y2="17" />
-      <line x1="14" y1="11" x2="14" y2="17" />
-    </svg>
-  ),
   logout: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -976,7 +956,6 @@ export default function BookingManagement() {
   const [eventData, setEventData] = useState([]);
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
-  const [deletingId, setDeletingId] = useState("");
   const [printMonth, setPrintMonth] = useState("");
   const [printOpen, setPrintOpen] = useState(false);
   const [printVariant, setPrintVariant] = useState("room");
@@ -1118,23 +1097,6 @@ export default function BookingManagement() {
   const handleTabSwitch = (tab) => {
     setActiveTab(tab);
     setSearch("");
-  };
-
-  const handleDeleteBooking = async (bookingId, label) => {
-    if (!bookingId) return;
-    const ok = window.confirm(
-      `Delete this booking${label ? ` (${label})` : ""}? This cannot be undone.`,
-    );
-    if (!ok) return;
-    setDeletingId(bookingId);
-    try {
-      await deleteBookingBackend(bookingId);
-      await loadBookings();
-    } catch (e) {
-      window.alert(e?.message || "Could not delete booking.");
-    } finally {
-      setDeletingId("");
-    }
   };
 
   const viewMergedRow = useMemo(() => {
@@ -1313,20 +1275,32 @@ export default function BookingManagement() {
                   <thead>
                     <tr>
                       <th>Number</th><th>Type</th><th>Customer</th><th>Price</th>
-                      <th>Check-In</th><th>Check-Out</th><th>Status</th><th>Action</th>
+                      <th>Check-In</th><th>Check-Out</th><th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {bookingsLoading && (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: "center", padding: 24 }}>
+                        <td colSpan={7} style={{ textAlign: "center", padding: 24 }}>
                           Loading bookings…
                         </td>
                       </tr>
                     )}
                     {!bookingsLoading &&
                       pagedRooms.map((row, i) => (
-                      <tr key={row.refnum || i}>
+                      <tr
+                        key={row.refnum || i}
+                        className="admin-clickable-row"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View booking details for ${row.customer || row.type || "guest"}`}
+                        onClick={(e) =>
+                          handleAdminRowActivate(e, () => setViewModal({ data: row, type: "room" }))
+                        }
+                        onKeyDown={(e) =>
+                          handleAdminRowKeyDown(e, () => setViewModal({ data: row, type: "room" }))
+                        }
+                      >
                         <td>{row.number}</td>
                         <td>{row.type}</td>
                         <td>{row.customer}</td>
@@ -1334,32 +1308,11 @@ export default function BookingManagement() {
                         <td>{row.checkin}</td>
                         <td>{row.checkout}</td>
                         <td><Badge status={row.status} /></td>
-                        <td className="action-cell">
-                          <button
-                            type="button"
-                            className="action-btn view-btn"
-                            title="View"
-                            onClick={() => setViewModal({ data: row, type: "room" })}
-                          >
-                            {icons.eye}
-                          </button>
-                          <button
-                            type="button"
-                            className="action-btn delete-btn"
-                            title="Delete booking"
-                            disabled={deletingId === row.bookingId}
-                            onClick={() =>
-                              handleDeleteBooking(row.bookingId, row.customer || row.type)
-                            }
-                          >
-                            {icons.trash}
-                          </button>
-                        </td>
                       </tr>
                     ))}
                     {!bookingsLoading && filteredRooms.length === 0 && (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
+                        <td colSpan={7} style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
                           No room bookings yet.
                         </td>
                       </tr>
@@ -1404,20 +1357,32 @@ export default function BookingManagement() {
                   <thead>
                     <tr>
                       <th>Customer</th><th>Event</th><th>Check-In</th><th>Check-Out</th>
-                      <th>Downpayment</th><th>Balance</th><th>Status</th><th>Action</th>
+                      <th>Downpayment</th><th>Balance</th><th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {bookingsLoading && (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: "center", padding: 24 }}>
+                        <td colSpan={7} style={{ textAlign: "center", padding: 24 }}>
                           Loading bookings…
                         </td>
                       </tr>
                     )}
                     {!bookingsLoading &&
                       pagedEvents.map((row, i) => (
-                      <tr key={row.refnum || i}>
+                      <tr
+                        key={row.refnum || i}
+                        className="admin-clickable-row"
+                        tabIndex={0}
+                        role="button"
+                        aria-label={`View booking details for ${row.customer || row.event || "guest"}`}
+                        onClick={(e) =>
+                          handleAdminRowActivate(e, () => setViewModal({ data: row, type: "event" }))
+                        }
+                        onKeyDown={(e) =>
+                          handleAdminRowKeyDown(e, () => setViewModal({ data: row, type: "event" }))
+                        }
+                      >
                         <td>{row.customer}</td>
                         <td>{row.event}</td>
                         <td>{row.checkin}</td>
@@ -1425,32 +1390,11 @@ export default function BookingManagement() {
                         <td>{row.downpayment}</td>
                         <td>{row.balance}</td>
                         <td><Badge status={row.status} /></td>
-                        <td className="action-cell">
-                          <button
-                            type="button"
-                            className="action-btn view-btn"
-                            title="View"
-                            onClick={() => setViewModal({ data: row, type: "event" })}
-                          >
-                            {icons.eye}
-                          </button>
-                          <button
-                            type="button"
-                            className="action-btn delete-btn"
-                            title="Delete booking"
-                            disabled={deletingId === row.bookingId}
-                            onClick={() =>
-                              handleDeleteBooking(row.bookingId, row.customer || row.event)
-                            }
-                          >
-                            {icons.trash}
-                          </button>
-                        </td>
                       </tr>
                     ))}
                     {!bookingsLoading && filteredEvents.length === 0 && (
                       <tr>
-                        <td colSpan={8} style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
+                        <td colSpan={7} style={{ textAlign: "center", padding: 24, color: "#9a8060" }}>
                           No event bookings yet.
                         </td>
                       </tr>

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { resolveGovernmentIdUrl } from "../guests/guestBookingIdPhoto";
 
 /**
@@ -6,30 +7,30 @@ import { resolveGovernmentIdUrl } from "../guests/guestBookingIdPhoto";
  */
 export default function GovernmentIdPreview({ booking, title = "Government ID" }) {
   const src = resolveGovernmentIdUrl(booking);
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [src]);
+
+  const placeholder = broken
+    ? "Government ID image unavailable"
+    : "No government ID uploaded";
+
   return (
     <section className="rdm-card">
       <h4 className="rdm-card__title">{title}</h4>
       <div className="rdm-media-frame rdm-media-frame--tall">
-        {src ? (
+        {src && !broken ? (
           <img
             src={src}
             alt="Government ID"
             className="rdm-media-img"
             decoding="async"
-            onError={(e) => {
-              const el = e.currentTarget;
-              el.style.display = "none";
-              const parent = el.parentElement;
-              if (parent && !parent.querySelector(".rdm-media-placeholder")) {
-                const ph = document.createElement("div");
-                ph.className = "rdm-media-placeholder";
-                ph.textContent = "Government ID image unavailable";
-                parent.appendChild(ph);
-              }
-            }}
+            onError={() => setBroken(true)}
           />
         ) : (
-          <div className="rdm-media-placeholder">No government ID uploaded</div>
+          <div className="rdm-media-placeholder">{placeholder}</div>
         )}
       </div>
     </section>

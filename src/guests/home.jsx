@@ -1,18 +1,13 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import TopbarAvatar from "../topbar/TopbarAvatar";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import {
   fetchBookingsBackend,
   fetchBookingByIdBackend,
   patchBookingBackend,
   fetchRoomsCatalog,
-  fetchEventVenuesBackend,
+  fetchPublicEventVenuesCatalog,
   GUEST_BOOKINGS_STORAGE_PING_KEY,
 } from "../api/guestApi";
 import {
@@ -30,11 +25,11 @@ import {
 } from "./bookingRoomDisplay";
 import { getBackendBaseURL, backendUrl } from "../api/config";
 import { getStoredAuthToken, clearStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
-import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
+import GuestTopbarActions from "./GuestTopbarActions";
 import { resolveGovernmentIdUrl } from "./guestBookingIdPhoto";
 import GovernmentIdPreview from "../components/GovernmentIdPreview";
 import GuestSidebar from "./GuestSidebar";
-import { GuestArchiveIcon } from "./guestArchiveIcon";
+import { buildGuestNavItems } from "./guestNavItems";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
@@ -51,37 +46,7 @@ import "./idUploadedCard.css";
 import "./home.css";
 
 // --- Icons ---
-const HomeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-  </svg>
-);
-const RoomIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-  </svg>
-);
-const EventIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-const SettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-const navItems = [
-  { label: "Homepage", icon: <HomeIcon />, href: "/home", active: true },
-  { label: "Rooms", icon: <RoomIcon />, href: "/rooms" },
-  { label: "Event Venues", icon: <EventIcon />, href: "/event-venues" },
-  { label: "Archive", icon: <GuestArchiveIcon />, href: "/booking-history" },
-  { label: "Settings", icon: <SettingsIcon />, href: "/settings" },
-];
+const navItems = buildGuestNavItems("/home");
 
 /** Shown only when GET /api/rooms is empty or unreachable (read-only fallback; no DB writes). */
 const FALLBACK_DEAL_SLIDES = [
@@ -396,7 +361,13 @@ function filterGuestHomeApiBookings(bookings, roomIdSet, venueIdSet) {
       if (!looksLikeMongoObjectId(rid) || !roomIdSet.has(rid)) continue;
     } else if (t === "event") {
       const vid = String(b.eventVenueId ?? "").trim();
-      if (!looksLikeMongoObjectId(vid) || !venueIdSet.has(vid)) continue;
+      const venueName = String(b.venueName ?? "").trim();
+      if (looksLikeMongoObjectId(vid)) {
+        /** When catalog loaded, drop rows for venues removed from catalog only. */
+        if (venueIdSet.size > 0 && !venueIdSet.has(vid)) continue;
+      } else if (!venueName) {
+        continue;
+      }
     } else {
       continue;
     }
@@ -418,21 +389,14 @@ export default function Home() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const {
-    notifRef,
-    notifOpen,
-    setNotifOpen,
-    bellUnreadCount,
-    displayNotifications,
-    loadGuestNotifications,
-  } = useGuestTopbarNotifications();
-  const { topbarProfile: guestTopbarProfile } = useTopbarUserProfile("guest");
-  const [userOpen, setUserOpen] = useState(false);
+  const topbarRef = useRef(null);
+  const refreshNotifications = useCallback((opts) => {
+    topbarRef.current?.loadGuestNotifications(opts);
+  }, []);
   const [current, setCurrent] = useState(0);
   const [dealSlides, setDealSlides] = useState(() => fallbackDealSlideObjects());
   const dealPageCount = Math.max(1, Math.ceil(dealSlides.length / SLIDES_PER_DOT));
   const trackRef = useRef(null);
-  const userRef = useRef(null);
 
   const [bookingsLoading, setBookingsLoading] = useState(true);
   const [bookingsError, setBookingsError] = useState("");
@@ -497,7 +461,7 @@ export default function Home() {
     if (!token) {
       setUnifiedRows([]);
       setRoomIdToNumber(new Map());
-      loadGuestNotifications();
+      refreshNotifications();
       setBookingsLoading(false);
       return;
     }
@@ -506,7 +470,7 @@ export default function Home() {
       const [bookings, catalog, venues] = await Promise.all([
         fetchBookingsBackend(),
         fetchRoomsCatalog().catch(() => []),
-        fetchEventVenuesBackend().catch(() => []),
+        fetchPublicEventVenuesCatalog().catch(() => []),
       ]);
       const ridMap = buildRoomIdToNumberMap(catalog);
       const venuesArr = Array.isArray(venues) ? venues : [];
@@ -561,7 +525,7 @@ export default function Home() {
     } finally {
       setBookingsLoading(false);
     }
-  }, [loadGuestNotifications]);
+  }, [refreshNotifications]);
 
   useEffect(() => {
     loadBookings();
@@ -585,11 +549,11 @@ export default function Home() {
   useEffect(() => {
     function onAuthChanged() {
       loadBookings();
-      loadGuestNotifications({ force: true });
+      refreshNotifications({ force: true });
     }
     window.addEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChanged);
     return () => window.removeEventListener(AUTH_TOKEN_CHANGED_EVENT, onAuthChanged);
-  }, [loadBookings, loadGuestNotifications]);
+  }, [loadBookings, refreshNotifications]);
 
   useEffect(() => {
     let cancelled = false;
@@ -651,15 +615,6 @@ export default function Home() {
     window.addEventListener("resize", updateCarouselTransform);
     return () => window.removeEventListener("resize", updateCarouselTransform);
   }, [updateCarouselTransform]);
-
-  useEffect(() => {
-    function handleClick(e) {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-    }
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, []);
 
   function openDetails(row) {
     setSelectedRow(row);
@@ -757,7 +712,7 @@ export default function Home() {
       }
       await patchBookingBackend(selectedRow.id, { status: "cancelled", cancellationReason: reason });
       setUnifiedRows((rows) => rows.filter((r) => r.key !== selectedRow.key));
-      loadGuestNotifications({ force: true });
+      refreshNotifications({ force: true });
       setConfirmOpen(false);
       setCancelOpen(false);
       setSelectedRow(null);
@@ -843,51 +798,7 @@ export default function Home() {
             />
             <span className="breadcrumb-title">Homepage</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((o) => !o);
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              bellIconClassName="topbar-icon"
-              dot={bellUnreadCount > 0 ? "active" : null}
-              onItemClick={(n) => {
-                const bookingId = String(n?.bookingId || "").trim();
-                setNotifOpen(false);
-                setUserOpen(false);
-                if (bookingId) navigate(`/my-bookings/${bookingId}`);
-              }}
-            />
-
-            <div
-              className="icon-btn"
-              ref={userRef}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUserOpen((o) => !o);
-                setNotifOpen(false);
-              }}
-            >
-              <TopbarAvatar src={guestTopbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span
-                className="user-arrow"
-                style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-              >
-                ▾
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={guestTopbarProfile}
-                profilePath={TOPBAR.guest.profilePath}
-                onCloseMenus={() => { setNotifOpen(false); setUserOpen(false); }}
-                onLogout={() => { setNotifOpen(false); setUserOpen(false); requestLogout(); }}
-              />
-            </div>
-          </div>
+          <GuestTopbarActions ref={topbarRef} onRequestLogout={requestLogout} />
         </header>
 
         <main className="content">

@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n api,web -c magenta,green \"npm run dev --prefix ../../be/abela-be\" \"npm run dev:web:wait\"",
+    "dev": "concurrently -k -n api,web -c magenta,green \"npm run dev --prefix ../be\" \"npm run dev:web:wait\"",
     "dev:fresh": "npm run kill-port --prefix ../../be/abela-be && npm run dev",
     "dev:with-api": "npm run dev",
     "dev:web": "vite",

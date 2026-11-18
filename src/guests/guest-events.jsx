@@ -1,12 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import TopbarAvatar from "../topbar/TopbarAvatar";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import GuestTopbarActions from "./GuestTopbarActions";
 import {
   isVenueAvailableForDates,
   eventBookedRangesFromBookings,
@@ -31,21 +27,15 @@ import {
   dispatchGuestBookingsRefreshPing,
   GUEST_BOOKINGS_STORAGE_PING_KEY,
   fetchGuestEventCalendarBookings,
-  fetchEventVenuesBackend,
+  fetchPublicEventVenuesCatalog,
 } from "../api/guestApi";
 import {
-  uploadBookingGuestValidIdDirectBackend,
-  uploadPaymentProofDirectBackend,
-} from "../api/imageUploadApi";
-import {
-  handleImageFileInputChange,
-  isBookingSubmitImageRef,
-  isHttpImageUrl,
-  resolveImageUrlForSubmit,
+  isStoredImageRef,
+  readImageFileAsDataUrlLimited,
+  validateImageFileType,
 } from "../utils/s3ImageUpload";
-import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import GuestSidebar from "./GuestSidebar";
-import { GuestArchiveIcon } from "./guestArchiveIcon";
+import { buildGuestNavItems } from "./guestNavItems";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
@@ -64,30 +54,7 @@ const GCASH_CARD_ICON = "/Gcash.png";
 const GCASH_PAYMENT_QR = "/QR.png";
 
 // --- Icons ---
-const HomeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-  </svg>
-);
-const RoomIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-  </svg>
-);
-const EventIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-const SettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
+const navItems = buildGuestNavItems("/event-venues");
 const GuestsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -134,15 +101,6 @@ const CashPayIcon = () => (
     <path d="M7 12h.01M17 12h.01" />
   </svg>
 );
-
-// --- Nav Items ---
-const navItems = [
-  { label: "Homepage",     icon: <HomeIcon />,     href: "/home"           },
-  { label: "Rooms",        icon: <RoomIcon />,     href: "/rooms"                       },
-  { label: "Event Venues", icon: <EventIcon />,    href: "/event-venues", active: true                },
-  { label: "Archive",      icon: <GuestArchiveIcon />, href: "/booking-history" },
-  { label: "Settings",     icon: <SettingsIcon />, href: "/settings"   },
-];
 
 function eventCalendarRowAccent(statusRaw) {
   const s = String(statusRaw || "").toLowerCase();
@@ -344,8 +302,8 @@ function buildEventBookingPayload(
   const additionalRequests = req ? `${req}\n\n${foot}` : foot;
   const email = form.email.trim().toLowerCase();
   const pax = Math.max(1, parseInt(form.attendees, 10) || 1);
-  const hasId = isHttpImageUrl(idDataUrl);
-  const hasProof = isHttpImageUrl(paymentProofData);
+  const hasId = isStoredImageRef(idDataUrl);
+  const hasProof = isStoredImageRef(paymentProofData);
   const slotLabel = buildEventTimeSlotLabel(form.startTime, form.endTime);
   return {
     eventVenueId: String(venuePick.id),
@@ -418,16 +376,6 @@ const today = new Date().toISOString().split("T")[0];
 export default function EventVenues() {
   const navigate = useNavigate();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const {
-    notifRef,
-    notifOpen,
-    setNotifOpen,
-    bellUnreadCount,
-    displayNotifications,
-  } = useGuestTopbarNotifications();
-  const { topbarProfile } = useTopbarUserProfile("guest");
-  const userRef = useRef(null);
-  const [userOpen, setUserOpen] = useState(false);
   const [bookedDates, setBookedDates] = useState(() => []);
   /** Raw rows from GET /api/bookings/event-calendar (for time overlap + schedule list). */
   const [eventCalRowsRaw, setEventCalRowsRaw] = useState([]);
@@ -559,29 +507,17 @@ export default function EventVenues() {
     async function loadCatalog() {
       /** Real occupancy for all guests' event bookings (GET /api/bookings is user-scoped only). */
       const calPromise = fetchGuestEventCalendarBookings().catch(() => []);
-
-      if (!getStoredAuthToken()) {
-        setVenueCatalog(VENUES);
-        try {
-          const calRows = await calPromise;
-          const list = Array.isArray(calRows) ? calRows : [];
-          setEventCalRowsRaw(list);
-          setBookedDates(resolveEventOccupancyRangesFromRows(list));
-        } catch {
-          setEventCalRowsRaw([]);
-          setBookedDates(resolveEventOccupancyRangesFromRows([]));
-        }
-        setCatalogLoading(false);
-        return;
-      }
       setCatalogLoading(true);
       try {
-        const [venuesRaw, calRows] = await Promise.all([fetchEventVenuesBackend(), calPromise]);
+        const [venuesRaw, calRows] = await Promise.all([
+          fetchPublicEventVenuesCatalog().catch(() => []),
+          calPromise,
+        ]);
         if (cancelled) return;
         const mapped = (Array.isArray(venuesRaw) ? venuesRaw : [])
           .map(mapApiEventVenueToGuestCard)
           .filter((x) => x.id);
-        setVenueCatalog(mapped);
+        setVenueCatalog(mapped.length > 0 ? mapped : VENUES);
         const list = Array.isArray(calRows) ? calRows : [];
         setEventCalRowsRaw(list);
         setBookedDates(resolveEventOccupancyRangesFromRows(list));
@@ -660,15 +596,6 @@ export default function EventVenues() {
       cancelled = true;
     };
   }, [resOpen, venueCatalog, guestBookingsPing]);
-
-  useEffect(() => {
-    const onMouseDown = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [notifRef, setNotifOpen]);
 
   useEffect(() => {
     if (payOpen) setPayQrMissing(false);
@@ -759,19 +686,25 @@ export default function EventVenues() {
     const file = e.target.files?.[0];
     if (e.target) e.target.value = "";
     if (!file) return;
+    const typeErr = validateImageFileType(file);
+    if (typeErr) {
+      setIdPreview(null);
+      setIdFile(null);
+      setFormErrors((fe) => ({ ...fe, id: true }));
+      window.alert(typeErr);
+      return;
+    }
     setIdFile(file);
     setFormErrors((fe) => ({ ...fe, id: false }));
-    await handleImageFileInputChange(file, {
-      uploadFn: uploadBookingGuestValidIdDirectBackend,
-      setPreview: setIdPreview,
-      requireS3: true,
-      setError: (msg) => {
-        setIdPreview(null);
-        setIdFile(null);
-        setFormErrors((fe) => ({ ...fe, id: true }));
-        if (msg) window.alert(msg);
-      },
-    });
+    try {
+      const dataUrl = await readImageFileAsDataUrlLimited(file);
+      setIdPreview(dataUrl);
+    } catch (err) {
+      setIdPreview(null);
+      setIdFile(null);
+      setFormErrors((fe) => ({ ...fe, id: true }));
+      window.alert(err?.message || "Could not read the ID image.");
+    }
   }
 
   function validateRes() {
@@ -799,7 +732,7 @@ export default function EventVenues() {
         errs.endTime = true;
       }
     }
-    if (!isBookingSubmitImageRef(idPreview)) errs.id = true;
+    if (!isStoredImageRef(idPreview)) errs.id = true;
     if (!form.attendees || parseInt(form.attendees) < 1) errs.attendees = true;
     if (!form.chkTerms)   errs.chkTerms = true;
     if (!form.chkPrivacy) errs.chkPrivacy = true;
@@ -855,23 +788,20 @@ export default function EventVenues() {
       }
       setResSubmitting(true);
       try {
-        const idUrl = await resolveImageUrlForSubmit(
-          idPreview,
-          idFile,
-          uploadBookingGuestValidIdDirectBackend,
-          "Government ID photo",
-        );
-        const proofUrl = await resolveImageUrlForSubmit(
-          pendingGcash.proofPreview,
-          pendingGcash.proofFile,
-          uploadPaymentProofDirectBackend,
-          "Payment proof",
-        );
+        const idDataUrl = isStoredImageRef(idPreview) ? String(idPreview).trim() : "";
+        const proofDataUrl =
+          pendingGcash.proofPreview && isStoredImageRef(pendingGcash.proofPreview)
+            ? String(pendingGcash.proofPreview).trim()
+            : "";
+        if (!idDataUrl) {
+          window.alert("Please upload a valid government ID.");
+          return;
+        }
         const payload = buildEventBookingPayload(form, resPick, {
           paymentAmountNum: pendingGcash.paidNum,
           transactionId: pendingGcash.txId,
-          idDataUrl: idUrl,
-          paymentProofData: proofUrl,
+          idDataUrl,
+          paymentProofData: proofDataUrl,
           paymentDate: pendingGcash.date,
         });
         await saveEventBooking(payload);
@@ -903,13 +833,12 @@ export default function EventVenues() {
     }
     setResSubmitting(true);
     try {
-      const idUrl = await resolveImageUrlForSubmit(
-        idPreview,
-        idFile,
-        uploadBookingGuestValidIdDirectBackend,
-        "Government ID photo",
-      );
-      const payload = buildEventBookingPayload(form, resPick, { paymentAmountNum: 0, idDataUrl: idUrl });
+      const idDataUrl = isStoredImageRef(idPreview) ? String(idPreview).trim() : "";
+      if (!idDataUrl) {
+        window.alert("Please upload a valid government ID.");
+        return;
+      }
+      const payload = buildEventBookingPayload(form, resPick, { paymentAmountNum: 0, idDataUrl: idDataUrl });
       await saveEventBooking(payload);
       dispatchFrontdeskNotificationsRefresh();
       dispatchGuestBookingsRefreshPing();
@@ -993,19 +922,25 @@ export default function EventVenues() {
     const file = e.target.files?.[0];
     if (e.target) e.target.value = "";
     if (!file) return;
+    const typeErr = validateImageFileType(file);
+    if (typeErr) {
+      setProofPreview(null);
+      setProofFile(null);
+      setPayErrors((pe) => ({ ...pe, proof: true }));
+      window.alert(typeErr);
+      return;
+    }
     setProofFile(file);
     setPayErrors((pe) => ({ ...pe, proof: false }));
-    await handleImageFileInputChange(file, {
-      uploadFn: uploadPaymentProofDirectBackend,
-      setPreview: setProofPreview,
-      requireS3: true,
-      setError: (msg) => {
-        setProofPreview(null);
-        setProofFile(null);
-        setPayErrors((pe) => ({ ...pe, proof: true }));
-        if (msg) window.alert(msg);
-      },
-    });
+    try {
+      const dataUrl = await readImageFileAsDataUrlLimited(file);
+      setProofPreview(dataUrl);
+    } catch (err) {
+      setProofPreview(null);
+      setProofFile(null);
+      setPayErrors((pe) => ({ ...pe, proof: true }));
+      window.alert(err?.message || "Could not read the payment proof image.");
+    }
   }
 
   function submitPayment() {
@@ -1013,7 +948,7 @@ export default function EventVenues() {
     if (!payForm.amount.trim()) errs.amount = true;
     if (!payForm.date.trim())   errs.date = true;
     if (!payForm.txId.trim())   errs.txId = true;
-    if (!isBookingSubmitImageRef(proofPreview)) errs.proof = true;
+    if (!isStoredImageRef(proofPreview)) errs.proof = true;
     setPayErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -1115,52 +1050,7 @@ export default function EventVenues() {
             />
             <span className="breadcrumb-title">Event Venues</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => !v);
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              bellIconClassName="topbar-icon"
-              dot={bellUnreadCount > 0 ? "active" : null}
-              onItemClick={(n) => {
-                const bookingId = String(n?.bookingId || "").trim();
-                setNotifOpen(false);
-                setUserOpen(false);
-                if (bookingId) navigate(`/my-bookings/${bookingId}`);
-              }}
-            />
-            <div
-              className="icon-btn"
-              ref={userRef}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUserOpen((v) => !v);
-                setNotifOpen(false);
-              }}
-            >
-              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.guest.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <GuestTopbarActions onRequestLogout={requestLogout} />
         </header>
 
         {/* -- CONTENT -- */}
@@ -1856,7 +1746,7 @@ export default function EventVenues() {
               aria-label="Dismiss notification"
               onClick={() => setBookingSuccessToast(null)}
             >
-              ?
+              ×
             </button>
             <div className="booking-success-toast__icon" aria-hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.8" strokeLinecap="round" strokeLinejoin="round">

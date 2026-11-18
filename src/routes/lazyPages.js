@@ -25,6 +25,7 @@ export const LazyFrontDeskSettings = lazy(() => import('../frontdesks/frontdesk-
 
 export const LazyGuestRoom = lazy(() => import('../guests/guest-room'))
 export const LazyGuestEvents = lazy(() => import('../guests/guest-events'))
+export const LazyGuestRestaurantMenu = lazy(() => import('../guests/guest-restaurant-menu'))
 export const LazyGuestSettings = lazy(() => import('../guests/guest-settings'))
 export const LazyMyProfile = lazy(() => import('../guests/myprofile'))
 export const LazyBookingHistory = lazy(() => import('../guests/booking-history'))

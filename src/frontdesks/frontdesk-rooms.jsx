@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import StaffTopbarActions from "../topbar/StaffTopbarActions";
+import FrontdeskTopbarActions from "./FrontdeskTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
@@ -3390,7 +3390,7 @@ export default function RoomReservation() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Rooms</span>
           </div>
-          <StaffTopbarActions
+          <FrontdeskTopbarActions
             ref={staffTopbarRef}
             roleKey="frontdesk"
             notifications={displayNotifications}

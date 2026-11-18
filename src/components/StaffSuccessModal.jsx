@@ -20,6 +20,8 @@ export function StaffSuccessModal({
   message = "",
   confirmLabel = "OK",
   autoCloseMs = 3500,
+  overlayClassName = "",
+  panelClassName = "staff-success-modal",
 }) {
   useEffect(() => {
     if (!open || !autoCloseMs) return undefined;
@@ -34,8 +36,8 @@ export function StaffSuccessModal({
       title={title}
       size="sm"
       placement="center"
-      panelClassName="staff-success-modal"
-      overlayClassName="staff-success-modal-overlay"
+      panelClassName={panelClassName}
+      overlayClassName={["staff-success-modal-overlay", overlayClassName].filter(Boolean).join(" ")}
       bodyClassName="staff-success-modal__body-wrap"
       footer={
         <div className="staff-success-modal__footer">

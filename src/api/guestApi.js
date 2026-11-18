@@ -1,5 +1,6 @@
 import { backendUrl } from './config'
 import { getStoredAuthToken } from './authApi'
+import { dispatchCashierOrdersRefresh } from '../cashier/cashierOrdersRefresh'
 
 /** Fired to refresh guest notification bell (e.g. after booking list load or staff decision). */
 export const GUEST_NOTIFICATIONS_REFRESH_EVENT = 'abela:guest-notifications-refresh'
@@ -183,6 +184,64 @@ export async function fetchPublicMenuCatalog() {
 }
 
 /**
+ * GET /api/menu/guest-portal — authenticated guest; full menu + categories (includes unavailable).
+ */
+export async function fetchGuestMenuPortal() {
+  const token = getStoredAuthToken()
+  if (!token) {
+    const err = new Error('Not signed in')
+    err.code = 'NO_TOKEN'
+    throw err
+  }
+  const res = await fetch(backendUrl('/api/menu/guest-portal'), {
+    headers: {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  return {
+    menu: Array.isArray(data.menu) ? data.menu : [],
+    categories: Array.isArray(data.categories) ? data.categories : [],
+  }
+}
+
+/**
+ * POST /api/restaurant-orders — guest room-service order (pending until cashier processes).
+ */
+export async function createGuestRestaurantOrderBackend(body) {
+  const token = getStoredAuthToken()
+  if (!token) {
+    const err = new Error('Not signed in')
+    err.code = 'NO_TOKEN'
+    throw err
+  }
+  const res = await fetch(backendUrl('/api/restaurant-orders'), {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(body),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error || `HTTP ${res.status}`)
+    err.status = res.status
+    throw err
+  }
+  const order = data.order
+  dispatchCashierOrdersRefresh()
+  return order
+}
+
+/**
  * GET /api/rooms/availability?checkIn=&checkOut= — public; overlapping room bookings + ops-occupied ids.
  * @returns {Promise<{ checkIn: string, checkOut: string, bookedRanges: { roomId: string, checkIn: string, checkOut: string }[], operationallyUnavailableRoomIds: string[] }>}
  */
@@ -288,7 +347,7 @@ export async function fetchEventVenuesBackend() {
 
 /**
  * POST /api/rooms — Bearer + admin (`be/abela-be/README.md`).
- * @param {{ roomNumber: string, package: string, price: number, guests: number, image?: string, description?: string, features?: string[] }} body
+ * @param {{ title: string, roomNumber: string, package?: string, price: number, guests: number, image?: string, description?: string, features?: string[] }} body
  */
 export async function createRoomBackend(body) {
   const res = await fetch(backendUrl('/api/rooms'), {
@@ -333,12 +392,14 @@ export async function updateRoomBackend(id, body) {
  * @param {'needs_cleaning'|'ready'|'available'} status
  */
 export async function patchRoomHousekeepingStatusBackend(roomId, status) {
+  const st = String(status || '').trim().toLowerCase()
+  const apiStatus = st === 'available' ? 'ready' : st
   const res = await fetch(
     backendUrl(`/api/rooms/${encodeURIComponent(roomId)}/housekeeping-status`),
     {
       method: 'PATCH',
       headers: authJsonHeaders(),
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status: apiStatus }),
     },
   )
   const data = await res.json().catch(() => ({}))
@@ -356,12 +417,14 @@ export async function patchRoomHousekeepingStatusBackend(roomId, status) {
  * @param {'needs_cleaning'|'ready'|'available'} status
  */
 export async function patchEventVenueHousekeepingStatusBackend(venueId, status) {
+  const st = String(status || '').trim().toLowerCase()
+  const apiStatus = st === 'available' ? 'ready' : st
   const res = await fetch(
     backendUrl(`/api/event-venues/${encodeURIComponent(venueId)}/housekeeping-status`),
     {
       method: 'PATCH',
       headers: authJsonHeaders(),
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status: apiStatus }),
     },
   )
   const data = await res.json().catch(() => ({}))
@@ -939,7 +1002,7 @@ export async function fetchBillingRecordByIdBackend(id) {
   return data
 }
 
-/** PUT /api/billing/:id/payment — Bearer + cashier or admin; body `{ amountPaid: number }` */
+/** PUT /api/billing/:id/payment — Bearer + front desk, cashier, or admin; body `{ amountPaid: number }` */
 export async function updateBillingPaymentBackend(id, body) {
   const res = await fetch(backendUrl(`/api/billing/${encodeURIComponent(id)}/payment`), {
     method: 'PUT',

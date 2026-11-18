@@ -296,20 +296,24 @@
   /* ============================================
      PAGE CONTENT (scoped — avoid affecting Guest billing / order history)
      ============================================ */
-  .cashier-pos-page .main-wrapper > .content {
-    flex: 1;
-    padding: 18px 22px;
-    overflow: hidden;
+  .cashier-pos-page .main-wrapper {
+    min-height: 100vh;
+    overflow: visible;
   }
 
-  /* Stack: dashboard stats + POS split (fills viewport under topbar) */
+  .cashier-pos-page .main-wrapper > .content {
+    flex: 0 0 auto;
+    padding: 18px 22px 32px;
+    overflow-x: hidden;
+    overflow-y: visible;
+  }
+
+  /* Stack: dashboard stats + POS split — grows with content so the page can scroll */
   .cashier-pos-page .pos-main-stack {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    flex: 1;
-    min-height: 0;
-    max-height: calc(100vh - var(--topbar-h) - 36px);
+    flex: 0 0 auto;
   }
 
   /* ── Cashier dashboard stats (Front Desk–style summary cards) ── */
@@ -347,7 +351,7 @@
   }
   .pos-dash-stats__grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 12px;
   }
   .pos-dash-stat-card {
@@ -389,6 +393,12 @@
   .pos-dash-stat-card__label--menu svg {
     stroke: #27ae60;
   }
+  .pos-dash-stat-card__label--pending {
+    color: #9b59b6;
+  }
+  .pos-dash-stat-card__label--pending svg {
+    stroke: #9b59b6;
+  }
   .pos-dash-stat-card__value {
     font-family: "Montserrat", sans-serif;
     font-size: 28px;
@@ -401,6 +411,147 @@
     font-size: 22px;
     word-break: break-word;
   }
+
+  /* ── Incoming online guest orders (POS dashboard) ── */
+  .pos-incoming-orders {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .pos-incoming-orders__head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .pos-incoming-orders__title {
+    font-family: "Montserrat", sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--gold);
+    margin: 0;
+  }
+  .pos-incoming-orders__sub {
+    font-size: 12.5px;
+    color: var(--text-mid);
+    margin: 4px 0 0;
+  }
+  .pos-incoming-orders__link {
+    font-family: "Montserrat", sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gold);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .pos-incoming-orders__link:hover {
+    text-decoration: underline;
+  }
+  .pos-incoming-orders__warn {
+    margin: 0;
+    padding: 10px 12px;
+    font-size: 13px;
+    border-radius: 8px;
+    background: #fdecea;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+  }
+  .pos-incoming-orders__card {
+    margin: 0;
+  }
+  .pos-incoming-orders__pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 18px;
+    border-top: 1px solid #f0e8d8;
+    font-size: 12.5px;
+    color: var(--text-light);
+  }
+  .pos-incoming-orders__pagination-info {
+    color: var(--text-mid);
+  }
+  .pos-incoming-orders__page-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .pos-incoming-orders__page-btn {
+    padding: 5px 14px;
+    border: 1.5px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    font-size: 12px;
+    color: var(--text-dark);
+    cursor: pointer;
+    transition: border-color 0.18s, color 0.18s;
+  }
+  .pos-incoming-orders__page-btn:hover:not(:disabled) {
+    border-color: var(--gold);
+    color: var(--gold);
+  }
+  .pos-incoming-orders__page-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+  .pos-incoming-orders__page-num {
+    color: var(--text-mid);
+  }
+  .pos-incoming-orders__row--new td {
+    animation: posIncomingRowIn 0.45s ease;
+  }
+  @keyframes posIncomingRowIn {
+    from { background: #fff3cd; }
+    to { background: transparent; }
+  }
+  .pos-new-order-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(420px, calc(100vw - 32px));
+    padding: 12px 14px;
+    background: #fff;
+    border: 1.5px solid var(--gold);
+    border-radius: 10px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+    font-family: "Roboto", sans-serif;
+    font-size: 13px;
+    color: var(--text-dark);
+    animation: posToastIn 0.3s ease;
+  }
+  @keyframes posToastIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .pos-new-order-toast__icon {
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+  .pos-new-order-toast__btn {
+    margin-left: auto;
+    flex-shrink: 0;
+    padding: 5px 12px;
+    border: 1.5px solid var(--gold);
+    border-radius: 6px;
+    background: #fdf5e6;
+    font-family: "Montserrat", sans-serif;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: var(--gold);
+    cursor: pointer;
+  }
+  .pos-new-order-toast__btn:hover {
+    background: var(--gold);
+    color: #fff;
+  }
   
   /* ============================================
      POS LAYOUT
@@ -408,8 +559,9 @@
   .pos-layout {
     display: flex;
     gap: 18px;
-    flex: 1;
-    min-height: 0;
+    flex: 0 0 auto;
+    align-items: flex-start;
+    min-height: auto;
     height: auto;
   }
   
@@ -491,7 +643,9 @@
     gap: 10px;
     align-items: stretch;
     align-content: start;
-    overflow-y: auto; flex: 1; padding-right: 2px;
+    overflow-y: visible;
+    flex: 0 0 auto;
+    padding-right: 2px;
   }
   .dish-grid::-webkit-scrollbar       { width: 4px; }
   .dish-grid::-webkit-scrollbar-track { background: #f0e8d8; border-radius: 4px; }
@@ -500,45 +654,91 @@
   .no-results { grid-column: 1 / -1; text-align: center; padding: 24px 0; color: var(--text-light); font-size: 13px; }
   
   .dish-card {
-    display: flex; align-items: flex-start; gap: 10px;
-    background: #fff; border-radius: 8px; border: 1px solid #e8dcc8;
-    padding: 10px; cursor: pointer;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e8dcc8;
+    padding: 10px;
+    cursor: pointer;
     box-sizing: border-box;
-    min-height: 100px;
-    height: 100%;
+    min-height: 92px;
+    overflow: hidden;
     transition: box-shadow 0.2s, border-color 0.2s;
   }
   .dish-card:hover    { border-color: var(--gold); box-shadow: 0 2px 10px rgba(184,146,42,0.14); }
   .dish-card.selected { border-color: var(--gold); background: #fdf8ec; }
-  
-  .dish-img {
-    width: 72px; height: 72px; object-fit: cover;
-    border-radius: 6px; flex-shrink: 0; background: #e8dcc8;
+
+  .dish-img-wrap {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #e8dcc8;
   }
-  
+
+  .dish-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .dish-img-placeholder {
+    width: 72px;
+    height: 72px;
+    flex-shrink: 0;
+    border-radius: 6px;
+    background: #f0e8d8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-light);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-align: center;
+    padding: 4px;
+    box-sizing: border-box;
+  }
+
   .dish-info {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 0;
+    gap: 2px;
+    align-self: stretch;
   }
-  
+
   .dish-name {
     font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700;
-    color: var(--gold); margin: 0 0 2px;
+    color: var(--gold); margin: 0;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
-  
+
   .dish-price {
     font-size: 12.5px; font-weight: 500; color: var(--text-dark);
-    margin: 0 0 4px;
-  }
-  
-  .dish-desc {
-    font-size: 11px; color: var(--text-light); line-height: 1.5;
     margin: 0;
-    overflow-wrap: break-word;
+    flex-shrink: 0;
+  }
+
+  .dish-desc {
+    font-size: 11px;
+    color: var(--text-light);
+    line-height: 1.45;
+    margin: 0;
+    margin-top: 2px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    min-height: calc(1.45em * 3);
+    max-height: calc(1.45em * 3);
+    overflow-wrap: anywhere;
+    flex-shrink: 0;
   }
   
   /* Pagination — same shape as ADMIN_1 Restaurant Menu (`rm-pagination-*`) */
@@ -624,132 +824,265 @@
   }
   
   /* ============================================
+
      RIGHT: ORDER PANEL
+
      ============================================ */
+
   .order-panel {
+
     width: 268px; flex-shrink: 0;
+
     background: #fff; border-radius: 10px; border: 1px solid #e8dcc8;
+
     padding: 18px 16px 16px;
+
     display: flex; flex-direction: column; gap: 13px;
-    box-shadow: 0 2px 14px rgba(0,0,0,0.06); overflow-y: auto;
+
+    box-shadow: 0 2px 14px rgba(0,0,0,0.06); overflow-y: visible;
+
+    align-self: flex-start;
+
   }
+
   .order-panel::-webkit-scrollbar       { width: 4px; }
+
   .order-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
   
+
   .order-title {
+
     font-family: 'Montserrat', sans-serif; font-size: 17px; font-weight: 700;
+
     color: var(--gold); text-align: center; padding-bottom: 10px; border-bottom: 1px solid #e8dcc8;
+
   }
+
   
+
   .order-field { display: flex; flex-direction: column; gap: 5px; }
+
   
+
   .order-label { font-size: 12px; font-weight: 500; color: var(--text-mid); }
+
   .order-label.gold { color: var(--gold); font-weight: 700; }
+
   
+
   .order-input {
+
     padding: 8px 12px; border: 1px solid #ddd; border-radius: var(--pos-btn-radius);
+
     font-size: 13px; color: var(--text-dark); background: #fafafa; outline: none;
+
   }
+
   
+
   .ordered-dishes {
+
     min-height: 76px; max-height: 150px; overflow-y: auto;
+
     background: #faf5ec; border-radius: 6px; border: 1px solid #e8dcc8;
+
     padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;
+
   }
+
   .ordered-dishes::-webkit-scrollbar       { width: 3px; }
+
   .ordered-dishes::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
   
+
   .no-dishes-msg { font-size: 12px; color: var(--text-light); text-align: center; padding: 14px 0; }
+
   
+
   .ordered-item { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+
   
+
   .ordered-item-name {
+
     font-size: 11.5px; color: var(--text-dark); flex: 1;
+
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+
   }
+
   
+
   .ordered-item-controls { display: flex; align-items: center; gap: 3px; }
+
   
+
   .qty-btn {
+
     width: 20px; height: 20px; border-radius: var(--pos-btn-radius);
+
     border: 1px solid var(--border); background: #fff;
+
     color: var(--gold); font-size: 14px; font-weight: 700; cursor: pointer;
+
     display: flex; align-items: center; justify-content: center; line-height: 1; transition: background 0.15s;
+
   }
+
   .qty-btn:hover { background: var(--gold); color: #fff; }
+
   
+
   .qty-value { font-size: 12px; font-weight: 600; color: var(--text-dark); min-width: 14px; text-align: center; }
+
   
+
   .item-price { font-size: 11px; color: var(--text-mid); white-space: nowrap; }
+
   
+
   .remove-btn { background: none; border: none; color: #e74c3c; font-size: 13px; cursor: pointer; padding: 0 2px; line-height: 1; }
+
   
+
   .order-summary {
+
     background: #faf5ec; border-radius: 7px; border: 1px solid #e8dcc8;
+
     padding: 9px 12px; display: flex; flex-direction: column; gap: 5px;
+
   }
+
   
+
   .summary-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-mid); }
+
   
+
   .summary-row.total-row {
+
     font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 700; color: var(--gold);
+
     padding-top: 6px; border-top: 1px solid #e8dcc8; margin-top: 2px;
+
   }
+
   
+
   .select-wrap { position: relative; }
+
   
+
   .order-select {
+
     width: 100%; padding: 8px 30px 8px 12px;
+
     border: 1px solid #ddd; border-radius: var(--pos-btn-radius);
+
     font-size: 13px; color: var(--text-dark); background: #fff;
+
     outline: none; appearance: none; cursor: pointer;
+
   }
+
   
+
   .select-wrap::after {
+
     content: "▾"; position: absolute; right: 10px; top: 50%;
+
     transform: translateY(-50%); color: var(--text-mid); pointer-events: none; font-size: 13px;
+
   }
+
   
+
   .payment-methods { display: flex; gap: 8px; }
+
   
+
   .pay-btn {
+
     flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+
     padding: 9px 8px; border: 1.5px solid #ddd; border-radius: var(--pos-btn-radius);
+
     background: #fff; font-family: 'Montserrat', sans-serif; font-size: 12.5px; font-weight: 600;
+
     color: var(--text-dark); cursor: pointer; transition: all 0.18s;
+
   }
+
   .pay-btn:hover      { border-color: var(--gold); color: var(--gold); }
+
   .pay-btn.active     { background: var(--gold); border-color: var(--gold); color: #fff; }
+
   .pay-btn.active svg { stroke: #fff; }
+
   .pay-btn-gcash-icon {
+
     width: 18px;
+
     height: 18px;
+
     object-fit: contain;
+
     flex-shrink: 0;
+
     display: block;
+
   }
+
   
+
   .send-to-bill-btn {
+
     width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+
     padding: 11px; background: var(--gold); color: #fff; border: none; border-radius: var(--pos-btn-radius);
+
     font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 700;
+
     cursor: pointer; transition: background 0.2s; letter-spacing: 0.03em;
+
   }
-  .send-to-bill-btn:hover { background: var(--gold-dark); }
+
+  .send-to-bill-btn:hover:not(:disabled) { background: var(--gold-dark); }
+
+  .send-to-bill-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
   
+
   .print-receipt-btn {
+
     width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+
     padding: 11px; background: #fff; color: var(--text-dark);
+
     border: 1.5px solid #ddd; border-radius: var(--pos-btn-radius);
+
     font-family: 'Montserrat', sans-serif; font-size: 13.5px; font-weight: 600;
+
     cursor: pointer; transition: all 0.2s; letter-spacing: 0.02em;
+
   }
+
   .print-receipt-btn:hover     { border-color: var(--gold); color: var(--gold); }
+
   .print-receipt-btn:hover svg { stroke: var(--gold); }
-  
+
+
+
   /* ============================================
      RESPONSIVE
      ============================================ */
+  @media (max-width: 1200px) {
+    .pos-dash-stats__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
   @media (max-width: 900px) {
     .pos-dash-stats__grid {
       grid-template-columns: 1fr;
@@ -782,12 +1115,7 @@
       min-width: 0;
       box-sizing: border-box;
       flex-shrink: 0;
-      padding: 16px 14px 16px;
-      /* Order section scrolls with .content (see dashboardMainScroll.css) */
-      overflow: visible;
-      max-height: none;
     }
-  }
   
   @media (max-width: 768px) {
     /* Same toggle as desktop: expanded = full sidebar + large logo; collapsed = rail + small logo */

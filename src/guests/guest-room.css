@@ -134,7 +134,8 @@
      PAGE CONTENT
      ============================================ */
   .guest-room-page.guest-portal-layout .main-wrapper > .content,
-  .guest-events-page.guest-portal-layout .main-wrapper > .content {
+  .guest-events-page.guest-portal-layout .main-wrapper > .content,
+  .guest-restaurant-page.guest-portal-layout .main-wrapper > .content {
     padding: 0;
     display: flex;
     flex-direction: column;
@@ -292,6 +293,19 @@
   .room-type-value {
     color: var(--text-dark);
     font-weight: 500;
+  }
+
+  /* Room catalog cards share event venue layout; rate chip matches `.venue-price-note`. */
+  .guest-room-page .venue-price-note {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-mid);
+    background: #f5f0e8;
+    border: 1px solid #e3d5c4;
+    border-radius: 6px;
+    padding: 3px 8px;
   }
   
   /* ============================================

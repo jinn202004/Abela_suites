@@ -33,6 +33,7 @@ export default function MarketingNavbar() {
           width={46}
           height={46}
           onError={(e) => {
+            e.currentTarget.onerror = null;
             e.currentTarget.src = "/favicon.svg";
           }}
         />

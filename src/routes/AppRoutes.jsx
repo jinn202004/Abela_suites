@@ -62,6 +62,8 @@ import GuestRoom from '../guests/guest-room'
 
 import GuestEvents from '../guests/guest-events'
 
+import GuestRestaurantMenu from '../guests/guest-restaurant-menu'
+
 import GuestSettings from '../guests/guest-settings'
 
 import MyProfile from '../guests/myprofile'
@@ -94,6 +96,8 @@ import Cashier from '../cashier/pos'
 
 import OrderHistory from '../cashier/orderhis'
 
+import OnlineOrders from '../cashier/online-orders'
+
 import CashierSettings from '../cashier/cashier-settings'
 
 import Login from '../logIn/login'
@@ -110,6 +114,8 @@ import EnterCode from '../logIn/enterCode'
 
 /** Loads after route modules so scoped guest sidebar logo wins over global admin/frontdesk `.sidebar-logo-img`. */
 import '../guests/guest-portal-layout.css'
+import '../guests/GuestChatPanel.css'
+import '../frontdesks/FrontdeskChatPanel.css'
 
 
 
@@ -185,6 +191,8 @@ const GUEST_PORTAL_ROUTES = [
 
   <Route key="guest-redirect-settings" path="/guest/settings" element={<Navigate to="/guest-settings" replace />} />,
 
+  <Route key="guest-redirect-restaurant" path="/guest/restaurant-menu" element={<Navigate to="/restaurant-menu" replace />} />,
+
   <Route key="guests" path="/guests" element={<Guests />} />,
 
   <Route key="home-legacy" path="/home" element={<Guests />} />,
@@ -196,6 +204,10 @@ const GUEST_PORTAL_ROUTES = [
   <Route key="rooms-alt" path="/rooms" element={<GuestRoom />} />,
 
   <Route key="event-venues" path="/event-venues" element={<GuestEvents />} />,
+
+  <Route key="restaurant-menu" path="/restaurant-menu" element={<GuestRestaurantMenu />} />,
+
+  <Route key="guest-restaurant-menu" path="/guest-restaurant-menu" element={<GuestRestaurantMenu />} />,
 
   <Route key="settings-legacy" path="/settings" element={<GuestSettings />} />,
 
@@ -232,6 +244,8 @@ const GUEST_PORTAL_ROUTES = [
   <Route key="cashier-billing-redirect" path="/cashier-billing" element={<Navigate to="/cashier" replace />} />,
 
   <Route key="cashier" path="/cashier" element={<Cashier />} />,
+
+  <Route key="cashier-orders" path="/cashier/orders" element={<OnlineOrders />} />,
 
   <Route key="order-history" path="/order-history" element={<OrderHistory />} />,
 

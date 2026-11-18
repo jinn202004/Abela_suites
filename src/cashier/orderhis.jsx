@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { TOPBAR } from "../topbar/roleTopbarData";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -8,11 +8,13 @@ import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useCashierSidebarLayout } from "./useCashierSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import CashierSidebarToggle from "./CashierSidebarToggle";
+import CashierSidebar from "./CashierSidebar";
 import "./orderhis.css";
 import "./cashier-sidebar-shared.css";
 import "../admin_1/adminClickable.css";
 import { handleAdminRowActivate, handleAdminRowKeyDown } from "../admin_1/adminClickUtils";
 import { useCashierUnifiedBell } from "./useCashierUnifiedBell";
+import { paymentProofImageSrc } from "../components/reservationDetailsHelpers";
 
 const HOTEL = {
   name:    "Abela Suites",
@@ -24,25 +26,6 @@ const ROWS_PER_PAGE = 10;
 // ── Helpers ────────────────────────────────────────────────────────────
 const fmt = n => "₱" + n.toLocaleString("en-PH", { minimumFractionDigits: 2 });
 
-// ── Icons ──────────────────────────────────────────────────────────────
-const POSIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM5.82 6h14.18l-1.5 7H7.5L5.82 6zM3 2H1v2h2l3.6 7.59-1.36 2.45C5.09 14.66 5 15.07 5 15.5 5 16.88 6.12 18 7.5 18h13v-2H7.83c-.17 0-.3-.13-.3-.3l.03-.12.9-1.58H18c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0 0 22.5 5H5.21L4.27 3H1v2h2l3.6 7.59z"/>
-  </svg>
-);
-
-const HistoryIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-  </svg>
-);
-
-const SettingsNavIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-  </svg>
-);
 // ── Receipt Modal ──────────────────────────────────────────────────────
 function ReceiptModal({ order, onClose }) {
   // Close on Escape key
@@ -61,6 +44,7 @@ function ReceiptModal({ order, onClose }) {
   const timeStr     = order.timeLabel || "—";
   const subtotalRaw = (order.items || []).reduce((s, i) => s + i.price * i.qty, 0);
   const discountAmt = subtotalRaw - order.total;
+  const proofSrc = paymentProofImageSrc(order.paymentProofData);
 
   return (
     // FIX: use inline styles / className toggling instead of CSS display:none/flex
@@ -141,6 +125,26 @@ function ReceiptModal({ order, onClose }) {
                 </span>
               </span>
             </div>
+            {order.transactionId ? (
+              <div className="ri-total-row">
+                <span>Transaction ID</span>
+                <span>{order.transactionId}</span>
+              </div>
+            ) : null}
+            {order.paymentDate ? (
+              <div className="ri-total-row">
+                <span>Payment Date</span>
+                <span>{order.paymentDate}</span>
+              </div>
+            ) : null}
+            {proofSrc ? (
+              <div className="oh-gcash-proof-block">
+                <p className="oh-gcash-proof-label">GCash proof of payment</p>
+                <a href={proofSrc} target="_blank" rel="noopener noreferrer" className="oh-gcash-proof-link">
+                  <img src={proofSrc} alt="GCash payment proof" className="oh-gcash-proof-img" />
+                </a>
+              </div>
+            ) : null}
           </div>
 
         </div>
@@ -164,8 +168,13 @@ export default function OrderHistory() {
     handleNotifItemClick,
   } = useCashierUnifiedBell({
     displayName: topbarProfile?.name || TOPBAR.cashier.profile.name,
-    onOrderNotificationClick: (n) =>
-      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } }),
+    onOrderNotificationClick: (n) => {
+      if (n?.orderSource === "guest") {
+        navigate("/cashier/orders", { state: { focusOrderId: n.orderId, fromNotification: true } });
+        return;
+      }
+      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } });
+    },
     onMenuNotificationRead: (n) =>
       navigate("/cashier", { state: { focusMenuItemId: n.menuItemId, fromNotification: true } }),
   });
@@ -227,6 +236,14 @@ export default function OrderHistory() {
     setCurrentPage(1);
   }
 
+  const asideProps = {
+    shellClassName,
+    asideStyle,
+    logoWrapStyle,
+    logoImgStyle,
+    closeMobileSidebar,
+  };
+
   return (
     <>
       {isMobile && mobileSidebarOpen && (
@@ -236,69 +253,13 @@ export default function OrderHistory() {
           aria-hidden
         />
       )}
+      {isMobile && mobileSidebarOpen ? <CashierSidebar {...asideProps} isMobile /> : null}
       <RailPortalShell
         rootClassName="cashier-order-history-page"
         shellClassName={shellClassName}
         rootStyle={{ display: "flex", minHeight: "100vh", width: "100%", background: "#f5f0e8" }}
         mainStyle={mainStyle}
-        sidebar={
-          <aside className={`sidebar ${shellClassName}`} style={asideStyle}>
-            {isMobile && (
-              <button
-                type="button"
-                className="cashier-mobile-close-btn"
-                onClick={closeMobileSidebar}
-                aria-label="Close menu"
-              >
-                ×
-              </button>
-            )}
-            <Link
-              to="/cashier"
-              className="sidebar-logo"
-              title="POS"
-              style={logoWrapStyle}
-              onClick={() => { if (isMobile) closeMobileSidebar(); }}
-            >
-              <img
-                src="/logo.png"
-                alt="Abela Suites Logo"
-                className="sidebar-logo-img"
-                decoding="async"
-                style={logoImgStyle}
-              />
-            </Link>
-            <nav className="sidebar-nav">
-              <NavLink
-                to="/cashier"
-                end
-                onClick={() => { if (isMobile) closeMobileSidebar(); }}
-                className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-              >
-                <span className="nav-icon"><POSIcon /></span>
-                <span>POS</span>
-              </NavLink>
-              <NavLink
-                to="/order-history"
-                end
-                onClick={() => { if (isMobile) closeMobileSidebar(); }}
-                className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-              >
-                <span className="nav-icon"><HistoryIcon /></span>
-                <span>Order History</span>
-              </NavLink>
-              <NavLink
-                to="/cashier-settings"
-                end
-                onClick={() => { if (isMobile) closeMobileSidebar(); }}
-                className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-              >
-                <span className="nav-icon"><SettingsNavIcon /></span>
-                <span>Settings</span>
-              </NavLink>
-            </nav>
-          </aside>
-        }
+        sidebar={!isMobile ? <CashierSidebar {...asideProps} isMobile={false} /> : null}
       >
         {/* ── TOPBAR ── */}
         <header className="topbar">

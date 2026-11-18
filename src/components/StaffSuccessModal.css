@@ -93,7 +93,8 @@ body:has(.housekeeping-portal-layout) .staff-success-modal-overlay.abel-modal,
   color: var(--text-mid, #6b5a3e);
   margin: 0;
   line-height: 1.5;
-  max-width: 280px;
+  max-width: 320px;
+  white-space: pre-line;
 }
 
 .staff-success-modal .abel-modal-footer {

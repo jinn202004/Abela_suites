@@ -1,15 +1,9 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
-import TopbarAvatar from "../topbar/TopbarAvatar";
-import { TOPBAR } from "../topbar/roleTopbarData";
+import { useRef } from "react";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
+import GuestTopbarActions from "./GuestTopbarActions";
 import GuestSidebar from "./GuestSidebar";
-import { GuestArchiveIcon } from "./guestArchiveIcon";
+import { buildGuestNavItems } from "./guestNavItems";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
@@ -17,43 +11,12 @@ import "../styles/settingsTheme.css";
 import "./guest-settings.css";
 
 // --- Icons ---
-const HomeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-  </svg>
-);
-const RoomIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-  </svg>
-);
-const EventIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-const SettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
+const navItems = buildGuestNavItems("/settings");
 const ChevronRight = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16">
     <polyline points="9 18 15 12 9 6" />
   </svg>
 );
-
-const navItems = [
-  { label: "Homepage",     icon: <HomeIcon />,     href: "/home"           },
-  { label: "Rooms",        icon: <RoomIcon />,     href: "/rooms"                       },
-  { label: "Event Venues", icon: <EventIcon />,    href: "/event-venues"                },
-  { label: "Archive",      icon: <GuestArchiveIcon />, href: "/booking-history" },
-  { label: "Settings",     icon: <SettingsIcon />, href: "/settings",  active: true   },
-];
 
 const settingsSections = [
   {
@@ -131,17 +94,8 @@ const settingsSections = [
 ];
 
 export default function Settings() {
-  const navigate = useNavigate();
-  const {
-    notifRef,
-    notifOpen,
-    setNotifOpen,
-    bellUnreadCount,
-    displayNotifications,
-  } = useGuestTopbarNotifications();
-  const [userOpen, setUserOpen] = useState(false);
+  const topbarRef = useRef(null);
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const { topbarProfile: guestTopbarProfile } = useTopbarUserProfile("guest");
   const {
     sidebarCollapsed,
     isMobile,
@@ -155,17 +109,6 @@ export default function Settings() {
     logoImgStyle,
   } = useGuestSidebarLayout();
 
-  const toggleNotif = (e) => {
-    e.stopPropagation();
-    setNotifOpen((prev) => !prev);
-    setUserOpen(false);
-  };
-  const toggleUser = (e) => {
-    e.stopPropagation();
-    setUserOpen((prev) => !prev);
-    setNotifOpen(false);
-  };
-
   return (
     <>
       <RailPortalShell
@@ -174,10 +117,7 @@ export default function Settings() {
         rootStyle={{ display: "flex", minHeight: "100vh", width: "100%" }}
         mainStyle={mainStyle}
         rootProps={{
-          onClick: () => {
-            setNotifOpen(false);
-            setUserOpen(false);
-          },
+          onClick: () => topbarRef.current?.closeMenus(),
         }}
         sidebar={
           <GuestSidebar
@@ -204,37 +144,7 @@ export default function Settings() {
             />
             <span className="breadcrumb-title">Settings</span>
           </div>
-          <div className="topbar-actions">
-
-            {/* Notifications */}
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={toggleNotif}
-              notifications={displayNotifications}
-              bellIconClassName="topbar-icon"
-              dot={bellUnreadCount > 0 ? "active" : null}
-              onItemClick={(n) => {
-                const bookingId = String(n?.bookingId || "").trim();
-                setNotifOpen(false);
-                setUserOpen(false);
-                if (bookingId) navigate(`/my-bookings/${bookingId}`);
-              }}
-            />
-
-            {/* User dropdown */}
-            <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarAvatar src={guestTopbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>▾</span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={guestTopbarProfile}
-                profilePath={TOPBAR.guest.profilePath}
-                onCloseMenus={() => { setNotifOpen(false); setUserOpen(false); }}
-                onLogout={() => { setNotifOpen(false); setUserOpen(false); requestLogout(); }}
-              />
-            </div>
-          </div>
+          <GuestTopbarActions ref={topbarRef} onRequestLogout={requestLogout} />
         </header>
 
         {/* ── PAGE CONTENT ── */}

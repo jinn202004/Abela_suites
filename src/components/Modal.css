@@ -1,4 +1,31 @@
-/* Reusable Modal — works with existing .modal-overlay / .modal-box rules from page CSS; adds behavior + polish */
+/* Reusable Modal — self-contained overlay + panel; page CSS may extend these rules */
+
+.modal-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.modal-overlay.open {
+  display: flex;
+}
+
+.modal-box {
+  background: #fdf8f0;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 700px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  flex-shrink: 0;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
 
 .modal-overlay.abel-modal--top {
   align-items: flex-start;

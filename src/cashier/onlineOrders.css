@@ -1,0 +1,384 @@
+/* Online guest orders — extends order history table styling (oh-*) */
+
+.cashier-online-orders-page .main-wrapper > .content {
+  flex: 1;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.oo-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-family: "Montserrat", sans-serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.oo-status-pending {
+  background: #fff8e6;
+  color: #9a7520;
+}
+.oo-status-accepted {
+  background: #e8f0fe;
+  color: #1a56c4;
+}
+.oo-status-preparing {
+  background: #fff0e6;
+  color: #c45c00;
+}
+.oo-status-ready {
+  background: #eaf6ee;
+  color: #2e7d4f;
+}
+.oo-status-completed {
+  background: #e8f5e9;
+  color: #1b5e20;
+}
+.oo-status-cancelled {
+  background: #fdecea;
+  color: #b71c1c;
+}
+
+.oo-view-btn {
+  padding: 5px 12px;
+  border: 1.5px solid #e0d4c0;
+  border-radius: 6px;
+  background: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dark, #3a2e1e);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.oo-view-btn:hover {
+  border-color: var(--gold, #b8922a);
+  color: var(--gold, #b8922a);
+  background: #fdf5e6;
+}
+
+/* ── Detail modal ── */
+.oo-detail-modal {
+  max-width: 920px !important;
+}
+
+.oo-detail-modal.modal-box .modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid #e8dcc8;
+  flex-shrink: 0;
+}
+
+.oo-detail-modal.modal-box .modal-title {
+  margin: 0;
+  font-family: "Montserrat", sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+}
+
+.oo-detail-modal.modal-box .modal-close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-mid, #6b5a3e);
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: color 0.18s, background 0.18s;
+}
+
+.oo-detail-modal.modal-box .modal-close:hover {
+  color: var(--gold, #b8922a);
+  background: rgba(184, 146, 42, 0.08);
+}
+
+.oo-detail-modal.modal-box .modal-body.oo-detail-modal__body {
+  padding: 24px 28px;
+}
+
+.oo-detail-modal.modal-box .modal-footer.abel-modal-footer {
+  padding: 16px 28px 22px;
+  border-top: 1px solid #e8dcc8;
+}
+
+.oo-detail-modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.oo-detail-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.oo-detail-section__title {
+  font-family: "Montserrat", sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+  margin: 0 0 14px;
+}
+
+.oo-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 32px;
+  margin: 0;
+}
+
+.oo-detail-meta__row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.oo-detail-meta__row dt {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-light, #9a8060);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.oo-detail-meta__row dd {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--text-dark, #3a2e1e);
+}
+
+.oo-detail-meta__mono {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.oo-items-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #e8dcc8;
+  border-radius: 8px;
+}
+
+.oo-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: "Roboto", sans-serif;
+  font-size: 13px;
+}
+
+.oo-items-table thead tr {
+  border-bottom: 1px solid #e8dcc8;
+  background: #fdf8f0;
+}
+
+.oo-items-table th {
+  padding: 12px 14px;
+  text-align: left;
+  font-family: "Montserrat", sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dark, #3a2e1e);
+  white-space: nowrap;
+}
+
+.oo-items-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #f0e8d8;
+  color: var(--text-dark, #3a2e1e);
+  vertical-align: middle;
+}
+
+.oo-items-table th:first-child,
+.oo-items-table td:first-child {
+  width: 56px;
+  padding-right: 8px;
+}
+
+.oo-items-table th:nth-child(2),
+.oo-items-table td:nth-child(2) {
+  padding-left: 8px;
+  min-width: 110px;
+}
+
+.oo-items-table th:nth-child(3),
+.oo-items-table td:nth-child(3) {
+  width: 72px;
+  text-align: center;
+}
+
+.oo-items-table th:nth-child(4),
+.oo-items-table td:nth-child(4) {
+  width: 96px;
+}
+
+.oo-items-table th:nth-child(5),
+.oo-items-table td:nth-child(5) {
+  min-width: 120px;
+  max-width: 200px;
+}
+
+.oo-items-table th:last-child,
+.oo-items-table td:last-child {
+  width: 104px;
+  text-align: right;
+}
+
+.oo-items-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.oo-dish-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  border: 1px solid #e8dcc8;
+  display: block;
+}
+
+.oo-dish-thumb--placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f0e8;
+  color: var(--text-light, #9a8060);
+  font-size: 12px;
+}
+
+.oo-dish-name {
+  font-weight: 600;
+  min-width: 120px;
+}
+
+.oo-instructions {
+  max-width: 180px;
+  white-space: normal;
+  color: var(--text-mid, #6b5a3e);
+  font-size: 12.5px;
+}
+
+.oo-detail-totals {
+  margin-left: auto;
+  width: min(100%, 320px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  background: #faf5ec;
+  border: 1px solid #e8dcc8;
+  border-radius: 8px;
+}
+
+.oo-detail-totals__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--text-mid, #6b5a3e);
+}
+
+.oo-detail-totals__row--grand {
+  font-family: "Montserrat", sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gold, #b8922a);
+  padding-top: 8px;
+  margin-top: 4px;
+  border-top: 1px solid #e8dcc8;
+}
+
+.oo-payment-proof {
+  margin-top: 4px;
+}
+
+.oo-payment-proof__label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-mid, #6b5a3e);
+  margin: 0 0 8px;
+}
+
+.oo-payment-proof__img {
+  max-width: 220px;
+  max-height: 220px;
+  border-radius: 8px;
+  border: 1px solid #e8dcc8;
+}
+
+.oo-modal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.oo-status-action {
+  padding: 8px 14px;
+  border: 1.5px solid #e0d4c0;
+  border-radius: 6px;
+  background: #fff;
+  font-family: "Montserrat", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dark, #3a2e1e);
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.oo-status-action:hover:not(:disabled) {
+  border-color: var(--gold, #b8922a);
+  color: var(--gold, #b8922a);
+  background: #fdf5e6;
+}
+
+.oo-status-action:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.oo-status-action--current {
+  border-color: var(--gold, #b8922a);
+  background: #fdf5e6;
+  color: var(--gold, #b8922a);
+}
+
+.oo-status-action--danger {
+  border-color: #f5c6cb;
+  color: #b71c1c;
+}
+
+.oo-status-action--danger:hover:not(:disabled) {
+  border-color: #b71c1c;
+  background: #fdecea;
+  color: #b71c1c;
+}
+
+@media (max-width: 720px) {
+  .oo-detail-modal.modal-box .modal-header,
+  .oo-detail-modal.modal-box .modal-body.oo-detail-modal__body,
+  .oo-detail-modal.modal-box .modal-footer.abel-modal-footer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .oo-detail-meta {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .guest-restaurant-page .grm-guest-order-fields {
+    grid-template-columns: 1fr;
+  }
+}

@@ -19,6 +19,7 @@ export async function fetchRestaurantOrdersBackend(params = {}) {
   const q = new URLSearchParams();
   if (params.guestId) q.set("guestId", params.guestId);
   if (params.status) q.set("status", params.status);
+  if (params.source) q.set("source", params.source);
   const suffix = q.toString() ? `?${q.toString()}` : "";
   const res = await fetch(backendUrl(`/api/restaurant-orders${suffix}`), { headers: authJsonHeaders() });
   const data = await res.json().catch(() => ({}));

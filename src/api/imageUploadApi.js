@@ -39,7 +39,7 @@ export async function uploadImageDirectBackend(file, path) {
 export const uploadMenuImageDirectBackend = (file) => uploadImageDirectBackend(file, "/api/menu/upload");
 export const uploadRoomImageDirectBackend = (file) => uploadImageDirectBackend(file, "/api/rooms/upload");
 export const uploadVenueImageDirectBackend = (file) =>
-  uploadImageDirectBackend(file, "/api/eventvenues/upload");
+  uploadImageDirectBackend(file, "/api/event-venues/upload");
 export const uploadProfilePhotoDirectBackend = (file) =>
   uploadImageDirectBackend(file, "/api/guests/me/upload/profile-photo");
 export const uploadUserProfilePhotoDirectBackend = (file) =>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { openPdfPrintOrDownload } from "../utils/pdfClientExport";
@@ -19,16 +19,23 @@ import {
   patchRestaurantOrderPaymentBackend,
   patchRestaurantOrderStatusBackend,
 } from "../api/restaurantOrdersApi";
-import { AUTH_TOKEN_CHANGED_EVENT } from "../api/authApi";
+import { AUTH_TOKEN_CHANGED_EVENT, getStoredAuthToken } from "../api/authApi";
 import "./pos.css";
+import "./onlineOrders.css";
 import "./cashier-sidebar-shared.css";
 import { useCashierUnifiedBell } from "./useCashierUnifiedBell";
+import CashierSidebar from "./CashierSidebar";
+import CashierIncomingOrdersPanel from "./CashierIncomingOrdersPanel";
+import OnlineOrderDetailModal from "./OnlineOrderDetailModal";
+import { countPendingOnlineOrders, mapOnlineGuestOrderRow } from "./cashierOnlineOrdersUtils";
+import { useCashierOnlineOrders, ONLINE_ORDERS_POLL_MS } from "./useCashierOnlineOrders";
+import { subscribeCashierOrdersRefresh } from "./cashierOrdersRefresh";
 
 /** Preferred tab order (matches admin seed categories); extras are appended alphabetically. */
 const DEFAULT_CATEGORY_ORDER = ["Main Course", "Side Dish", "Beverages", "Soup", "Fruits"];
 const MENU_AUTO_REFRESH_MS = 10000;
 /** Refresh POS dashboard totals (orders + sales from API; menu count from catalog). */
-const POS_STATS_REFRESH_MS = 25000;
+const POS_STATS_REFRESH_MS = ONLINE_ORDERS_POLL_MS;
 
 /** Local calendar YYYY-MM-DD (browser TZ) — "today" matches the cashier wall clock. */
 function localYmdFromDate(d) {
@@ -148,23 +155,32 @@ const HOTEL_INFO = {
 
 const GCASH_BTN_ICON = "/Gcash.png";
 
+function PosDishThumb({ src, alt }) {
+  const [errored, setErrored] = useState(false);
+  useEffect(() => {
+    setErrored(false);
+  }, [src]);
+  const label = String(alt || "Dish").trim() || "Dish";
+  if (!String(src || "").trim() || errored) {
+    return (
+      <div className="dish-img-placeholder" aria-hidden="true">
+        <span>No photo</span>
+      </div>
+    );
+  }
+  return (
+    <div className="dish-img-wrap">
+      <img
+        className="dish-img"
+        src={src}
+        alt={label}
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
+}
+
 // ── Icons ──────────────────────────────────────────────────────────────
-const POSIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 18c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm10 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zM5.82 6h14.18l-1.5 7H7.5L5.82 6zM3 2H1v2h2l3.6 7.59-1.36 2.45C5.09 14.66 5 15.07 5 15.5 5 16.88 6.12 18 7.5 18h13v-2H7.83c-.17 0-.3-.13-.3-.3l.03-.12.9-1.58H18c.75 0 1.41-.41 1.75-1.03l3.58-6.49A1 1 0 0 0 22.5 5H5.21L4.27 3H1v2h2l3.6 7.59z"/>
-  </svg>
-);
-const HistoryIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-  </svg>
-);
-const SettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3"/>
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-  </svg>
-);
 const LogoutIcon = () => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18">
     <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -215,6 +231,14 @@ const PosStatMenuIcon = () => (
     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
     <line x1="8" y1="7" x2="16" y2="7" />
     <line x1="8" y1="11" x2="14" y2="11" />
+  </svg>
+);
+const PosStatPendingIcon = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="18" height="18" aria-hidden>
+    <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+    <rect x="9" y="3" width="6" height="4" rx="1" />
+    <line x1="12" y1="12" x2="12" y2="16" />
+    <line x1="12" y1="8" x2="12.01" y2="8" />
   </svg>
 );
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -422,73 +446,6 @@ function OrderBillModal({ orderedItems, discountRate, discountLabel, paymentMeth
 }
 
 /** Mobile drawer is portaled to `document.body` so it is not covered by the main flex column. */
-function CashierPosAside({
-  shellClassName,
-  asideStyle,
-  logoWrapStyle,
-  logoImgStyle,
-  isMobile: isMobileShell,
-  closeMobileSidebar,
-}) {
-  return (
-    <aside className={`sidebar ${shellClassName}`} style={asideStyle}>
-      {isMobileShell ? (
-        <button
-          type="button"
-          className="cashier-mobile-close-btn"
-          onClick={closeMobileSidebar}
-          aria-label="Close menu"
-        >
-          ×
-        </button>
-      ) : null}
-      <div className="sidebar-logo" style={logoWrapStyle}>
-        <img
-          src="/logo.png"
-          alt="Abela Suites Logo"
-          className="sidebar-logo-img"
-          style={logoImgStyle}
-        />
-      </div>
-      <nav className="sidebar-nav">
-        <NavLink
-          to="/cashier"
-          end
-          onClick={() => { if (isMobileShell) closeMobileSidebar(); }}
-          className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-        >
-          <span className="nav-icon">
-            <POSIcon />
-          </span>
-          <span>POS</span>
-        </NavLink>
-        <NavLink
-          to="/order-history"
-          end
-          onClick={() => { if (isMobileShell) closeMobileSidebar(); }}
-          className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-        >
-          <span className="nav-icon">
-            <HistoryIcon />
-          </span>
-          <span>Order History</span>
-        </NavLink>
-        <NavLink
-          to="/cashier-settings"
-          end
-          onClick={() => { if (isMobileShell) closeMobileSidebar(); }}
-          className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
-        >
-          <span className="nav-icon">
-            <SettingsIcon />
-          </span>
-          <span>Settings</span>
-        </NavLink>
-      </nav>
-    </aside>
-  );
-}
-
 // ── Main POS Component ─────────────────────────────────────────────────
 export default function POS() {
   const location = useLocation();
@@ -514,6 +471,7 @@ export default function POS() {
     ordersToday: 0,
     salesToday: 0,
     menuDishesTotal: 0,
+    pendingOnlineOrders: 0,
     loading: true,
     error: "",
   });
@@ -529,6 +487,17 @@ export default function POS() {
   const [lastReceiptSnapshot, setLastReceiptSnapshot] = useState(null);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [promptMessage, setPromptMessage] = useState("");
+  const {
+    orders: onlineOrders,
+    loading: onlineOrdersLoading,
+    error: onlineOrdersError,
+    reload: reloadOnlineOrders,
+  } = useCashierOnlineOrders({ poll: true });
+  const [selectedOnlineOrder, setSelectedOnlineOrder] = useState(null);
+  const [onlineStatusBusy, setOnlineStatusBusy] = useState(false);
+  const [newOrderToast, setNewOrderToast] = useState("");
+  const seenOnlineOrderIdsRef = useRef(new Set());
+  const onlineOrdersReadyRef = useRef(false);
   const {
     collapsed: sidebarCollapsed,
     isMobile,
@@ -584,13 +553,29 @@ export default function POS() {
   const { bellNotifications, hasUnreadBell, handleNotifItemClick, reloadRestaurantOrders } = useCashierUnifiedBell({
     displayName: topbarProfile?.name || TOPBAR.cashier.profile.name,
     onMenuNotificationRead: (n) => void loadPosMenu(n?.menuItemId || ""),
-    onOrderNotificationClick: (n) =>
-      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } }),
+    onOrderNotificationClick: (n) => {
+      if (n?.orderSource === "guest") {
+        navigate("/cashier/orders", { state: { focusOrderId: n.orderId, fromNotification: true } });
+        return;
+      }
+      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } });
+    },
   });
 
   const loadPosStats = useCallback(async (opts = {}) => {
     const silent = opts.silent === true;
     const todayYmd = localYmdFromDate(new Date());
+    if (!getStoredAuthToken()) {
+      setPosStats({
+        ordersToday: 0,
+        salesToday: 0,
+        menuDishesTotal: 0,
+        pendingOnlineOrders: 0,
+        loading: false,
+        error: "Sign in with your cashier account (e.g. cashier@abela.demo) to load orders.",
+      });
+      return;
+    }
     if (!silent) {
       setPosStats((s) => ({ ...s, loading: true, error: "" }));
     }
@@ -600,11 +585,13 @@ export default function POS() {
         fetchMenuPageBackend(1, 1, { availability: "available" }).catch(() => ({ totalItems: 0 })),
       ]);
       const { ordersToday, salesToday } = aggregatePosTodayFromOrders(orders, todayYmd);
+      const pendingOnlineOrders = countPendingOnlineOrders(orders);
       const menuDishesTotal = Number(menuPage?.totalItems);
       setPosStats({
         ordersToday,
         salesToday,
         menuDishesTotal: Number.isFinite(menuDishesTotal) && menuDishesTotal >= 0 ? menuDishesTotal : 0,
+        pendingOnlineOrders,
         loading: false,
         error: "",
       });
@@ -614,6 +601,7 @@ export default function POS() {
           ordersToday: 0,
           salesToday: 0,
           menuDishesTotal: 0,
+          pendingOnlineOrders: 0,
           loading: false,
           error: "",
         });
@@ -641,6 +629,62 @@ export default function POS() {
     const id = window.setInterval(() => void loadPosStats({ silent: true }), POS_STATS_REFRESH_MS);
     return () => window.clearInterval(id);
   }, [loadPosStats]);
+
+  useEffect(() => {
+    return subscribeCashierOrdersRefresh(() => {
+      void loadPosStats({ silent: true });
+      void reloadOnlineOrders({ silent: true });
+    });
+  }, [loadPosStats, reloadOnlineOrders]);
+
+  useEffect(() => {
+    const pending = onlineOrders.filter((o) =>
+      ["pending", "accepted", "preparing", "ready"].includes(o.statusRaw),
+    ).length;
+    setPosStats((s) => ({ ...s, pendingOnlineOrders: pending }));
+  }, [onlineOrders]);
+
+  useEffect(() => {
+    if (onlineOrdersLoading) return undefined;
+    const ids = onlineOrders.map((o) => o.id);
+    if (!onlineOrdersReadyRef.current) {
+      onlineOrdersReadyRef.current = true;
+      seenOnlineOrderIdsRef.current = new Set(ids);
+      return undefined;
+    }
+    const fresh = onlineOrders.filter(
+      (o) =>
+        !seenOnlineOrderIdsRef.current.has(o.id) &&
+        ["pending", "accepted", "preparing", "ready"].includes(o.statusRaw),
+    );
+    seenOnlineOrderIdsRef.current = new Set(ids);
+    if (fresh.length === 0) return undefined;
+    const latest = fresh[0];
+    setNewOrderToast(`New online order ${latest.number} from ${latest.guestName}`);
+    const t = window.setTimeout(() => setNewOrderToast(""), 8000);
+    return () => window.clearTimeout(t);
+  }, [onlineOrders, onlineOrdersLoading]);
+
+  useEffect(() => {
+    const focusId = String(location.state?.focusOrderId || "").trim();
+    if (!focusId || !onlineOrders.length) return;
+    const row = onlineOrders.find((o) => o.id === focusId);
+    if (row) setSelectedOnlineOrder(row);
+  }, [location.state?.focusOrderId, onlineOrders]);
+
+  async function handleOnlineOrderStatusChange(orderId, status) {
+    setOnlineStatusBusy(true);
+    try {
+      const updated = await patchRestaurantOrderStatusBackend(orderId, status);
+      const row = mapOnlineGuestOrderRow(updated);
+      setSelectedOnlineOrder(row);
+      await Promise.all([reloadOnlineOrders({ silent: true }), reloadRestaurantOrders(), loadPosStats({ silent: true })]);
+    } catch (e) {
+      openPrompt(e?.message || "Could not update order status.");
+    } finally {
+      setOnlineStatusBusy(false);
+    }
+  }
 
   useEffect(() => {
     const t = window.setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
@@ -902,7 +946,7 @@ export default function POS() {
                   aria-hidden
                 />
               ) : null}
-              <CashierPosAside {...asideProps} isMobile />
+              <CashierSidebar {...asideProps} isMobile />
             </>,
             document.body
           )
@@ -912,7 +956,7 @@ export default function POS() {
         shellClassName={shellClassName}
         rootStyle={{ display: "flex", minHeight: "100vh", width: "100%" }}
         mainStyle={mainStyle}
-        sidebar={!isMobile ? <CashierPosAside {...asideProps} isMobile={false} /> : null}
+        sidebar={!isMobile ? <CashierSidebar {...asideProps} isMobile={false} /> : null}
       >
         {/* ── TOPBAR ── */}
         <header className="topbar">
@@ -941,7 +985,7 @@ export default function POS() {
               <div className="pos-dash-stats__head">
                 <h1 className="pos-dash-stats__title">Cashier Dashboard</h1>
                 <p className="pos-dash-stats__sub">
-                  Totals from saved restaurant orders and the live menu catalog (refreshes automatically).
+                  Includes online guest orders — updates live when guests confirm from the portal.
                 </p>
               </div>
               {posStats.error ? (
@@ -983,8 +1027,24 @@ export default function POS() {
                     {posStats.loading ? "…" : String(posStats.menuDishesTotal)}
                   </p>
                 </article>
+                <article className="pos-dash-stat-card">
+                  <div className="pos-dash-stat-card__label pos-dash-stat-card__label--pending">
+                    <PosStatPendingIcon />
+                    <span>Pending Online Orders</span>
+                  </div>
+                  <p className="pos-dash-stat-card__value">
+                    {posStats.loading ? "…" : String(posStats.pendingOnlineOrders)}
+                  </p>
+                </article>
               </div>
             </section>
+
+            <CashierIncomingOrdersPanel
+              orders={onlineOrders}
+              loading={onlineOrdersLoading}
+              error={onlineOrdersError}
+              onViewOrder={setSelectedOnlineOrder}
+            />
 
             <div className="pos-layout">
 
@@ -1035,27 +1095,22 @@ export default function POS() {
                 {menuDishes.length === 0 ? (
                   <p className="no-results">No dishes found.</p>
                 ) : (
-                  menuDishes.map((dish) => (
+                  menuDishes.map((dish, index) => (
                     <div
-                      key={dish.id}
+                      key={dish.id || `${dish.name}-${index}`}
                       className={`dish-card${isSelected(dish) ? " selected" : ""}`}
                       onClick={() => addToOrder(dish)}
                     >
-                      <img
-                        className="dish-img"
-                        src={dish.img}
-                        alt={dish.name}
-                        onError={e => { e.target.src = "image/placeholder.jpg"; }}
-                      />
+                      <PosDishThumb src={dish.img} alt={dish.name} />
                       <div className="dish-info">
-                        <div className="dish-name">{dish.name}</div>
+                        <div className="dish-name">{dish.name || "Unnamed dish"}</div>
                         <div className="dish-price">
                           ₱
                           {Number.isInteger(dish.price)
                             ? dish.price
                             : dish.price.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
-                        <div className="dish-desc">{dish.desc}</div>
+                        {dish.desc ? <div className="dish-desc">{dish.desc}</div> : null}
                       </div>
                     </div>
                   ))
@@ -1124,60 +1179,68 @@ export default function POS() {
             <div className="order-panel">
               <h2 className="order-title">Order</h2>
 
-              {/* Cashier Name */}
               <div className="order-field">
                 <label className="order-label">Cashier Name</label>
                 <input type="text" className="order-input" value={cashierDisplayName} readOnly />
               </div>
 
-              {/* Ordered Dishes */}
               <div className="order-field">
                 <label className="order-label gold">Ordered Dishes</label>
                 <div className="ordered-dishes">
                   {orderedItems.length === 0 ? (
                     <p className="no-dishes-msg">No dishes selected</p>
-                  ) : orderedItems.map(item => (
-                    <div key={String(item.dish.id)} className="ordered-item">
-                      <span className="ordered-item-name">{item.dish.name}</span>
-                      <div className="ordered-item-controls">
-                        <button className="qty-btn" onClick={() => changeQty(item.dish.id, -1)}>-</button>
-                        <span className="qty-value">{item.qty}</span>
-                        <button className="qty-btn" onClick={() => changeQty(item.dish.id, 1)}>+</button>
-                        <span className="item-price">{fmt(item.dish.price * item.qty)}</span>
-                        <button className="remove-btn" onClick={() => removeItem(item.dish.id)}>x</button>
+                  ) : (
+                    orderedItems.map((item) => (
+                      <div key={String(item.dish.id)} className="ordered-item">
+                        <span className="ordered-item-name">{item.dish.name}</span>
+                        <div className="ordered-item-controls">
+                          <button type="button" className="qty-btn" onClick={() => changeQty(item.dish.id, -1)}>
+                            −
+                          </button>
+                          <span className="qty-value">{item.qty}</span>
+                          <button type="button" className="qty-btn" onClick={() => changeQty(item.dish.id, 1)}>
+                            +
+                          </button>
+                          <span className="item-price">{fmt(item.dish.price * item.qty)}</span>
+                          <button type="button" className="remove-btn" onClick={() => removeItem(item.dish.id)}>
+                            ×
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
 
-              {/* Discount */}
               <div className="order-field">
                 <label className="order-label">Discount Type</label>
                 <div className="select-wrap">
                   <select
                     className="order-select"
                     value={discountRate}
-                    onChange={e => setDiscountRate(parseFloat(e.target.value))}
+                    onChange={(e) => setDiscountRate(parseFloat(e.target.value))}
                   >
-                    {discountOptions.map(o => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
+                    {discountOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              {/* Payment Method */}
               <div className="order-field">
                 <label className="order-label">Payment Method</label>
                 <div className="payment-methods">
                   <button
+                    type="button"
                     className={`pay-btn${paymentMethod === "Cash" ? " active" : ""}`}
                     onClick={() => handlePaymentMethod("Cash")}
                   >
                     <CashIcon /> Cash
                   </button>
                   <button
+                    type="button"
                     className={`pay-btn${paymentMethod === "GCash" ? " active" : ""}`}
                     onClick={() => handlePaymentMethod("GCash")}
                   >
@@ -1187,7 +1250,6 @@ export default function POS() {
                 </div>
               </div>
 
-              {/* Amount Given (Cash only) */}
               {paymentMethod === "Cash" && (
                 <div className="order-field">
                   <label className="order-label">Amount Given</label>
@@ -1197,33 +1259,32 @@ export default function POS() {
                     placeholder="0"
                     min="0"
                     value={amountGiven}
-                    onChange={e => setAmountGiven(e.target.value)}
+                    onChange={(e) => setAmountGiven(e.target.value)}
                   />
                 </div>
               )}
 
-              {/* Summary */}
               <div className="order-summary">
                 <div className="summary-row">
                   <span>Subtotal</span>
                   <span>{fmt(subtotal)}</span>
                 </div>
                 <div className="summary-row">
-                  <span>{discountRate > 0 ? `Discount(${Math.round(discountRate*100)}%)` : "Discount(none)"}</span>
+                  <span>{discountRate > 0 ? `Discount(${Math.round(discountRate * 100)}%)` : "Discount(none)"}</span>
                   <span>{fmt(discountAmt)}</span>
                 </div>
                 <div className="summary-row total-row">
                   <span>Total</span>
                   <span>{fmt(total)}</span>
                 </div>
-                {paymentMethod === "Cash" && given > 0 && (
-                  <div className="summary-row change-row" style={{ display:"flex" }}>
+                {paymentMethod === "Cash" && given > 0 ? (
+                  <div className="summary-row change-row" style={{ display: "flex" }}>
                     <span>Change</span>
                     <span style={{ color: change >= 0 ? "var(--gold)" : "#e74c3c" }}>
                       {fmt(change >= 0 ? change : 0)}
                     </span>
                   </div>
-                )}
+                ) : null}
               </div>
 
               <button
@@ -1234,7 +1295,7 @@ export default function POS() {
               >
                 <SendIcon /> {checkoutBusy ? "Saving…" : "Send to Bill"}
               </button>
-              <button className="print-receipt-btn" onClick={handlePrintReceipt}>
+              <button type="button" className="print-receipt-btn" onClick={handlePrintReceipt}>
                 <PrintIcon /> Print Receipt
               </button>
             </div>
@@ -1261,6 +1322,32 @@ export default function POS() {
         />
       )}
       {promptMessage ? <PosPromptModal message={promptMessage} onClose={() => setPromptMessage("")} /> : null}
+
+      {selectedOnlineOrder ? (
+        <OnlineOrderDetailModal
+          order={selectedOnlineOrder}
+          onClose={() => setSelectedOnlineOrder(null)}
+          onStatusChange={handleOnlineOrderStatusChange}
+          statusBusy={onlineStatusBusy}
+        />
+      ) : null}
+
+      {newOrderToast ? (
+        <div className="pos-new-order-toast" role="status">
+          <span className="pos-new-order-toast__icon" aria-hidden>🔔</span>
+          <span>{newOrderToast}</span>
+          <button
+            type="button"
+            className="pos-new-order-toast__btn"
+            onClick={() => {
+              setSelectedOnlineOrder(onlineOrders[0] || null);
+              setNewOrderToast("");
+            }}
+          >
+            View
+          </button>
+        </div>
+      ) : null}
 
       <LogoutConfirmModal
         open={logoutModalOpen}

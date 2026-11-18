@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
-import StaffTopbarActions from "../topbar/StaffTopbarActions";
+import FrontdeskTopbarActions from "./FrontdeskTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
@@ -355,7 +355,7 @@ export default function ReservationHistory() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Reservation History</span>
           </div>
-          <StaffTopbarActions
+          <FrontdeskTopbarActions
             roleKey="frontdesk"
             notifications={displayNotifications}
             dot={pendingCount > 0 ? "active" : null}

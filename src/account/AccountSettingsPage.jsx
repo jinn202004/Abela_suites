@@ -5,6 +5,7 @@ import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
 import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
 import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
+import FrontdeskTopbarActions from "../frontdesks/FrontdeskTopbarActions";
 import StaffTopbarActions from "../topbar/StaffTopbarActions";
 import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import TopbarAvatar from "../topbar/TopbarAvatar";
@@ -24,9 +25,9 @@ import HousekeepingSidebar from "../housekeeping/HousekeepingSidebar";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
 import { useHousekeepingCleaningNotifications } from "../housekeeping/useHousekeepingCleaningNotifications";
 import { useHousekeepingSidebarLayout } from "../housekeeping/useHousekeepingSidebarLayout";
-import { useGuestTopbarNotifications } from "../guests/useGuestTopbarNotifications";
+import GuestTopbarActions from "../guests/GuestTopbarActions";
 import GuestSidebar from "../guests/GuestSidebar";
-import { GuestArchiveIcon } from "../guests/guestArchiveIcon";
+import { buildGuestNavItems } from "../guests/guestNavItems";
 import { useGuestSidebarLayout } from "../guests/useGuestSidebarLayout";
 import { passwordStrength, useAccountSettingsCore } from "./useAccountSettingsCore";
 import {
@@ -353,49 +354,12 @@ function SettingsPageBody({ core, backHref, showBackArrow, avatarSize = "52", av
 }
 
 /* ─── Guest ─── */
-const GuestHomeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="30" height="30">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-  </svg>
-);
-const GuestRoomIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="30" height="30">
-    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-  </svg>
-);
-const GuestEventIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="30" height="30">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-const GuestSettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="30" height="30">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-
-const guestNavItems = [
-  { label: "Homepage", icon: <GuestHomeIcon />, href: "/home" },
-  { label: "Rooms", icon: <GuestRoomIcon />, href: "/rooms" },
-  { label: "Event Venues", icon: <GuestEventIcon />, href: "/event-venues" },
-  { label: "Archive", icon: <GuestArchiveIcon size={30} />, href: "/booking-history" },
-  { label: "Settings", icon: <GuestSettingsIcon />, href: "/settings", active: true },
-];
+const guestNavItems = buildGuestNavItems("/settings");
 
 function GuestAccountSettings() {
   const { topbarProfile, refreshTopbarProfile } = useTopbarUserProfile("guest");
   const core = useAccountSettingsCore("guest", { refreshTopbarProfile });
-  const {
-    notifRef,
-    notifOpen,
-    setNotifOpen,
-    bellUnreadCount,
-    displayNotifications,
-  } = useGuestTopbarNotifications();
+  const topbarRef = useRef(null);
   const {
     sidebarCollapsed,
     isMobile,
@@ -408,18 +372,15 @@ function GuestAccountSettings() {
     logoWrapStyle,
     logoImgStyle,
   } = useGuestSidebarLayout();
-  const [userOpen, setUserOpen] = useState(false);
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
 
-  const toggleNotif = (e) => {
-    e.stopPropagation();
-    setNotifOpen((o) => !o);
-    setUserOpen(false);
-  };
-  const toggleUser = (e) => {
-    e.stopPropagation();
-    setUserOpen((o) => !o);
-    setNotifOpen(false);
+  const guestProfileOverride = {
+    ...TOPBAR.guest.profile,
+    ...topbarProfile,
+    name: core.profileHeading,
+    email: core.displayEmail,
+    contact: core.displayPhone,
+    avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
   };
 
   return (
@@ -430,10 +391,7 @@ function GuestAccountSettings() {
         rootStyle={{ display: "flex", minHeight: "100vh", width: "100%" }}
         mainStyle={mainStyle}
         rootProps={{
-          onClick: () => {
-            setNotifOpen(false);
-            setUserOpen(false);
-          },
+          onClick: () => topbarRef.current?.closeMenus(),
         }}
         sidebar={
           <GuestSidebar
@@ -459,48 +417,11 @@ function GuestAccountSettings() {
             />
             <span className="breadcrumb-title">Settings</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={toggleNotif}
-              notifications={displayNotifications}
-              bellIconClassName="topbar-icon"
-              dot={bellUnreadCount > 0 ? "active" : null}
-              onItemClick={(n) => {
-                const bookingId = String(n?.bookingId || "").trim();
-                setNotifOpen(false);
-                setUserOpen(false);
-                if (bookingId) core.navigate(`/my-bookings/${bookingId}`);
-              }}
-            />
-            <div className="icon-btn" onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarAvatar src={core.avatarSrc || topbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                ▾
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={{
-                  ...TOPBAR.guest.profile,
-                  ...topbarProfile,
-                  name: core.profileHeading,
-                  email: core.displayEmail,
-                  contact: core.displayPhone,
-                  avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
-                }}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <GuestTopbarActions
+            ref={topbarRef}
+            onRequestLogout={requestLogout}
+            profileOverride={guestProfileOverride}
+          />
         </header>
         <SettingsPageBody core={core} backHref="/settings" showBackArrow />
       </RailPortalShell>
@@ -596,38 +517,12 @@ function FrontdeskAccountSettings() {
   const { topbarProfile, refreshTopbarProfile } = useTopbarUserProfile("frontdesk");
   const core = useAccountSettingsCore("frontdesk", { refreshTopbarProfile });
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const notifRef = useRef(null);
-  const userRef = useRef(null);
+  const topbarRef = useRef(null);
   const { pendingCount, displayNotifications, markStaffNotificationsSeen } = useFrontdeskPendingNotifications({
     bookingType: "all",
   });
   const onNotificationItemClick = useNotificationRedirect("frontdesk");
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [userOpen, setUserOpen] = useState(false);
   const { mainStyle } = useFrontdeskShell();
-
-  useEffect(() => {
-    function onDoc(e) {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, []);
-
-  const toggleNotif = (e) => {
-    e.stopPropagation();
-    setUserOpen(false);
-    setNotifOpen((o) => {
-      if (!o) void markStaffNotificationsSeen();
-      return !o;
-    });
-  };
-  const toggleUser = (e) => {
-    e.stopPropagation();
-    setUserOpen((o) => !o);
-    setNotifOpen(false);
-  };
 
   return (
     <>
@@ -635,10 +530,7 @@ function FrontdeskAccountSettings() {
         rootClassName="app-layout frontdesk-settings-page frontdesk-app"
         mainStyle={mainStyle}
         rootProps={{
-          onClick: () => {
-            setNotifOpen(false);
-            setUserOpen(false);
-          },
+          onClick: () => topbarRef.current?.closeMenus?.(),
         }}
         sidebar={<FrontdeskSidebar navItems={frontdeskSettingsNavItems} logoSrc="/public/logo.png" />}
       >
@@ -647,47 +539,23 @@ function FrontdeskAccountSettings() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Settings</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={toggleNotif}
-              notifications={displayNotifications}
-              dot={pendingCount > 0 ? "active" : null}
-              dotTitle="Pending or unread alerts"
-              onItemClick={(n) => {
-                setNotifOpen(false);
-                setUserOpen(false);
-                onNotificationItemClick(n);
-              }}
-            />
-            <div className="icon-btn" ref={userRef} onClick={toggleUser} title="Account" style={{ position: "relative" }}>
-              <TopbarAvatar src={core.avatarSrc || topbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
-                ▾
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={{
-                  ...TOPBAR.frontdesk.profile,
-                  ...topbarProfile,
-                  name: core.profileHeading,
-                  email: core.displayEmail,
-                  contact: core.displayPhone,
-                  avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
-                }}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <FrontdeskTopbarActions
+            ref={topbarRef}
+            notifications={displayNotifications}
+            dot={pendingCount > 0 ? "active" : null}
+            dotTitle="Pending or unread alerts"
+            onNotificationsPanelOpen={() => void markStaffNotificationsSeen()}
+            onNotificationItemClick={onNotificationItemClick}
+            onRequestLogout={requestLogout}
+            dropdownProfile={{
+              ...TOPBAR.frontdesk.profile,
+              ...topbarProfile,
+              name: core.profileHeading,
+              email: core.displayEmail,
+              contact: core.displayPhone,
+              avatarUrl: core.avatarSrc || topbarProfile.avatarUrl,
+            }}
+          />
         </header>
         <SettingsPageBody core={core} showBackArrow={false} avatarSize="96" avatarFill="#b8922a" />
       </RailPortalShell>
@@ -704,8 +572,13 @@ function CashierAccountSettings() {
   const staffTopbarRef = useRef(null);
   const { bellNotifications, hasUnreadBell, handleNotifItemClick } = useCashierUnifiedBell({
     displayName: topbarProfile?.name || TOPBAR.cashier.profile.name,
-    onOrderNotificationClick: (n) =>
-      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } }),
+    onOrderNotificationClick: (n) => {
+      if (n?.orderSource === "guest") {
+        navigate("/cashier/orders", { state: { focusOrderId: n.orderId, fromNotification: true } });
+        return;
+      }
+      navigate("/order-history", { state: { focusOrderId: n.orderId, fromNotification: true } });
+    },
     onMenuNotificationRead: (n) =>
       navigate("/cashier", { state: { focusMenuItemId: n.menuItemId, fromNotification: true } }),
   });

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import StaffTopbarActions from "../topbar/StaffTopbarActions";
+import FrontdeskTopbarActions from "./FrontdeskTopbarActions";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -3424,7 +3424,7 @@ function EventReservation() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Events</span>
           </div>
-          <StaffTopbarActions
+          <FrontdeskTopbarActions
             ref={staffTopbarRef}
             roleKey="frontdesk"
             notifications={displayNotifications}

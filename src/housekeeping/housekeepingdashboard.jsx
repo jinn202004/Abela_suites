@@ -19,6 +19,8 @@ import { useHousekeepingCleaningNotifications } from "./useHousekeepingCleaningN
 import HousekeepingSidebar from "./HousekeepingSidebar";
 import HousekeepingSidebarToggle from "./HousekeepingSidebarToggle";
 import { useHousekeepingSidebarLayout } from "./useHousekeepingSidebarLayout";
+import { useHousekeepingClientPagination } from "./useHousekeepingClientPagination";
+import AdminRmPagination from "../admin_1/AdminRmPagination";
 import RailPortalShell from "../layouts/RailPortalShell";
 import {
   assetStatusForInventoryDisplay,
@@ -106,6 +108,70 @@ function getBadgeClass(displayStatus) {
   return `rm-badge ${getAssetStatusBadgeClass(displayStatus)}`;
 }
 
+function parseLooseDate(raw) {
+  if (raw == null || raw === "") return null;
+  const str = String(raw).trim();
+  if (!str) return null;
+  const d = str.includes("T") || str.includes(" ") ? new Date(str) : new Date(`${str}T12:00:00`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatScheduleLabel(task) {
+  const b = task?.booking;
+  const raw =
+    b?.checkOut ||
+    b?.eventEndDate ||
+    b?.eventDate ||
+    task?.updatedAt ||
+    task?.createdAt;
+  const d = parseLooseDate(raw);
+  if (!d) return "—";
+  const hasClock =
+    String(raw).includes("T") ||
+    /\d{1,2}:\d{2}/.test(String(raw)) ||
+    raw === task?.createdAt ||
+    raw === task?.updatedAt;
+  if (hasClock) {
+    return d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+  }
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function deriveTaskName(task) {
+  const target = String(task?.targetType || "").toLowerCase();
+  if (target === "event") return "Event Cleanup";
+  const assetStatus = String(task?.room?.status || "").toLowerCase();
+  if (assetStatus === "needs_cleaning") return "Check-out Cleaning";
+  const bookingStatus = String(task?.booking?.bookingStatus || "").toLowerCase();
+  if (["occupied", "checked_in", "checked-in"].includes(bookingStatus)) {
+    return "Stayover Cleaning";
+  }
+  if (["completed", "checked_out", "checked-out"].includes(bookingStatus)) {
+    return "Check-out Cleaning";
+  }
+  return "Deep Cleaning";
+}
+
+function deriveMyTaskStatus(task) {
+  const st = String(task?.status || "").toLowerCase();
+  if (st === "in_progress") return "In Progress";
+  if (st === "completed") return "Completed";
+  const asset = String(task?.room?.status || task?.eventVenue?.status || "").toLowerCase();
+  if (asset === "needs_cleaning") return "Needs Cleaning";
+  if (String(task?.targetType || "").toLowerCase() === "event") return "Scheduled";
+  return "Pending";
+}
+
+function myTaskStatusBadgeClass(label) {
+  const s = String(label || "");
+  if (s === "Needs Cleaning") return "hk-task-status hk-task-status--needs";
+  if (s === "In Progress") return "hk-task-status hk-task-status--progress";
+  if (s === "Scheduled") return "hk-task-status hk-task-status--scheduled";
+  if (s === "Pending") return "hk-task-status hk-task-status--pending";
+  if (s === "Completed") return "hk-task-status hk-task-status--done";
+  return "hk-task-status";
+}
+
 function buildInventoryRows(rooms, venues, tasks, teamNames = []) {
   const roomRows = (rooms || []).map((r) => {
     const task = pickBestTask(tasksForRoom(tasks, r.id, r.roomNumber));
@@ -132,6 +198,38 @@ function buildInventoryRows(rooms, venues, tasks, teamNames = []) {
     };
   });
   return [...roomRows, ...venueRows].sort((a, b) => a.sort - b.sort);
+}
+
+function buildMyTaskRows(tasks) {
+  const active = (Array.isArray(tasks) ? tasks : []).filter((t) => {
+    const st = String(t?.status || "").toLowerCase();
+    return st === "pending" || st === "in_progress";
+  });
+
+  return active
+    .map((t) => {
+      const isEvent = String(t?.targetType || "").toLowerCase() === "event";
+      const number = isEvent
+        ? String(t?.eventVenue?.eventNum ?? "—").trim() || "—"
+        : String(t?.room?.roomNumber ?? "—").trim() || "—";
+      const pkg = isEvent
+        ? String(t?.eventVenue?.name || t?.eventVenue?.package || t?.booking?.venueName || "—").trim() ||
+          "—"
+        : String(t?.room?.package || t?.room?.title || "—").trim() || "—";
+      const taskName = deriveTaskName(t);
+      const statusLabel = deriveMyTaskStatus(t);
+      return {
+        key: t.id || `${number}-${taskName}`,
+        number,
+        package: pkg,
+        type: isEvent ? "Event" : "Room",
+        taskName,
+        schedule: formatScheduleLabel(t),
+        statusLabel,
+        sort: sortKey(number),
+      };
+    })
+    .sort((a, b) => a.sort - b.sort);
 }
 
 export default function Dashboard() {
@@ -272,6 +370,7 @@ export default function Dashboard() {
     () => buildInventoryRows(rooms, venues, tasks, hkTeamNames),
     [rooms, venues, tasks, hkTeamNames],
   );
+  const myTaskRows = useMemo(() => buildMyTaskRows(tasks), [tasks]);
 
   const stats = useMemo(() => {
     const needClean = inventoryRows.filter((r) => r.displayStatus === "Needs Cleaning").length;
@@ -291,13 +390,32 @@ export default function Dashboard() {
     const hay = [String(r.number), r.housekeeping, r.package, r.type, r.displayStatus].join(" ").toLowerCase();
     return hay.includes(q);
   });
+  const filteredTasks = myTaskRows.filter((r) => {
+    if (!q) return true;
+    const hay = [String(r.number), r.package, r.type, r.taskName, r.schedule, r.statusLabel]
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  });
+
+  const {
+    page: invPage,
+    setPage: setInvPage,
+    pageSize: invPageSize,
+    setPageSize: setInvPageSize,
+    totalPages: invTotalPages,
+    totalItems: invTotalItems,
+    rangeFrom: invRangeFrom,
+    rangeTo: invRangeTo,
+    pagedItems: pagedInventory,
+  } = useHousekeepingClientPagination(filtered, [search]);
 
   /* After load/search, reset horizontal scroll on the desktop table (not used on mobile cards). */
   useLayoutEffect(() => {
     if (isMobile) return;
     const el = tableScrollRef.current;
     if (el) el.scrollLeft = 0;
-  }, [isMobile, loading, search, inventoryRows.length, filtered.length]);
+  }, [isMobile, loading, search, inventoryRows.length, filtered.length, myTaskRows.length, filteredTasks.length, invPage]);
 
   return (
     <>
@@ -416,7 +534,7 @@ export default function Dashboard() {
                 className="rm-search-input"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search rooms, package, type, status..."
+                placeholder="Search rooms, package, type, status, tasks..."
               />
             </div>
 
@@ -424,87 +542,252 @@ export default function Dashboard() {
               <p style={{ color: "#c0392b", fontSize: "14px", margin: "0 0 12px" }}>{loadError}</p>
             ) : null}
 
-            {isMobile ? (
-              <div className="hk-dash-mobile" aria-label="Room and venue list">
-                {loading ? (
-                  <p className="hk-dash-mobile__loading">Loading…</p>
-                ) : filtered.length === 0 ? (
-                  <p className="hk-dash-mobile__empty">
-                    {search.trim()
-                      ? "No matches — try a different search."
-                      : "No rooms or venues in the catalog. Seed MongoDB or check the API."}
-                  </p>
-                ) : (
-                  <ul className="hk-dash-mobile__list">
-                    {filtered.map((r) => (
-                      <li key={r.key}>
-                        <article className="hk-dash-card">
-                          <div className="hk-dash-card__top">
-                            <span className="hk-dash-card__number">{r.number}</span>
-                            <span className={getBadgeClass(r.displayStatus)}>{r.displayStatus}</span>
-                          </div>
-                          <dl className="hk-dash-card__fields">
-                            <div className="hk-dash-card__row">
-                              <dt>Housekeeping</dt>
-                              <dd>{r.housekeeping}</dd>
+            <section className="hk-my-tasks" aria-labelledby="hk-my-tasks-title">
+              <h3 id="hk-my-tasks-title" className="hk-my-tasks__title">
+                My Tasks
+              </h3>
+
+              {isMobile ? (
+                <div className="hk-dash-mobile" aria-label="My housekeeping tasks">
+                  {loading ? (
+                    <p className="hk-dash-mobile__loading">Loading…</p>
+                  ) : filteredTasks.length === 0 ? (
+                    <p className="hk-dash-mobile__empty">
+                      {search.trim()
+                        ? "No matching tasks — try a different search."
+                        : "No open cleaning tasks. New tasks appear when bookings are approved."}
+                    </p>
+                  ) : (
+                    <ul className="hk-dash-mobile__list">
+                      {filteredTasks.map((r) => (
+                        <li key={r.key}>
+                          <article className="hk-dash-card">
+                            <div className="hk-dash-card__top">
+                              <span
+                                className={`hk-venue-pill ${r.type === "Event" ? "hk-venue-pill--event" : "hk-venue-pill--room"}`}
+                              >
+                                {r.number}
+                              </span>
+                              <span className={myTaskStatusBadgeClass(r.statusLabel)}>{r.statusLabel}</span>
                             </div>
-                            <div className="hk-dash-card__row">
-                              <dt>Package</dt>
-                              <dd>{r.package}</dd>
-                            </div>
-                            <div className="hk-dash-card__row">
-                              <dt>Type</dt>
-                              <dd>{r.type}</dd>
-                            </div>
-                          </dl>
-                        </article>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : (
-              <div className="rm-table-wrap hk-dash-table-outer" ref={tableScrollRef}>
-                <table className="rm-table hk-dash-table">
-                  <thead>
-                    <tr>
-                      <th>Number</th>
-                      <th>Housekeeping</th>
-                      <th>Package</th>
-                      <th>Type</th>
-                      <th className="hk-dash-status-th">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
+                            <dl className="hk-dash-card__fields">
+                              <div className="hk-dash-card__row">
+                                <dt>Package / Area</dt>
+                                <dd>{r.package}</dd>
+                              </div>
+                              <div className="hk-dash-card__row">
+                                <dt>Type</dt>
+                                <dd>{r.type}</dd>
+                              </div>
+                              <div className="hk-dash-card__row">
+                                <dt>Task</dt>
+                                <dd>{r.taskName}</dd>
+                              </div>
+                              <div className="hk-dash-card__row">
+                                <dt>Schedule</dt>
+                                <dd className="hk-schedule-cell">
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden="true">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <polyline points="12 6 12 12 16 14" />
+                                  </svg>
+                                  {r.schedule}
+                                </dd>
+                              </div>
+                            </dl>
+                          </article>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <div className="rm-table-wrap hk-dash-table-outer hk-my-tasks__table">
+                  <table className="rm-table hk-dash-table">
+                    <thead>
                       <tr>
-                        <td colSpan={5} className="rm-empty">
-                          Loading…
-                        </td>
+                        <th>Room / Venue</th>
+                        <th>Package / Area</th>
+                        <th>Type</th>
+                        <th>Task</th>
+                        <th>Schedule</th>
+                        <th className="hk-dash-status-th">Status</th>
                       </tr>
-                    ) : filtered.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="rm-empty">
-                          {search.trim()
-                            ? "No matches — try a different search."
-                            : "No rooms or venues in the catalog. Seed MongoDB or check the API."}
-                        </td>
-                      </tr>
-                    ) : (
-                      filtered.map((r) => (
-                        <tr key={r.key}>
-                          <td>{r.number}</td>
-                          <td>{r.housekeeping}</td>
-                          <td>{r.package}</td>
-                          <td>{r.type}</td>
-                          <td className="hk-dash-status-td">
-                            <span className={getBadgeClass(r.displayStatus)}>{r.displayStatus}</span>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr>
+                          <td colSpan={6} className="rm-empty">
+                            Loading…
                           </td>
                         </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
+                      ) : filteredTasks.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="rm-empty">
+                            {search.trim()
+                              ? "No matching tasks — try a different search."
+                              : "No open cleaning tasks. New tasks appear when bookings are approved."}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredTasks.map((r) => (
+                          <tr key={r.key}>
+                            <td>
+                              <span
+                                className={`hk-venue-pill ${r.type === "Event" ? "hk-venue-pill--event" : "hk-venue-pill--room"}`}
+                              >
+                                {r.number}
+                              </span>
+                            </td>
+                            <td>{r.package}</td>
+                            <td>{r.type}</td>
+                            <td>{r.taskName}</td>
+                            <td>
+                              <span className="hk-schedule-cell">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" aria-hidden="true">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                                {r.schedule}
+                              </span>
+                            </td>
+                            <td className="hk-dash-status-td">
+                              <span className={myTaskStatusBadgeClass(r.statusLabel)}>{r.statusLabel}</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <aside className="hk-task-reminder" role="note">
+                <span className="hk-task-reminder__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="20" height="20">
+                    <path d="M9 18h6" />
+                    <path d="M10 22h4" />
+                    <path d="M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z" />
+                  </svg>
+                </span>
+                <p className="hk-task-reminder__text">
+                  <strong>REMINDER</strong> Please update the status after finishing each task. Thank you!
+                </p>
+              </aside>
+            </section>
+
+            {isMobile ? (
+              <div className="hk-dash-inventory">
+                <div className="hk-dash-mobile" aria-label="Room and venue list">
+                  {loading ? (
+                    <p className="hk-dash-mobile__loading">Loading…</p>
+                  ) : filtered.length === 0 ? (
+                    <p className="hk-dash-mobile__empty">
+                      {search.trim()
+                        ? "No matches — try a different search."
+                        : "No rooms or venues in the catalog. Seed MongoDB or check the API."}
+                    </p>
+                  ) : (
+                    <ul className="hk-dash-mobile__list">
+                      {pagedInventory.map((r) => (
+                        <li key={r.key}>
+                          <article className="hk-dash-card">
+                            <div className="hk-dash-card__top">
+                              <span className="hk-dash-card__number">{r.number}</span>
+                              <span className={getBadgeClass(r.displayStatus)}>{r.displayStatus}</span>
+                            </div>
+                            <dl className="hk-dash-card__fields">
+                              <div className="hk-dash-card__row">
+                                <dt>Housekeeping</dt>
+                                <dd>{r.housekeeping}</dd>
+                              </div>
+                              <div className="hk-dash-card__row">
+                                <dt>Package</dt>
+                                <dd>{r.package}</dd>
+                              </div>
+                              <div className="hk-dash-card__row">
+                                <dt>Type</dt>
+                                <dd>{r.type}</dd>
+                              </div>
+                            </dl>
+                          </article>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                {!loading && filtered.length > 0 ? (
+                  <AdminRmPagination
+                    loading={loading}
+                    rangeFrom={invRangeFrom}
+                    rangeTo={invRangeTo}
+                    totalItems={invTotalItems}
+                    page={invPage}
+                    totalPages={invTotalPages}
+                    pageSize={invPageSize}
+                    onPageChange={setInvPage}
+                    onPageSizeChange={setInvPageSize}
+                    ariaLabel="Room and venue list pages"
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <div className="hk-dash-inventory">
+                <div className="rm-table-wrap hk-dash-table-outer" ref={tableScrollRef}>
+                  <table className="rm-table hk-dash-table">
+                    <thead>
+                      <tr>
+                        <th>Number</th>
+                        <th>Housekeeping</th>
+                        <th>Package</th>
+                        <th>Type</th>
+                        <th className="hk-dash-status-th">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr>
+                          <td colSpan={5} className="rm-empty">
+                            Loading…
+                          </td>
+                        </tr>
+                      ) : filtered.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="rm-empty">
+                            {search.trim()
+                              ? "No matches — try a different search."
+                              : "No rooms or venues in the catalog. Seed MongoDB or check the API."}
+                          </td>
+                        </tr>
+                      ) : (
+                        pagedInventory.map((r) => (
+                          <tr key={r.key}>
+                            <td>{r.number}</td>
+                            <td>{r.housekeeping}</td>
+                            <td>{r.package}</td>
+                            <td>{r.type}</td>
+                            <td className="hk-dash-status-td">
+                              <span className={getBadgeClass(r.displayStatus)}>{r.displayStatus}</span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {!loading && filtered.length > 0 ? (
+                  <AdminRmPagination
+                    loading={loading}
+                    rangeFrom={invRangeFrom}
+                    rangeTo={invRangeTo}
+                    totalItems={invTotalItems}
+                    page={invPage}
+                    totalPages={invTotalPages}
+                    pageSize={invPageSize}
+                    onPageChange={setInvPage}
+                    onPageSizeChange={setInvPageSize}
+                    ariaLabel="Room and venue list pages"
+                  />
+                ) : null}
               </div>
             )}
           </div>

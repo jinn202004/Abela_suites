@@ -25,6 +25,13 @@ const STAFF_PAGE_SIZE = 10;
 
 const STAFF_STATUS_OPTIONS = ["Active", "On Leave", "Inactive"];
 
+const DEPARTMENT_BY_ROLE = {
+  Admin: "Management",
+  "Front Desk": "Front Office",
+  Housekeeping: "Housekeeping",
+  Cashier: "Restaurant",
+};
+
 const STATUS_CONFIRM_COPY = {
   Active: {
     title: "Reactivate account?",
@@ -184,6 +191,7 @@ export default function StaffManagement() {
 
   const saveStaff = async () => {
     const { name, email, role, contact, status, password, confirmPassword } = form;
+    const dept = String(DEPARTMENT_BY_ROLE[role] || "").trim();
     if (!name.trim() || !email.trim() || !contact.trim()) {
       setFormErr("Name, email, and contact are required.");
       return;
@@ -213,6 +221,7 @@ export default function StaffManagement() {
         name: name.trim(),
         email: email.trim(),
         role,
+        department: dept,
         contact: contact.trim(),
         status,
       };

@@ -13,9 +13,17 @@ export function formatRestaurantOrderDate(isoOrDate) {
 }
 
 function titleCaseStatus(s) {
-  const t = String(s || "").trim();
+  const t = String(s || "").trim().toLowerCase();
   if (!t) return "—";
-  return t.charAt(0).toUpperCase() + t.slice(1).toLowerCase();
+  const labels = {
+    pending: "Pending",
+    accepted: "Accepted",
+    preparing: "Preparing",
+    ready: "Ready",
+    completed: "Completed",
+    cancelled: "Cancelled",
+  };
+  return labels[t] || t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 /**
@@ -24,7 +32,10 @@ function titleCaseStatus(s) {
 export function mapRestaurantOrderToHistoryRow(o) {
   const id = String(o.id ?? o._id ?? "");
   const guest = o.guest || {};
-  const namePart = String(guest.name || "").trim();
+  const namePart =
+    String(o.guestName || guest.displayName || guest.name || "").trim() ||
+    String(guest.email || "").trim().split("@")[0] ||
+    "";
   const emailPart = String(guest.email || "").trim();
   const customer = [namePart, emailPart].filter(Boolean).join(" · ") || "Guest";
 
@@ -51,6 +62,12 @@ export function mapRestaurantOrderToHistoryRow(o) {
   } else if (received > 0) {
     payment = "Partial";
     paymentKey = "partial";
+  } else if (pm === "cash") {
+    payment = "Cash (Pending)";
+    paymentKey = "unpaid";
+  } else if (pm === "gcash") {
+    payment = "GCash (Pending)";
+    paymentKey = "unpaid";
   }
 
   const items = Array.isArray(o.items)
@@ -83,26 +100,54 @@ export function mapRestaurantOrderToHistoryRow(o) {
     paymentKey,
     discount: "None",
     items,
+    transactionId: String(o.transactionId || "").trim(),
+    paymentDate: String(o.paymentDate || "").trim(),
+    paymentProofData: String(o.paymentProofData || "").trim(),
+    paymentProofName: String(o.paymentProofName || "").trim(),
+    source: String(o.source || "").toLowerCase(),
   };
 }
 
 /**
  * Bell items: same facts as the table (number, customer, total, payment, status, date).
+ * Guest online orders awaiting kitchen action stay unread until completed/cancelled.
  * @param {ReturnType<typeof mapRestaurantOrderToHistoryRow>[]} rows — newest first
  */
 export function buildCashierOrderBellNotifications(rows, { max = 20 } = {}) {
   const fmt = (n) =>
     "₱" +
     Number(n).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return rows.slice(0, max).map((row) => ({
-    id: `ro-${row.id}`,
-    source: "order",
-    orderId: row.id,
-    msg: `${row.number} · ${row.customer}`,
-    detail: `${fmt(row.total)} · ${row.payment} · ${row.status}`,
-    time: row.date,
-    read: Number(row.total) > 0 && Number(row.received) >= Number(row.total) - 1e-6,
-  }));
+
+  const isGuestActive = (row) =>
+    row.source === "guest" && !["completed", "cancelled"].includes(row.statusRaw);
+
+  const sorted = [...(Array.isArray(rows) ? rows : [])].sort((a, b) => {
+    const aActive = isGuestActive(a);
+    const bActive = isGuestActive(b);
+    if (aActive !== bActive) return aActive ? -1 : 1;
+    return (b.dateSort || 0) - (a.dateSort || 0);
+  });
+
+  return sorted.slice(0, max).map((row) => {
+    const guestName = String(row.customer || "").split(" · ")[0].trim() || "Guest";
+    const isGuest = row.source === "guest";
+    const read = isGuest
+      ? ["completed", "cancelled"].includes(row.statusRaw)
+      : Number(row.total) > 0 && Number(row.received) >= Number(row.total) - 1e-6;
+
+    return {
+      id: `ro-${row.id}`,
+      source: "order",
+      orderId: row.id,
+      orderSource: row.source,
+      msg: isGuest ? `New online order · ${row.number}` : `${row.number} · ${row.customer}`,
+      detail: isGuest
+        ? `${guestName} · ${fmt(row.total)} · ${row.status}`
+        : `${fmt(row.total)} · ${row.payment} · ${row.status}`,
+      time: row.date,
+      read,
+    };
+  });
 }
 
 /**

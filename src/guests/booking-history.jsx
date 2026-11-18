@@ -1,19 +1,14 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import TopbarAvatar from "../topbar/TopbarAvatar";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { TOPBAR } from "../topbar/roleTopbarData";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
-import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
+import GuestTopbarActions from "./GuestTopbarActions";
 import GuestSidebar from "./GuestSidebar";
-import { GuestArchiveIcon } from "./guestArchiveIcon";
+import { buildGuestNavItems } from "./guestNavItems";
 import {
   fetchBookingsBackend,
   fetchRoomsCatalog,
-  fetchEventVenuesBackend,
+  fetchPublicEventVenuesCatalog,
   fetchMyReviewsBackend,
   submitGuestReviewBackend,
 } from "../api/guestApi";
@@ -37,30 +32,7 @@ import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
 
 // --- Icons ---
-const HomeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-  </svg>
-);
-const RoomIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-  </svg>
-);
-const EventIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-const SettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
+const navItems = buildGuestNavItems("/booking-history");
 const UploadIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24"
     fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -110,14 +82,6 @@ function BookingHistoryPagination({ rangeFrom, rangeTo, total, currentPage, tota
     </div>
   );
 }
-
-const navItems = [
-  { label: "Homepage",     icon: <HomeIcon />,     href: "/home"           },
-  { label: "Rooms",        icon: <RoomIcon />,     href: "/rooms"                       },
-  { label: "Event Venues", icon: <EventIcon />,    href: "/event-venues"                },
-  { label: "Archive",      icon: <GuestArchiveIcon />, href: "/booking-history", active: true },
-  { label: "Settings",     icon: <SettingsIcon />, href: "/settings"   },
-];
 
 function formatPesoAmount(v) {
   const n = Number(String(v ?? "").replace(/[₱,\s]/g, ""));
@@ -304,14 +268,6 @@ export default function BookingHistory() {
   const navigate = useNavigate();
   const { bookingId: routeBookingId } = useParams();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const { topbarProfile } = useTopbarUserProfile("guest");
-  const {
-    notifRef,
-    notifOpen,
-    setNotifOpen,
-    bellUnreadCount,
-    displayNotifications,
-  } = useGuestTopbarNotifications();
 
   // Tabs
   const [activeTab, setActiveTab] = useState("room");
@@ -346,9 +302,7 @@ export default function BookingHistory() {
   const [reviewToastSub, setReviewToastSub] = useState("Thank you and always happy to serve you!");
 
   const fileInputRef = useRef(null);
-  const userRef = useRef(null);
   const bookingsLoadedRef = useRef(false);
-  const [userOpen, setUserOpen] = useState(false);
   const {
     sidebarCollapsed,
     isMobile,
@@ -361,15 +315,6 @@ export default function BookingHistory() {
     logoWrapStyle,
     logoImgStyle,
   } = useGuestSidebarLayout();
-
-  useEffect(() => {
-    function handleClick(e) {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-    }
-    document.addEventListener("click", handleClick);
-    return () => document.removeEventListener("click", handleClick);
-  }, [notifRef, setNotifOpen]);
 
   const loadBookings = useCallback(async () => {
     if (bookingsLoadedRef.current) return;
@@ -389,7 +334,7 @@ export default function BookingHistory() {
       const [list, catalog, venues] = await Promise.all([
         fetchBookingsBackend(),
         fetchRoomsCatalog().catch(() => []),
-        fetchEventVenuesBackend().catch(() => []),
+        fetchPublicEventVenuesCatalog().catch(() => []),
       ]);
       const venuesArr = Array.isArray(venues) ? venues : [];
       setRoomIdToNumber(buildRoomIdToNumberMap(catalog));
@@ -566,57 +511,7 @@ export default function BookingHistory() {
             />
             <span className="breadcrumb-title">Archive</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((o) => !o);
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              bellIconClassName="topbar-icon"
-              dot={bellUnreadCount > 0 ? "active" : null}
-              onItemClick={(n) => {
-                const bookingId = String(n?.bookingId || "").trim();
-                setNotifOpen(false);
-                setUserOpen(false);
-                if (bookingId) navigate(`/my-bookings/${bookingId}`);
-              }}
-            />
-            <div
-              className="icon-btn"
-              ref={userRef}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUserOpen((o) => !o);
-                setNotifOpen(false);
-              }}
-            >
-              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span
-                className="user-arrow"
-                style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
-              >
-                ▾
-              </span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.guest.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <GuestTopbarActions onRequestLogout={requestLogout} />
         </header>
 
         {/* ── PAGE CONTENT ── */}

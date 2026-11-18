@@ -13,7 +13,7 @@ import {
   GUEST_BOOKINGS_STORAGE_PING_KEY,
 } from "../api/guestApi";
 import { getStoredAuthToken, AUTH_TOKEN_CHANGED_EVENT, getSessionRole } from "../api/authApi";
-import StaffTopbarActions from "../topbar/StaffTopbarActions";
+import FrontdeskTopbarActions from "./FrontdeskTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
@@ -474,7 +474,7 @@ export default function FrontdeskDashboard() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Dashboard</span>
           </div>
-          <StaffTopbarActions
+          <FrontdeskTopbarActions
             roleKey="frontdesk"
             notifications={displayNotifications}
             dot={pendingCount > 0 ? "active" : null}

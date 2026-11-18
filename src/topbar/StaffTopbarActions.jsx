@@ -25,6 +25,8 @@ import { useTopbarUserProfile } from "./useTopbarUserProfile";
  * @param {() => void} [props.onRequestLogout]
  * @param {object} [props.dropdownProfile] — if set, passed to the user dropdown instead of `useTopbarUserProfile` (e.g. cashier settings merged with form state).
  * @param {() => void} [props.onMenusClosedExtra]
+ * @param {import('react').ReactNode} [props.middleSlot] — e.g. chat icon between bell and profile
+ * @param {() => void} [props.onMiddleSlotClose] — called when bell or profile opens
  */
 const StaffTopbarActions = forwardRef(function StaffTopbarActions(
   {
@@ -40,6 +42,8 @@ const StaffTopbarActions = forwardRef(function StaffTopbarActions(
     onNotificationItemClick,
     onMenusClosedExtra,
     dropdownProfile,
+    middleSlot,
+    onMiddleSlotClose,
   },
   ref,
 ) {
@@ -93,7 +97,10 @@ const StaffTopbarActions = forwardRef(function StaffTopbarActions(
           e.stopPropagation();
           setNotifOpen((v) => {
             const opening = !v;
-            if (opening) onNotificationsPanelOpen?.();
+            if (opening) {
+              onNotificationsPanelOpen?.();
+              onMiddleSlotClose?.();
+            }
             return !v;
           });
           setUserOpen(false);
@@ -109,12 +116,17 @@ const StaffTopbarActions = forwardRef(function StaffTopbarActions(
         }}
       />
 
+      {middleSlot}
+
       <div
         className="icon-btn icon-btn--profile"
         ref={userRef}
         onClick={(e) => {
           e.stopPropagation();
-          setUserOpen((v) => !v);
+          setUserOpen((v) => {
+            if (!v) onMiddleSlotClose?.();
+            return !v;
+          });
           setNotifOpen(false);
         }}
       >

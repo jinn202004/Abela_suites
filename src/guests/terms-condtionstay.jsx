@@ -1,52 +1,14 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import TopbarAvatar from "../topbar/TopbarAvatar";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
-import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
+import GuestTopbarActions from "./GuestTopbarActions";
 import GuestSidebar from "./GuestSidebar";
-import { GuestArchiveIcon } from "./guestArchiveIcon";
+import { buildGuestNavItems } from "./guestNavItems";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
 import "./terms-conditionstay.css"; // reuse the same stylesheet
 
-// --- Icons (same as DataPrivacy) ---
-const HomeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-  </svg>
-);
-const RoomIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-  </svg>
-);
-const EventIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-const SettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
-const navItems = [
-  { label: "Homepage",     icon: <HomeIcon />,     href: "/home"           },
-  { label: "Rooms",        icon: <RoomIcon />,     href: "/rooms"                       },
-  { label: "Event Venues", icon: <EventIcon />,    href: "/event-venues"                },
-  { label: "Archive",      icon: <GuestArchiveIcon />, href: "/booking-history" },
-  { label: "Settings",     icon: <SettingsIcon />, href: "/settings",  active: true   },
-];
+const navItems = buildGuestNavItems("/settings");
 
 const sections = [
   {
@@ -118,17 +80,6 @@ const sections = [
 ];
 
 export default function TermsCondition() {
-  const navigate = useNavigate();
-  const { topbarProfile } = useTopbarUserProfile("guest");
-  const {
-    notifRef,
-    notifOpen,
-    setNotifOpen,
-    bellUnreadCount,
-    displayNotifications,
-  } = useGuestTopbarNotifications();
-  const [userOpen, setUserOpen] = useState(false);
-  const userRef = useRef(null);
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
   const {
     sidebarCollapsed,
@@ -142,15 +93,6 @@ export default function TermsCondition() {
     logoWrapStyle,
     logoImgStyle,
   } = useGuestSidebarLayout();
-
-  useEffect(() => {
-    const onMouseDown = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [notifRef, setNotifOpen]);
 
   return (
     <>
@@ -184,54 +126,7 @@ export default function TermsCondition() {
             />
             <span className="breadcrumb-title">Settings</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => !v);
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              bellIconClassName="topbar-icon"
-              dot={bellUnreadCount > 0 ? "active" : null}
-              onItemClick={(n) => {
-                const bookingId = String(n?.bookingId || "").trim();
-                setNotifOpen(false);
-                setUserOpen(false);
-                if (bookingId) navigate(`/my-bookings/${bookingId}`);
-              }}
-            />
-            <div
-              className="icon-btn"
-              ref={userRef}
-              style={{ position: "relative" }}
-              onMouseDown={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setUserOpen((v) => !v);
-                setNotifOpen(false);
-              }}
-            >
-              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.guest.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <GuestTopbarActions onRequestLogout={requestLogout} />
         </header>
 
         {/* ── PAGE CONTENT ── */}

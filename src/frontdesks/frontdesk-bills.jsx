@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import StaffTopbarActions from "../topbar/StaffTopbarActions";
+import FrontdeskTopbarActions from "./FrontdeskTopbarActions";
 import { useFrontdeskPendingNotifications } from "./useFrontdeskPendingNotifications";
 import { Modal } from "../components/Modal";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
@@ -667,7 +667,10 @@ export default function BillsPage() {
   const { mainStyle } = useFrontdeskShell();
   const staffRole = getSessionRole();
   const canRecordPayment =
-    staffRole === "cashier" || staffRole === "admin" || staffRole === "superadmin";
+    staffRole === "cashier" ||
+    staffRole === "admin" ||
+    staffRole === "superadmin" ||
+    staffRole === "frontdesk";
   const totalItems = filtered.length;
   const billsSliceFrom = pagedBills.length > 0 ? (billsPageSafe - 1) * billsPageSizeSafe + 1 : 0;
   const billsSliceTo =
@@ -706,7 +709,7 @@ export default function BillsPage() {
             <FrontdeskSidebarToggle />
             <span className="breadcrumb-title">Bills and Invoices</span>
           </div>
-          <StaffTopbarActions
+          <FrontdeskTopbarActions
             ref={staffTopbarRef}
             roleKey="frontdesk"
             notifications={displayNotifications}
@@ -826,9 +829,6 @@ export default function BillsPage() {
           </div>
 
           <div className="bm-toolbar-subrow bills-toolbar-subrow">
-            {!canRecordPayment && staffRole === "frontdesk" ? (
-              <span className="bills-role-hint">Front desk: view-only · Payments require cashier or admin</span>
-            ) : null}
             <p className="bm-toolbar-hint">
               Leave empty to include all billing rows. Month filter uses check-in or event date.
             </p>

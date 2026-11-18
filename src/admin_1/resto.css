@@ -224,6 +224,12 @@
     gap: 10px;
   }
 
+  .resto-admin-page .resto-cat-tabs-status {
+    color: var(--text-light);
+    font-size: 13px;
+    padding: 8px 0;
+  }
+
   .resto-admin-page .resto-cat-tab {
     margin: 0;
     padding: 9px 20px;

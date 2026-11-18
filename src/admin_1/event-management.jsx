@@ -218,7 +218,9 @@ function mapEventBookingToStatusRow(b, venueDoc) {
 }
 
 const EMPTY_FORM = {
+  name: "",
   package: "",
+  location: "",
   limit: "",
   price: "",
   status: "available",
@@ -322,6 +324,17 @@ function VenueModal({ visible, isEdit, form, setForm, formErr, setFormErr, savin
           </button>
         </div>
         <div className="rm-modal-body">
+          <div className="rm-form-group">
+            <label>Title</label>
+            <input
+              type="text"
+              className="rm-input"
+              placeholder="e.g. Grand Ballroom, Function Hall"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+            />
+          </div>
+
           <div className="rm-form-row">
             <div className="rm-form-group rm-form-group--full">
               <label>Package</label>
@@ -387,6 +400,19 @@ function VenueModal({ visible, isEdit, form, setForm, formErr, setFormErr, savin
 
           <div className="rm-form-row">
             <div className="rm-form-group rm-form-group--full">
+              <label>Location</label>
+              <input
+                type="text"
+                className="rm-input"
+                placeholder="e.g. Rooftop, Ground floor"
+                value={form.location}
+                onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+              />
+            </div>
+          </div>
+
+          <div className="rm-form-row">
+            <div className="rm-form-group rm-form-group--full">
               <label>Features</label>
               <div className="rm-checkbox-group">
                 {[
@@ -422,7 +448,7 @@ function VenueModal({ visible, isEdit, form, setForm, formErr, setFormErr, savin
             <label>Description</label>
             <textarea
               className="rm-textarea"
-              placeholder="Write something here..."
+              placeholder="Optional description for guests..."
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
             />
@@ -538,7 +564,7 @@ export default function EventManage() {
         e.code === "NO_TOKEN"
           ? "Sign in as admin to manage event venues."
           : e.status === 403
-            ? "Admin access required for /api/eventvenues."
+            ? "Admin access required for /api/event-venues."
             : e.message || "Could not load event venues.";
       setVenuesError(msg);
       setVenues([]);
@@ -567,7 +593,7 @@ export default function EventManage() {
           e?.code === "NO_TOKEN"
             ? "Sign in as admin to manage event venues."
             : e?.status === 403
-              ? "Admin access required for /api/eventvenues."
+              ? "Admin access required for /api/event-venues."
               : e?.message || "Could not load event venues.";
         setVenuesError(msg);
         setVenues([]);
@@ -705,7 +731,9 @@ export default function EventManage() {
     setEditingVenueId(String(v.id));
     const feat = mapVenueFeaturesToForm(v.features);
     setForm({
+      name: String(v.name || v.venueName || v.package || "").trim(),
       package: String(v.package || v.venueName || v.name || "").trim(),
+      location: String(v.location || "").trim(),
       limit: String(v.limit || (v.capacity != null ? `${v.capacity} guests` : "")),
       price: v.price != null && Number.isFinite(Number(v.price)) ? String(v.price) : "",
       status: EVENT_VENUE_STATUSES.includes(String(v.status)) ? String(v.status) : "available",
@@ -723,10 +751,11 @@ export default function EventManage() {
 
   const saveVenue = async () => {
     setFormErr("");
-    const pkg = String(form.package || "").trim();
+    const nameTrim = String(form.name || "").trim();
+    const pkgTrim = String(form.package || "").trim();
     const cap = capacityFromLimitText(form.limit);
-    if (!pkg) {
-      setFormErr("Package is required.");
+    if (!nameTrim && !pkgTrim) {
+      setFormErr("Venue title is required.");
       return;
     }
     if (!Number.isInteger(cap) || cap < 1) {
@@ -738,20 +767,27 @@ export default function EventManage() {
       setFormErr("Price is required.");
       return;
     }
+    const features = featuresFromVenueForm(form);
+    if (features.length === 0) {
+      setFormErr("Select or enter at least one feature.");
+      return;
+    }
 
+    const lim = String(form.limit || "").trim() || `${cap} guests`;
     const payload = {
-      venueName: pkg,
-      package: pkg,
+      name: nameTrim || pkgTrim,
+      package: pkgTrim || nameTrim,
+      limit: lim,
       capacity: cap,
       price: priceRaw,
+      location: String(form.location || "").trim() || "On premises",
+      description: String(form.description || "").trim() || (nameTrim || pkgTrim),
+      image: String(form.image || "").trim(),
+      features,
+      type: "Event",
       status: form.status,
-      description: String(form.description || "").trim(),
-      imageUrl: String(form.image || "").trim(),
-      features: featuresFromVenueForm(form),
     };
     if (String(form.eventNum || "").trim()) payload.eventNum = String(form.eventNum).trim();
-    const lim = String(form.limit || "").trim();
-    if (lim) payload.limit = lim;
 
     setSavingVenue(true);
     try {
@@ -812,7 +848,7 @@ export default function EventManage() {
             notifications={[
               {
                 id: "ev-1",
-                msg: "Venues: GET/POST/PUT/DELETE /api/eventvenues (admin). Catalog for staff remains GET /api/event-venues.",
+                msg: "Venues: GET/POST/PATCH/DELETE /api/event-venues (admin). Catalog for staff remains GET /api/event-venues.",
                 time: "Admin",
                 read: true,
               },

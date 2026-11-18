@@ -1,13 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { getStoredAuthToken } from "../api/authApi";
-import TopbarAvatar from "../topbar/TopbarAvatar";
-import { TOPBAR } from "../topbar/roleTopbarData";
-import { useTopbarUserProfile } from "../topbar/useTopbarUserProfile";
-import { RoleUserDropdown } from "../topbar/RoleTopbarDropdowns";
-import { RoleTopbarBell } from "../topbar/RoleTopbarBell";
 import { LogoutConfirmModal } from "../topbar/LogoutConfirmModal";
 import { useRoleLogoutModal } from "../topbar/useRoleLogoutModal";
+import GuestTopbarActions from "./GuestTopbarActions";
 import { computeRoomAvailabilitySearch } from "./roomAvailabilitySearch";
 import { isRoomAvailableForDates } from "./guestAvailability";
 import {
@@ -38,18 +34,12 @@ import {
   GUEST_BOOKINGS_STORAGE_PING_KEY,
 } from "../api/guestApi";
 import {
-  uploadBookingGuestValidIdDirectBackend,
-  uploadPaymentProofDirectBackend,
-} from "../api/imageUploadApi";
-import {
-  handleImageFileInputChange,
-  isBookingSubmitImageRef,
-  isHttpImageUrl,
-  resolveImageUrlForSubmit,
+  isStoredImageRef,
+  readImageFileAsDataUrlLimited,
+  validateImageFileType,
 } from "../utils/s3ImageUpload";
-import { useGuestTopbarNotifications } from "./useGuestTopbarNotifications";
 import GuestSidebar from "./GuestSidebar";
-import { GuestArchiveIcon } from "./guestArchiveIcon";
+import { buildGuestNavItems } from "./guestNavItems";
 import { useGuestSidebarLayout } from "./useGuestSidebarLayout";
 import RailPortalShell from "../layouts/RailPortalShell";
 import HousekeepingSidebarToggle from "../housekeeping/HousekeepingSidebarToggle";
@@ -67,30 +57,7 @@ const GCASH_CARD_ICON = "/Gcash.png";
 const GCASH_PAYMENT_QR = "/QR.png";
 
 // --- Icons ---
-const HomeIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
-  </svg>
-);
-const RoomIcon = () => (
-  <svg viewBox="0 0 24 24" fill="white" width="22" height="22">
-    <path d="M7 13c1.66 0 3-1.34 3-3S8.66 7 7 7s-3 1.34-3 3 1.34 3 3 3zm12-6h-8v7H3V5H1v15h2v-3h18v3h2v-9a4 4 0 0 0-4-4z" />
-  </svg>
-);
-const EventIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <rect x="3" y="4" width="18" height="18" rx="2" />
-    <line x1="16" y1="2" x2="16" y2="6" />
-    <line x1="8" y1="2" x2="8" y2="6" />
-    <line x1="3" y1="10" x2="21" y2="10" />
-  </svg>
-);
-const SettingsIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" width="22" height="22">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-);
+const navItems = buildGuestNavItems("/rooms");
 const GuestsIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
@@ -138,21 +105,16 @@ const CashPayIcon = () => (
   </svg>
 );
 // --- Nav Items ---
-const navItems = [
-  { label: "Homepage",     icon: <HomeIcon />,     href: "/home"           },
-  { label: "Rooms",        icon: <RoomIcon />,     href: "/rooms", active: true                       },
-  { label: "Event Venues", icon: <EventIcon />,    href: "/event-venues"                },
-  { label: "Archive",      icon: <GuestArchiveIcon />, href: "/booking-history" },
-  { label: "Settings",     icon: <SettingsIcon />, href: "/settings"  },
-];
-
 function formatRoomPriceDisplay(n) {
   if (n == null || !Number.isFinite(Number(n))) return "—";
   const num = Number(n);
   return `₱${num.toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-/** Map `GET /api/rooms` items to the UI card shape (see `be/abela-be/README.md`). */
+const ROOM_DEFAULT_FEATURES = ["Free Breakfast", "WiFi", "TV", "Bathroom Amenities"];
+const ROOM_DEFAULT_DESC =
+  "Comfortable room with air conditioning, private bath, and WiFi.";
+const ROOM_RATE_NOTE = "Per night";
 function mapApiRoomToView(api) {
   const priceNum = Number(api.price);
   const guests = Math.max(1, parseInt(String(api.guests), 10) || 1);
@@ -178,9 +140,14 @@ function mapApiRoomToView(api) {
     priceNew: formatRoomPriceDisplay(api.price),
     priceNum: Number.isFinite(priceNum) ? priceNum : 0,
     maxGuests: guests,
-    guestLabel: `Up to ${guests} Guest${guests > 1 ? "s" : ""}`,
-    desc: String(api.description ?? "").trim() || "—",
-    features: Array.isArray(api.features) && api.features.length ? api.features : [],
+    guestLabel: `${guests} Guest${guests !== 1 ? "s" : ""}`,
+    desc:
+      String(api.description ?? "").trim() ||
+      ROOM_DEFAULT_DESC,
+    features:
+      Array.isArray(api.features) && api.features.length
+        ? api.features
+        : ROOM_DEFAULT_FEATURES,
     img: primaryImg,
     images,
     packageLabel: String(api.package ?? api.title ?? "").trim(),
@@ -208,8 +175,8 @@ function buildRoomReservationPayload(
   const room = viewRooms.find((r) => r.name === resRoom);
   const total = bill?.total ?? 0;
   const email = form.customerEmail.trim().toLowerCase();
-  const hasId = isHttpImageUrl(idDataUrl);
-  const hasProof = isHttpImageUrl(paymentProofData);
+  const hasId = isStoredImageRef(idDataUrl);
+  const hasProof = isStoredImageRef(paymentProofData);
   return {
     roomId: String(room?.id ?? ""),
     customerName: form.customerName.trim(),
@@ -277,16 +244,6 @@ export default function Rooms() {
   const location = useLocation();
   const navigate = useNavigate();
   const { logoutModalOpen, requestLogout, closeLogoutModal, confirmLogout } = useRoleLogoutModal();
-  const {
-    notifRef,
-    notifOpen,
-    setNotifOpen,
-    bellUnreadCount,
-    displayNotifications,
-  } = useGuestTopbarNotifications();
-  const { topbarProfile } = useTopbarUserProfile("guest");
-  const userRef = useRef(null);
-  const [userOpen, setUserOpen] = useState(false);
   const [rooms, setRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [roomsError, setRoomsError] = useState(null);
@@ -349,15 +306,6 @@ export default function Rooms() {
     logoWrapStyle,
     logoImgStyle,
   } = useGuestSidebarLayout();
-
-  useEffect(() => {
-    const onMouseDown = (e) => {
-      if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
-      if (userRef.current && !userRef.current.contains(e.target)) setUserOpen(false);
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    return () => document.removeEventListener("mousedown", onMouseDown);
-  }, [notifRef, setNotifOpen]);
 
   useEffect(() => {
     if (!bookingSuccessToast) return undefined;
@@ -666,18 +614,25 @@ export default function Rooms() {
     const file = e.target.files?.[0];
     if (e.target) e.target.value = "";
     if (!file) return;
+    const typeErr = validateImageFileType(file);
+    if (typeErr) {
+      setIdPreview(null);
+      setIdFile(null);
+      setFormErrors((fe) => ({ ...fe, id: typeErr }));
+      window.alert(typeErr);
+      return;
+    }
     setIdFile(file);
     setFormErrors((fe) => ({ ...fe, id: false }));
-    await handleImageFileInputChange(file, {
-      uploadFn: uploadBookingGuestValidIdDirectBackend,
-      setPreview: setIdPreview,
-      requireS3: true,
-      setError: (msg) => {
-        setIdPreview(null);
-        setFormErrors((fe) => ({ ...fe, id: msg || "Please upload a valid government ID." }));
-        if (msg) window.alert(msg);
-      },
-    });
+    try {
+      const dataUrl = await readImageFileAsDataUrlLimited(file);
+      setIdPreview(dataUrl);
+    } catch (err) {
+      setIdPreview(null);
+      setIdFile(null);
+      setFormErrors((fe) => ({ ...fe, id: err?.message || "Please upload a valid government ID." }));
+      window.alert(err?.message || "Could not read the ID image.");
+    }
   }
 
   function validateRes() {
@@ -702,7 +657,7 @@ export default function Rooms() {
     ) {
       errs.checkOutDate = "These dates overlap an existing stay for this room. Please adjust your check-out.";
     }
-    if (!isBookingSubmitImageRef(idPreview)) errs.id = "Please upload a valid government ID.";
+    if (!isStoredImageRef(idPreview)) errs.id = "Please upload a valid government ID.";
     if (!form.termsCheck)   errs.termsCheck = "You must accept the Terms and Conditions.";
     if (!form.privacyCheck) errs.privacyCheck = "You must agree to the Data Privacy & Policy.";
     if (!form.stayCheck)    errs.stayCheck = "You must agree to the Terms & Conditions of Stay.";
@@ -767,24 +722,21 @@ export default function Rooms() {
       }
       setResSubmitting(true);
       try {
-        const idUrl = await resolveImageUrlForSubmit(
-          idPreview,
-          idFile,
-          uploadBookingGuestValidIdDirectBackend,
-          "Government ID photo",
-        );
-        const proofUrl = await resolveImageUrlForSubmit(
-          pendingGcash.proofPreview,
-          pendingGcash.proofFile,
-          uploadPaymentProofDirectBackend,
-          "Payment proof",
-        );
+        const idDataUrl = isStoredImageRef(idPreview) ? String(idPreview).trim() : "";
+        const proofDataUrl =
+          pendingGcash.proofPreview && isStoredImageRef(pendingGcash.proofPreview)
+            ? String(pendingGcash.proofPreview).trim()
+            : "";
+        if (!idDataUrl) {
+          window.alert("Please upload a valid government ID.");
+          return;
+        }
         const payload = buildRoomReservationPayload(rooms, form, resRoom, {
           bill: stayBill,
           paymentAmountNum: pendingGcash.paidNum,
           transactionId: pendingGcash.txId,
-          idDataUrl: idUrl,
-          paymentProofData: proofUrl,
+          idDataUrl,
+          paymentProofData: proofDataUrl,
           paymentDate: pendingGcash.date,
         });
         await saveRoomReservation(payload);
@@ -808,16 +760,15 @@ export default function Rooms() {
     }
     setResSubmitting(true);
     try {
-      const idUrl = await resolveImageUrlForSubmit(
-        idPreview,
-        idFile,
-        uploadBookingGuestValidIdDirectBackend,
-        "Government ID photo",
-      );
+      const idDataUrl = isStoredImageRef(idPreview) ? String(idPreview).trim() : "";
+      if (!idDataUrl) {
+        window.alert("Please upload a valid government ID.");
+        return;
+      }
       const payload = buildRoomReservationPayload(rooms, form, resRoom, {
         bill: stayBill,
         paymentAmountNum: 0,
-        idDataUrl: idUrl,
+        idDataUrl,
       });
       await saveRoomReservation(payload);
       dispatchFrontdeskNotificationsRefresh();
@@ -879,18 +830,25 @@ export default function Rooms() {
     const file = e.target.files?.[0];
     if (e.target) e.target.value = "";
     if (!file) return;
+    const typeErr = validateImageFileType(file);
+    if (typeErr) {
+      setProofPreview(null);
+      setProofFile(null);
+      setPayErrors((pe) => ({ ...pe, proof: typeErr }));
+      window.alert(typeErr);
+      return;
+    }
     setProofFile(file);
     setPayErrors((pe) => ({ ...pe, proof: false }));
-    await handleImageFileInputChange(file, {
-      uploadFn: uploadPaymentProofDirectBackend,
-      setPreview: setProofPreview,
-      requireS3: true,
-      setError: (msg) => {
-        setProofPreview(null);
-        setPayErrors((pe) => ({ ...pe, proof: msg || "Please upload proof of payment." }));
-        if (msg) window.alert(msg);
-      },
-    });
+    try {
+      const dataUrl = await readImageFileAsDataUrlLimited(file);
+      setProofPreview(dataUrl);
+    } catch (err) {
+      setProofPreview(null);
+      setProofFile(null);
+      setPayErrors((pe) => ({ ...pe, proof: err?.message || "Please upload proof of payment." }));
+      window.alert(err?.message || "Could not read the payment proof image.");
+    }
   }
 
   function submitPayment() {
@@ -898,7 +856,7 @@ export default function Rooms() {
     if (!payForm.amount.trim()) errs.amount = "Amount paid is required.";
     if (!payForm.date.trim())   errs.date = "Payment date is required.";
     if (!payForm.txId.trim())   errs.txId = "Transaction ID is required.";
-    if (!isBookingSubmitImageRef(proofPreview)) errs.proof = "Please upload proof of payment.";
+    if (!isStoredImageRef(proofPreview)) errs.proof = "Please upload proof of payment.";
     setPayErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
@@ -978,52 +936,7 @@ export default function Rooms() {
             />
             <span className="breadcrumb-title">Rooms</span>
           </div>
-          <div className="topbar-actions">
-            <RoleTopbarBell
-              ref={notifRef}
-              isOpen={notifOpen}
-              onBellClick={(e) => {
-                e.stopPropagation();
-                setNotifOpen((v) => !v);
-                setUserOpen(false);
-              }}
-              notifications={displayNotifications}
-              bellIconClassName="topbar-icon"
-              dot={bellUnreadCount > 0 ? "active" : null}
-              onItemClick={(n) => {
-                const bookingId = String(n?.bookingId || "").trim();
-                setNotifOpen(false);
-                setUserOpen(false);
-                if (bookingId) navigate(`/my-bookings/${bookingId}`);
-              }}
-            />
-            <div
-              className="icon-btn"
-              ref={userRef}
-              onClick={(e) => {
-                e.stopPropagation();
-                setUserOpen((v) => !v);
-                setNotifOpen(false);
-              }}
-            >
-              <TopbarAvatar src={topbarProfile.avatarUrl} className="topbar-nav-avatar" />
-              <span className="user-arrow" style={{ transform: userOpen ? "rotate(180deg)" : "rotate(0deg)" }}>▾</span>
-              <RoleUserDropdown
-                isOpen={userOpen}
-                profile={topbarProfile}
-                profilePath={TOPBAR.guest.profilePath}
-                onCloseMenus={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                }}
-                onLogout={() => {
-                  setNotifOpen(false);
-                  setUserOpen(false);
-                  requestLogout();
-                }}
-              />
-            </div>
-          </div>
+          <GuestTopbarActions onRequestLogout={requestLogout} />
         </header>
 
         {/* ── CONTENT ── */}
@@ -1081,14 +994,19 @@ export default function Rooms() {
               const st = roomStatuses[r.id];
               const isUnavailable = Boolean(st && !st.ok);
               const highlightMatch = Boolean(availabilityFilterActive && st?.ok);
+              const badgeLabel = st ? st.label : barCheckIn ? "—" : "";
               return (
                 <div
                   key={r.id}
                   className={`room-card${isUnavailable ? " unavailable" : ""}${highlightMatch ? " room-card--search-match" : ""}`}
                 >
-                  <span className={`avail-badge${st ? (st.ok ? " badge-available" : " badge-unavailable") : ""}`}>
-                    {st && !st.ok ? <XIcon /> : <CheckIcon />}
-                    <span>{st ? st.label : "Available"}</span>
+                  <span
+                    className={`avail-badge${
+                      st ? (isUnavailable ? " badge-unavailable" : " badge-available") : ""
+                    }`}
+                  >
+                    {isUnavailable ? <XIcon /> : st ? <CheckIcon /> : null}
+                    <span>{badgeLabel}</span>
                   </span>
                   <div className="room-img-wrap">
                     <button
@@ -1105,7 +1023,7 @@ export default function Rooms() {
                     >
                       <img src={r.img} alt="" decoding="async" aria-hidden="true" />
                       <span className="room-img-zoom-hint" aria-hidden="true">
-                        View details
+                        View photo
                       </span>
                     </button>
                   </div>
@@ -1116,8 +1034,8 @@ export default function Rooms() {
                       <span className="room-type-value">{r.packageLabel || "Room"}</span>
                     </p>
                     <div className="room-pricing">
-                      {r.priceOld && <span className="room-price-old">{r.priceOld}</span>}
                       <span className="room-price-new">{r.priceNew}</span>
+                      <span className="venue-price-note">{ROOM_RATE_NOTE}</span>
                       <span className="room-guests">
                         <GuestsIcon /> {r.guestLabel}
                       </span>
@@ -1125,8 +1043,8 @@ export default function Rooms() {
                     <p className="room-desc">{r.desc}</p>
                     <p className="features-label">Features:</p>
                     <div className="features-grid">
-                      {r.features.map((f) => (
-                        <span key={f} className="feature-item">
+                      {r.features.map((f, i) => (
+                        <span key={`${r.id}-f-${i}`} className="feature-item">
                           ✔ {f}
                         </span>
                       ))}
@@ -1134,11 +1052,12 @@ export default function Rooms() {
                     <div className="room-footer">
                       <span className="dates-tag">{st?.dateLabel || ""}</span>
                       <button
+                        type="button"
                         className="btn-book-now"
                         disabled={isUnavailable}
                         onClick={() => openRes(r.name)}
                       >
-                        Book Now
+                        Reserve
                       </button>
                     </div>
                   </div>

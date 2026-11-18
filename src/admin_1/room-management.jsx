@@ -43,10 +43,12 @@ function mapApiRoomToAdmin(api) {
     : "—";
   const pkg =
     String(api.package ?? "").trim() || String(api.title ?? "").trim();
+  const title = String(api.title ?? "").trim() || pkg;
   const apiStatus = String(api.status ?? "available").trim().toLowerCase();
   return {
     apiId: String(api.id ?? ""),
     roomNum: String(api.roomNumber ?? "").trim(),
+    title,
     packageField: pkg,
     package: pkg || "—",
     type: "Room",
@@ -76,7 +78,7 @@ function stripPriceInput(raw) {
 }
 
 const BLANK_FORM = {
-  roomNum: "", package: "", limit: "", price: "", description: "",
+  title: "", roomNum: "", package: "", limit: "", price: "", description: "",
   featBreakfast: false, featWifi: false, featTv: false, featBath: false,
   featOther: "",
   image: "",
@@ -346,6 +348,7 @@ export default function RoomManagement() {
     const r = rooms[idx];
     setEditIdx(idx);
     setForm({
+      title:        r.title || r.packageField || "",
       roomNum:      r.roomNum,
       package:      r.packageField != null ? r.packageField : "",
       limit:        r.limit,
@@ -475,9 +478,15 @@ export default function RoomManagement() {
 
   async function saveRoom() {
     if (imageUploadBusy) return;
-    const { roomNum, package: pkg, limit, price } = form;
-    if (!roomNum.trim() || !pkg.trim() || !limit.trim() || String(price).trim() === "") {
-      setFormErr("Room number, package, limit and price are required.");
+    const { title, roomNum, package: pkg, limit, price } = form;
+    const titleTrim = String(title || "").trim();
+    const pkgTrim = String(pkg || "").trim();
+    if (!titleTrim && !pkgTrim) {
+      setFormErr("Title is required.");
+      return;
+    }
+    if (!roomNum.trim() || !limit.trim() || String(price).trim() === "") {
+      setFormErr("Room number, limit and price are required.");
       return;
     }
     const guests = parseGuestsFromLimit(limit);
@@ -499,8 +508,9 @@ export default function RoomManagement() {
     if (form.featOther.trim()) features.push(form.featOther.trim());
 
     const payload = {
+      title: titleTrim || pkgTrim,
       roomNumber: roomNum.trim(),
-      package: pkg.trim(),
+      package: pkgTrim || titleTrim,
       price: priceNum,
       guests,
       description: (form.description || "").trim(),
@@ -916,6 +926,13 @@ export default function RoomManagement() {
             </div>
             <div className="rm-modal-body">
 
+              <div className="rm-form-group">
+                <label>Title</label>
+                <input type="text" className="rm-input" placeholder="e.g. Single Suites, Deluxe King"
+                       value={form.title}
+                       onChange={e => handleFormChange("title", e.target.value)}/>
+              </div>
+
               <div className="rm-form-row">
                 <div className="rm-form-group">
                   <label>Room number</label>
@@ -975,7 +992,7 @@ export default function RoomManagement() {
 
               <div className="rm-form-group">
                 <label>Description</label>
-                <textarea className="rm-textarea" placeholder="Write something here..."
+                <textarea className="rm-textarea" placeholder="Optional description for guests..."
                           value={form.description}
                           onChange={e => handleFormChange("description", e.target.value)}/>
               </div>
@@ -1090,6 +1107,7 @@ export default function RoomManagement() {
         {viewRoom ? (
           <div className="view-item-info">
             <AdminDetailHeroImage src={viewRoom.image} alt={viewRoom.package} />
+            <AdminDetailRow label="Title" value={viewRoom.title || viewRoom.package} />
             <AdminDetailRow label="Package" value={viewRoom.package} />
             <AdminDetailRow label="Room number" value={viewRoom.roomNum || "—"} />
             <AdminDetailRow label="Type" value={viewRoom.type} />

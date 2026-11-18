@@ -66,7 +66,7 @@ function orderCategoryNames(rows = []) {
       ordered.push(n);
     }
   }
-  return ordered.length > 0 ? ordered : [...CATEGORIES_FALLBACK];
+  return ordered;
 }
 
 function guessImageContentType(file) {
@@ -346,10 +346,7 @@ export default function RestoMenu() {
     dishesRef.current = dishes;
   }, [dishes]);
 
-  const categoryNames = useMemo(() => {
-    const ordered = orderCategoryNames(categories);
-    return ordered.length > 0 ? ordered : [...CATEGORIES_FALLBACK];
-  }, [categories]);
+  const categoryNames = useMemo(() => orderCategoryNames(categories), [categories]);
 
   const showToast = useCallback((msg) => {
     clearTimeout(toastTimer.current);
@@ -430,7 +427,9 @@ export default function RestoMenu() {
       setLoadNotice(
         e?.code === "NO_TOKEN"
           ? "Sign in as admin to load the menu from the database."
-          : e?.message || "Could not load restaurant data.",
+          : e?.status === 404
+            ? "Menu API not found on this server. Use the local backend (VITE_API_BASE_URL=http://127.0.0.1:5000) or deploy the latest API."
+            : e?.message || "Could not load restaurant data.",
       );
       setDishes([]);
       setTotalItems(0);
@@ -680,8 +679,13 @@ export default function RestoMenu() {
   }
 
   function openAddModal() {
+    if (loading) {
+      showToast("Still loading menu categories…");
+      return;
+    }
     if (categories.length === 0) {
-      showToast("No categories yet - refresh the page or check admin login.");
+      const hint = loadNotice || "Could not load categories from the server.";
+      showToast(hint);
       void loadRestaurantBootstrap();
       return;
     }
@@ -829,7 +833,10 @@ export default function RestoMenu() {
         }
         setFImage(result.publicUrl);
       } catch (err) {
-        if (MENU_IMAGE_LOCAL_FALLBACK_ENABLED && (err?.status === 503 || isLikelyNetworkFailure(err))) {
+        if (
+          MENU_IMAGE_LOCAL_FALLBACK_ENABLED &&
+          (err?.status === 503 || err?.status === 404 || isLikelyNetworkFailure(err))
+        ) {
           await applyLocalPreview(err?.status === 503 ? "s3-disabled" : "network");
           return;
         }
@@ -847,7 +854,6 @@ export default function RestoMenu() {
     }
   }
 
-  const tabsToShow = categoryNames;
   const showDishPlaceholders =
     delayedListSkeleton &&
     menuFetching &&
@@ -917,23 +923,31 @@ export default function RestoMenu() {
             aria-label="Menu categories"
             aria-busy={menuFetching && dishes.length === 0 ? "true" : "false"}
           >
-            {tabsToShow.map((cat) => (
-              <button
-                key={cat}
-                type="button"
-                role="tab"
-                aria-selected={cat === currentCat}
-                className={`resto-cat-tab${cat === currentCat ? " resto-cat-tab--active" : ""}`}
-                onClick={() => {
-                  setMenuPage(1);
-                  setCurrentCat(cat);
-                }}
-                onFocus={() => prefetchCategoryMenu(cat)}
-                onMouseEnter={() => prefetchCategoryMenu(cat)}
-              >
-                {cat}
-              </button>
-            ))}
+            {loading ? (
+              <span className="resto-cat-tabs-status">Loading categories…</span>
+            ) : categoryNames.length === 0 ? (
+              <span className="resto-cat-tabs-status">
+                {loadNotice || "No menu categories loaded. Refresh the page or sign in as admin."}
+              </span>
+            ) : (
+              categoryNames.map((cat) => (
+                <button
+                  key={cat}
+                  type="button"
+                  role="tab"
+                  aria-selected={cat === currentCat}
+                  className={`resto-cat-tab${cat === currentCat ? " resto-cat-tab--active" : ""}`}
+                  onClick={() => {
+                    setMenuPage(1);
+                    setCurrentCat(cat);
+                  }}
+                  onFocus={() => prefetchCategoryMenu(cat)}
+                  onMouseEnter={() => prefetchCategoryMenu(cat)}
+                >
+                  {cat}
+                </button>
+              ))
+            )}
           </div>
 
           {/* Dish grid - light shim first; full skeletons only if the request is slow */}
